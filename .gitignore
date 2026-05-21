@@ -27,5 +27,12 @@ unpackage/
 .idea/
 .vscode/
 
+# Codex / agent artifacts
+.codex/
+
+# Python caches
+__pycache__/
+*.pyc
+
 # Misc
 *.log
