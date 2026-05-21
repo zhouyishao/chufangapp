@@ -1,0 +1,59 @@
+:root,
+page {
+  --app-bg: #f5f7fa;
+  --app-surface: rgba(255, 255, 255, 0.88);
+  --app-surface-strong: #ffffff;
+  --app-text: #101114;
+  --app-text-secondary: #6b7280;
+  --app-text-tertiary: #98a2b3;
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-accent: #111111;
+  --app-accent-soft: #eef2f6;
+  --app-success: #3d7a57;
+  --app-warning: #b7791f;
+  --app-shadow: 0 16rpx 40rpx rgba(15, 23, 42, 0.06);
+
+  /* Font stacks (bundled via @fontsource in src/main.ts) */
+  --app-font-sans: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --app-font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+  --app-font-number: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --app-font-vibe: 'LXGW WenKai', 'Noto Serif SC', serif;
+}
+
+view,
+text,
+button,
+input,
+image,
+scroll-view,
+swiper,
+swiper-item {
+  box-sizing: border-box;
+}
+
+/* App 内滚动保留手势，但不展示浏览器默认滚动条。 */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.app-page {
+  min-height: 100vh;
+  padding: 32rpx 24rpx calc(220rpx + env(safe-area-inset-bottom, 0));
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.95), rgba(245, 247, 250, 0.92) 38%, #f5f7fa 100%);
+}
+
+.glass-card {
+  background: var(--app-surface);
+  border: 1rpx solid var(--app-border);
+  border-radius: 32rpx;
+  box-shadow: var(--app-shadow);
+  backdrop-filter: blur(24rpx);
+}

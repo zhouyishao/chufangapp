@@ -1,0 +1,357 @@
+<template>
+  <view class="app-page my-recipe-detail-page">
+    <view class="header-image">
+      <image class="header-image__bg" :src="recipe.image" mode="aspectFill" />
+      <view class="header-overlay">
+        <button class="round-button" @tap="goBack">←</button>
+        <button class="round-button" @tap="editRecipe">编辑</button>
+      </view>
+    </view>
+
+    <view class="content">
+      <view class="recipe-title-card glass-card">
+        <view>
+          <view class="title-row">
+            <text class="recipe-name">{{ recipe.name }}</text>
+            <text :class="['status-pill', { 'is-draft': recipe.status === 'draft' }]">
+              {{ recipe.status === 'draft' ? '草稿' : '已整理' }}
+            </text>
+          </view>
+          <text class="recipe-desc">{{ recipe.description }}</text>
+        </view>
+        <view class="meta-grid">
+          <view class="meta-item">
+            <text class="meta-label">耗时</text>
+            <text class="meta-value">{{ recipe.duration }}</text>
+          </view>
+          <view class="meta-item">
+            <text class="meta-label">难度</text>
+            <text class="meta-value">{{ recipe.difficulty }}</text>
+          </view>
+          <view class="meta-item">
+            <text class="meta-label">口味</text>
+            <text class="meta-value">{{ recipe.flavor }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="detail-card glass-card">
+        <view class="section-head">
+          <text class="section-title">用料</text>
+          <text class="section-note">{{ recipe.ingredients.length }} 项</text>
+        </view>
+        <view class="ingredient-list">
+          <view v-for="ingredient in recipe.ingredients" :key="ingredient.name" class="ingredient-row">
+            <text class="ingredient-name">{{ ingredient.name }}</text>
+            <text class="ingredient-amount">{{ ingredient.amount }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="detail-card glass-card">
+        <view class="section-head">
+          <text class="section-title">步骤</text>
+          <text class="section-note">{{ recipe.steps.length }} 步</text>
+        </view>
+        <view class="step-list">
+          <view v-for="(step, index) in recipe.steps" :key="step.title" class="step-item">
+            <view class="step-index">{{ index + 1 }}</view>
+            <view class="step-main">
+              <text class="step-title">{{ step.title }}</text>
+              <text class="step-desc">{{ step.description }}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="detail-card glass-card">
+        <view class="section-head">
+          <text class="section-title">试菜笔记</text>
+          <text class="section-note">{{ recipe.updatedAt }}</text>
+        </view>
+        <text class="note-text">{{ recipe.note }}</text>
+        <view class="setting-tags">
+          <text>{{ recipe.category }}</text>
+          <text>{{ recipe.visibility }}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
+import { findMyRecipeById } from '../../services/my-recipes';
+import type { MyRecipe } from '../../services/my-recipes';
+
+const recipe = ref<MyRecipe>(findMyRecipeById('my-1'));
+
+const goBack = () => {
+  uni.navigateBack();
+};
+
+const editRecipe = () => {
+  uni.navigateTo({ url: '/pages/recipe-create/index' });
+};
+
+onLoad((query?: Record<string, string | undefined>) => {
+  recipe.value = findMyRecipeById(query?.id ?? 'my-1');
+});
+</script>
+
+<style scoped lang="scss">
+.my-recipe-detail-page {
+  min-height: 100vh;
+  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+}
+
+.header-image {
+  position: relative;
+  height: 500rpx;
+  margin: -32rpx -32rpx 0;
+  overflow: hidden;
+  background: #eef2f6;
+}
+
+.header-image__bg {
+  width: 100%;
+  height: 100%;
+}
+
+.header-overlay {
+  position: absolute;
+  top: calc(32rpx + env(safe-area-inset-top, 0));
+  right: 32rpx;
+  left: 32rpx;
+  display: flex;
+  justify-content: space-between;
+}
+
+.round-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76rpx;
+  height: 76rpx;
+  padding: 0 24rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--app-text);
+  font-size: 26rpx;
+  font-weight: 900;
+  backdrop-filter: blur(14rpx);
+}
+
+.round-button::after {
+  border: 0;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  margin-top: -54rpx;
+}
+
+.recipe-title-card,
+.detail-card {
+  padding: 30rpx;
+  border-radius: 36rpx;
+  background: #ffffff;
+}
+
+.detail-card {
+  margin-top: 20rpx;
+}
+
+.title-row,
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.recipe-name,
+.recipe-desc,
+.meta-label,
+.meta-value,
+.section-title,
+.section-note,
+.ingredient-name,
+.ingredient-amount,
+.step-title,
+.step-desc,
+.note-text {
+  display: block;
+}
+
+.recipe-name {
+  color: var(--app-text);
+  font-size: 42rpx;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: #111111;
+  color: #ffffff;
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.status-pill.is-draft {
+  background: #eef1f5;
+  color: var(--app-text-secondary);
+}
+
+.recipe-desc {
+  margin-top: 16rpx;
+  color: var(--app-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 26rpx;
+}
+
+.meta-item {
+  padding: 18rpx;
+  border-radius: 24rpx;
+  background: #f3f5f8;
+}
+
+.meta-label {
+  color: var(--app-text-tertiary);
+  font-size: 20rpx;
+  font-weight: 900;
+}
+
+.meta-value {
+  margin-top: 8rpx;
+  color: var(--app-text);
+  font-size: 25rpx;
+  font-weight: 950;
+}
+
+.section-title {
+  color: var(--app-text);
+  font-size: 32rpx;
+  font-weight: 950;
+}
+
+.section-note {
+  color: var(--app-text-tertiary);
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.ingredient-list {
+  margin-top: 18rpx;
+  border-radius: 26rpx;
+  overflow: hidden;
+  background: #f6f7f9;
+}
+
+.ingredient-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 82rpx;
+  padding: 0 22rpx;
+  border-bottom: 1rpx solid rgba(15, 23, 42, 0.06);
+}
+
+.ingredient-row:last-child {
+  border-bottom: 0;
+}
+
+.ingredient-name {
+  color: var(--app-text);
+  font-size: 26rpx;
+  font-weight: 900;
+}
+
+.ingredient-amount {
+  color: var(--app-text-secondary);
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+  margin-top: 20rpx;
+}
+
+.step-item {
+  display: flex;
+  gap: 18rpx;
+  padding: 20rpx;
+  border-radius: 28rpx;
+  background: #f6f7f9;
+}
+
+.step-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54rpx;
+  height: 54rpx;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #111111;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 950;
+}
+
+.step-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.step-title {
+  color: var(--app-text);
+  font-size: 27rpx;
+  font-weight: 950;
+}
+
+.step-desc {
+  margin-top: 8rpx;
+  color: var(--app-text-secondary);
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.note-text {
+  margin-top: 18rpx;
+  color: var(--app-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.setting-tags {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.setting-tags text {
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: #f3f5f8;
+  color: var(--app-text-secondary);
+  font-size: 22rpx;
+  font-weight: 800;
+}
+</style>

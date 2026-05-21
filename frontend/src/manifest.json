@@ -1,0 +1,13 @@
+{
+  "name": "家庭时令菜谱",
+  "appid": "",
+  "description": "家庭时令菜谱移动端 App",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3
+  }
+}
