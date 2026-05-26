@@ -99,6 +99,14 @@ adminCategoriesRouter.delete('/:id', requireAdminAuth, async (req, res) => {
   const existing = await prisma.category.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new HttpError('not found', 404, 404);
 
+  const [recipeCount, ingredientCount] = await Promise.all([
+    prisma.recipe.count({ where: { categoryId: id, deletedAt: null } }),
+    prisma.ingredient.count({ where: { categoryId: id, deletedAt: null } })
+  ]);
+  if (recipeCount + ingredientCount > 0) {
+    throw new HttpError('该分类已被内容引用，不能删除', 422, 422);
+  }
+
   const deleted = await prisma.category.update({
     where: { id },
     data: { deletedAt: new Date() }

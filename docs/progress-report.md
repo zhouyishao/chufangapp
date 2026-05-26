@@ -26,6 +26,47 @@
 - `admin-frontend`: `npm run build` 通过。
 - `server`: `npm run build` 通过。
 
+### P0 联调闭环增量
+
+- 先执行 `git status --short` 与 `git pull origin main`，确认工作区无冲突且 `main` 已是最新。
+- 后端菜谱主链路补齐：`POST/GET/PUT/DELETE /api/admin/recipes` 继续使用真实数据库，新增 `PATCH /api/admin/recipes/:id/submit-audit`、`PATCH /api/admin/recipes/:id/offline`，并收紧 `PATCH /api/admin/recipes/:id/publish` 为“审核通过且启用后才能发布”。
+- 后端审核流转补齐：保存草稿为 `DRAFT + isDraft=true + isPublish=false`，提交审核为 `PENDING`，审核通过为 `APPROVED`，审核驳回必须传驳回原因并回到草稿且下架。
+- 后端上传能力从单图片扩展为媒体上传：`POST /api/admin/upload/image`、`POST /api/admin/upload/video`、`POST /api/admin/upload/media`，统一返回 `{ url, type, name, size, mimeType }`。
+- Prisma 增加菜谱结构化媒体字段：菜谱 `images/video/visibility`，步骤 `video/duration`，食材行 `unit/type/note`，食材 `detailImages/selectionMedia`，并应用 migration `20260526123000_add_recipe_media_structured_fields`。
+- Admin 新增通用 `MediaUploader`，支持单图、多图、视频、混合上传、预览、删除、重新上传、主图设置和上移/下移排序。
+- Admin 菜谱新增/编辑页重构为结构化表单：审核状态改为只读状态标签；食材清单改为可增删改排序的行列表；步骤改为卡片编辑器并支持步骤图片、步骤视频和计时。
+- Admin 食材新增/编辑页补齐月份多选、价格单位下拉、详情图多图上传、挑选指南图片/视频上传。
+- C 端 `public-api` 新增 `resolveAssetUrl`，统一把 `/uploads/xxx` 拼接为后端源地址，已覆盖首页推荐、菜谱列表、菜谱详情步骤图、食材列表和食材详情。
+- C 端首页顶部栏目不再只用组件内写死数组，`home-header` 支持外部传入栏目；首页从 `/api/mobile/home` 返回的分类生成栏目标题。
+- C 端公开菜谱列表、详情、首页推荐、mobile 首页推荐和搜索均增加 `auditStatus=APPROVED` 过滤，草稿、待审核、审核通过未发布、已下架内容不会出现在 C 端。
+- 当前仍保留的 mock：非本阶段核心链路页面仍有 `mockApi` 占位；菜谱/食材新增编辑、上传、发布、C 端读取主链路已接真实接口。
+
+### P0 验证记录
+
+- `server`: `DATABASE_URL=... npm run prisma:generate` 通过。
+- `server`: `npm run build` 通过。
+- `server`: `DATABASE_URL=... npm run prisma:deploy` 通过，已应用 `20260526123000_add_recipe_media_structured_fields`。
+- `admin-frontend`: `npx tsc -b --noEmit` 通过。
+- `admin-frontend`: `npm run build` 通过。
+- `frontend`: `npm run type-check` 通过。
+- `frontend`: `npm run build` 通过。
+- 本地尝试重启 `server` 进行 curl 全链路验证时，旧端口进程已停止，但当前命令环境中的 `node dist/src/index.js` 打印监听后立即退出；因此本次完成了构建、migration 和接口代码校验，未完成浏览器/接口级完整手工链路验证。
+
+### C 端菜谱入口修复
+
+- 确认 C 端已有独立菜谱列表路由：`/pages/recipes/index`，不属于底部“食材”Tab。
+- 首页新增明显入口“全部菜谱”，点击进入 `/pages/recipes/index`；首页菜谱区右侧操作文案改为“更多菜谱”。
+- 菜谱列表页移除接口失败时的静态 mock fallback，默认选中“全部”，`activeCategory=all` 时不做分类过滤，接口返回什么就展示什么。
+- 菜谱列表页继续调用 `listRecipes()`，底层请求 `GET /api/recipes`，并展示接口返回的 `cover/title/description/cookTime/difficulty/servings/taste/scene`。
+- 菜谱列表页补充空状态“暂无菜谱”和失败态“加载失败：... / 重试”。
+- 菜谱列表页增加开发调试日志：`mounted`、`request /api/recipes`、`raw response`、`final recipes`、`selectedCategory`、`filteredRecipes`。
+- `/uploads/xxx` 图片路径继续由 `frontend/src/services/public-api.ts` 的 `resolveAssetUrl` 解析为后端源地址。
+
+### C 端入口验证记录
+
+- `frontend`: `npm run type-check` 通过。
+- `frontend`: `npm run build` 通过。
+
 ## 2026-05-25
 
 ### 已完成

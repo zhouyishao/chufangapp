@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-import { CategoryType, PrismaClient, type Prisma } from '@prisma/client';
+import { CategoryType, PrismaClient, TagScope, type Prisma } from '@prisma/client';
 
 const url = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/chufangapp?schema=public';
 const prisma = new PrismaClient({
@@ -55,6 +55,90 @@ const main = async () => {
 
   const ingredientCategory = await ensureCategory('INGREDIENT', '应季食材', 100);
   const recipeCategory = await ensureCategory('RECIPE', '家常菜', 100);
+
+  await ensureCategory('RECIPE', '快手菜', 90);
+  await ensureCategory('RECIPE', '早餐', 80);
+  await ensureCategory('RECIPE', '晚餐', 80);
+  await ensureCategory('RECIPE', '减脂餐', 70);
+  await ensureCategory('RECIPE', '下饭菜', 70);
+  await ensureCategory('INGREDIENT', '蔬菜', 90);
+  await ensureCategory('INGREDIENT', '肉禽蛋', 80);
+  await ensureCategory('INGREDIENT', '水产海鲜', 80);
+  await ensureCategory('INGREDIENT', '豆制品', 70);
+  await ensureCategory('INGREDIENT', '主食粮油', 70);
+  await ensureCategory('SEASONING', '基础调料', 80);
+  await ensureCategory('FRUIT', '时令水果', 80);
+
+  const ensureTag = async (scope: TagScope, name: string, sort = 0) => {
+    return prisma.tag.upsert({
+      where: { scope_name: { scope, name } },
+      create: { scope, name, sort },
+      update: { sort }
+    });
+  };
+
+  await ensureTag('TASTE', '清淡', 100);
+  await ensureTag('TASTE', '香辣', 90);
+  await ensureTag('TASTE', '酸甜', 90);
+  await ensureTag('TASTE', '咸鲜', 80);
+  await ensureTag('TASTE', '鲜香', 80);
+  await ensureTag('RECIPE', '快手', 100);
+  await ensureTag('RECIPE', '低脂', 90);
+  await ensureTag('RECIPE', '高蛋白', 80);
+  await ensureTag('RECIPE', '家常', 100);
+  await ensureTag('METHOD', '炒', 100);
+  await ensureTag('METHOD', '蒸', 90);
+  await ensureTag('METHOD', '煮', 90);
+  await ensureTag('METHOD', '炖', 80);
+  await ensureTag('METHOD', '烤', 80);
+  await ensureTag('METHOD', '凉拌', 80);
+  await ensureTag('CROWD', '儿童', 80);
+  await ensureTag('CROWD', '老人', 70);
+
+  await prisma.cuisine.upsert({
+    where: { name: '川菜' },
+    create: { name: '川菜', description: '麻辣鲜香，百菜百味。', sort: 90, isPublish: true },
+    update: {}
+  });
+  await prisma.cuisine.upsert({
+    where: { name: '粤菜' },
+    create: { name: '粤菜', description: '清而不淡，鲜而不俗。', sort: 90, isPublish: true },
+    update: {}
+  });
+  await prisma.cuisine.upsert({
+    where: { name: '湘菜' },
+    create: { name: '湘菜', description: '香辣浓郁，口味多变。', sort: 80, isPublish: true },
+    update: {}
+  });
+  await prisma.cuisine.upsert({
+    where: { name: '家常菜' },
+    create: { name: '家常菜', description: '做法简单，适合日常。', sort: 80, isPublish: true },
+    update: {}
+  });
+
+  const channels = [
+    { name: '推荐', code: 'recommend', position: '首页顶部', sort: 100 },
+    { name: '家常菜', code: 'home_cooking', position: '首页栏目', sort: 90 },
+    { name: '快手菜', code: 'quick_meals', position: '首页栏目', sort: 80 },
+    { name: '减脂', code: 'diet', position: '首页栏目', sort: 70 },
+    { name: '早餐', code: 'breakfast', position: '首页栏目', sort: 70 },
+    { name: '晚餐', code: 'dinner', position: '首页栏目', sort: 60 }
+  ];
+  for (const ch of channels) {
+    await prisma.channel.upsert({
+      where: { code: ch.code },
+      create: ch,
+      update: { name: ch.name, position: ch.position, sort: ch.sort }
+    });
+  }
+
+  // Look up tags for linking after recipe creation
+  const [tasteTag, recipeTag, methodTag] = await Promise.all([
+    prisma.tag.findFirst({ where: { scope: 'TASTE', name: '酸甜' } }),
+    prisma.tag.findFirst({ where: { scope: 'RECIPE', name: '家常' } }),
+    prisma.tag.findFirst({ where: { scope: 'METHOD', name: '炖' } })
+  ]);
+
   const cuisine = await prisma.cuisine.upsert({
     where: { name: '江浙家常' },
     create: {
@@ -187,6 +271,16 @@ const main = async () => {
   });
 
   const recipe = await prisma.recipe.findFirstOrThrow({ where: { title: recipeTitle, deletedAt: null } });
+
+  if (tasteTag && recipeTag && methodTag) {
+    for (const tagId of [tasteTag.id, recipeTag.id, methodTag.id]) {
+      await prisma.recipeTag.upsert({
+        where: { recipeId_tagId: { recipeId: recipe.id, tagId } },
+        create: { recipeId: recipe.id, tagId },
+        update: {}
+      });
+    }
+  }
 
   await replaceByTitle(
     () =>

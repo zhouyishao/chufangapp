@@ -16,7 +16,10 @@ import { adminIngredientsRouter } from './routes/admin/ingredients';
 import { adminMenusRouter } from './routes/admin/menus';
 import { adminPostsRouter } from './routes/admin/posts';
 import { adminRecommendationsRouter } from './routes/admin/recommendations';
+import { adminAuditsRouter } from './routes/admin/audits';
+import { adminChannelsRouter } from './routes/admin/channels';
 import { adminRecipesRouter } from './routes/admin/recipes';
+import { adminTagsRouter } from './routes/admin/tags';
 import { adminSeasonalFoodsRouter } from './routes/admin/seasonal-foods';
 import { adminUploadRouter } from './routes/admin/upload';
 import { adminUsersRouter } from './routes/admin/users';
@@ -53,6 +56,9 @@ export const createApp = () => {
   app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/admin/posts', adminPostsRouter);
   app.use('/api/admin/comments', adminCommentsRouter);
+  app.use('/api/admin/audits', adminAuditsRouter);
+  app.use('/api/admin/tags', adminTagsRouter);
+  app.use('/api/admin/channels', adminChannelsRouter);
 
   app.use('/api/home', apiHomeRouter);
   app.use('/api/ingredients', apiIngredientsRouter);

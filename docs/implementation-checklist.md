@@ -133,6 +133,30 @@
 | 图片上传 mock | 已完成 | 本地 mock | `mockUploadImage` 保留兜底，返回 `{ code, message, data: { url } }` |
 | 手填图片链接排查 | 已完成 | Admin 源码 | 已排查“图片 URL / 封面 URL / 图片链接 / imageUrl / coverUrl / iconUrl”等关键词，未发现剩余图片链接输入文案 |
 
+### 2026-05-26：P0 Admin 到 C 端联调闭环
+
+| 页面/模块 | 状态 | 路由/接口 | 备注 |
+|---|---|---|---|
+| Git 同步检查 | 已完成 | `git status` / `git pull origin main` | 开发前确认 `main` 已最新且无冲突 |
+| 后端菜谱保存 | 已完成 | `POST /api/admin/recipes` `PUT /api/admin/recipes/:id` | 真实写入 `recipes`、`recipe_steps`、`recipe_ingredients` |
+| 菜谱提交审核 | 已完成 | `PATCH /api/admin/recipes/:id/submit-audit` | 流转为 `PENDING + isDraft=false + isPublish=false` |
+| 菜谱审核通过/驳回 | 已完成 | `PATCH /api/admin/recipes/:id/audit` | 通过为 `APPROVED`；驳回必须传原因并回到草稿、下架 |
+| 菜谱发布/下架 | 已完成 | `PATCH /api/admin/recipes/:id/publish` `/offline` | 发布前校验 `auditStatus=APPROVED` 且 `status=ACTIVE` |
+| 图片/视频上传 | 已完成 | `/api/admin/upload/image` `/video` `/media` | 图片 5MB；视频 50MB；统一保存到 `server/uploads` 并通过 `/uploads` 访问 |
+| 数据库字段 | 已完成 | Prisma migration | `images/video/visibility`、步骤视频/时长、食材行单位/类型/备注、食材多图/挑选媒体 |
+| Admin 媒体上传组件 | 已完成 | `MediaUploader` | 单图、多图、视频、混合媒体、预览、删除、排序、设置主图 |
+| 菜谱新增/编辑页 | 已完成 | `/content/recipes/create` `/content/recipes/:id/edit` | 审核状态只读；食材行结构化；步骤卡片化；支持成品图、视频、步骤图/视频 |
+| 食材新增/编辑页 | 已完成 | `/content/ingredients/create` `/content/ingredients/:id/edit` | 月份多选、单位下拉、详情多图、挑选指南图片/视频 |
+| C 端公开菜谱过滤 | 已完成 | `/api/recipes` `/api/recipes/:id` | 只返回 `deletedAt=null + status=ACTIVE + isPublish=true + auditStatus=APPROVED` |
+| C 端首页过滤 | 已完成 | `/api/home` `/api/mobile/home` | 首页推荐、菜单关联菜谱同步过滤审核通过且发布内容 |
+| C 端资源路径 | 已完成 | `frontend/src/services/public-api.ts` | `/uploads/xxx` 统一解析为后端源地址 |
+| 首页栏目来源 | 已完成 | `/api/mobile/home` | C 端顶部栏目从接口分类生成，组件支持后台配置数据传入 |
+| 核心 mock 替换 | 部分完成 | Admin/C 端主链路 | 菜谱/食材/上传/发布/C端读取走真实接口；非核心占位页仍保留 mock |
+| C 端菜谱列表路由 | 已完成 | `/pages/recipes/index` | 独立菜谱列表页已存在，不放在“食材”Tab 中 |
+| 首页全部菜谱入口 | 已完成 | `/pages/index/index` | 首页新增“全部菜谱”入口，点击跳转 `/pages/recipes/index` |
+| 菜谱列表真实数据 | 已完成 | `GET /api/recipes` | 移除静态 mock fallback，默认“全部”不过滤，接口有数据就展示接口数据 |
+| 菜谱列表调试日志 | 已完成 | `/pages/recipes/index` | Console 输出 mounted、request、raw response、final recipes、selectedCategory、filteredRecipes |
+
 ## 第三阶段：数据库和接口
 
 | 任务 | 状态 | 备注 |

@@ -1,0 +1,12 @@
+ALTER TABLE "recipes" ADD COLUMN IF NOT EXISTS "video" VARCHAR(255);
+ALTER TABLE "recipes" ADD COLUMN IF NOT EXISTS "visibility" VARCHAR(32);
+
+ALTER TABLE "recipe_steps" ADD COLUMN IF NOT EXISTS "video" VARCHAR(255);
+ALTER TABLE "recipe_steps" ADD COLUMN IF NOT EXISTS "duration" INTEGER;
+
+ALTER TABLE "recipe_ingredients" ADD COLUMN IF NOT EXISTS "unit" VARCHAR(32);
+ALTER TABLE "recipe_ingredients" ADD COLUMN IF NOT EXISTS "type" VARCHAR(32);
+ALTER TABLE "recipe_ingredients" ADD COLUMN IF NOT EXISTS "note" TEXT;
+
+ALTER TABLE "ingredients" ADD COLUMN IF NOT EXISTS "detail_images" JSONB;
+ALTER TABLE "ingredients" ADD COLUMN IF NOT EXISTS "selection_media" VARCHAR(255);

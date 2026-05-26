@@ -352,6 +352,7 @@ export const RecipesPage = () => {
     },
     { key: 'category', title: '分类', render: (item) => item.category?.name ?? categories.find((category) => category.id === item.categoryId)?.name ?? '-' },
     { key: 'tags', title: '标签', render: (item) => [item.taste, item.scene].filter(Boolean).join(' / ') || '-' },
+    { key: 'cuisine', title: '菜系', render: (item) => item.cuisine?.name ?? '-' },
     { key: 'difficulty', title: '难度', render: (item) => item.difficulty ?? '-' },
     { key: 'cookTime', title: '制作时间', render: (item) => (item.cookTime ? `${item.cookTime} 分钟` : '-') },
     { key: 'status', title: '状态', render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={item.status === 'ACTIVE' ? 'green' : 'gray'} /> },

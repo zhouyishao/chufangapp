@@ -80,6 +80,43 @@
       <button class="logout-button" @click="logout">退出登录</button>
     </view>
 
+    <view v-if="!isLoggedIn" class="guest-card glass-card">
+      <view class="guest-header">
+        <image class="guest-avatar" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=300&q=80" mode="aspectFill" />
+        <text class="guest-title">未登录</text>
+        <text class="guest-desc">登录后同步收藏、菜篮子与家庭共享</text>
+      </view>
+      <button class="guest-login-button" @click="goToLogin">手机号登录 / 去登录</button>
+      <view class="guest-actions">
+        <view class="guest-action" @click="goToFavorites">
+          <text class="guest-action__icon">♡</text>
+          <text class="guest-action__label">我的收藏</text>
+        </view>
+        <view class="guest-action" @click="goToRecentViews">
+          <text class="guest-action__icon">◷</text>
+          <text class="guest-action__label">最近浏览</text>
+        </view>
+        <view class="guest-action" @click="goToMyRecipes">
+          <text class="guest-action__icon">📋</text>
+          <text class="guest-action__label">我的菜谱</text>
+        </view>
+        <view class="guest-action" @click="goToPurchaseHistory">
+          <text class="guest-action__icon">📦</text>
+          <text class="guest-action__label">采购记录</text>
+        </view>
+      </view>
+      <view class="guest-settings">
+        <view class="guest-setting" @click="goToLogin">
+          <text>账号设置</text>
+          <text class="guest-arrow">›</text>
+        </view>
+        <view class="guest-setting">
+          <text>关于我们</text>
+          <text class="guest-arrow">›</text>
+        </view>
+      </view>
+    </view>
+
     <home-tab-bar :tabs="tabs" />
 
     <view v-if="isBackgroundEditorVisible" class="join-mask" @click="closeBackgroundEditor">
@@ -155,6 +192,10 @@ const currentFamily = computed<FamilyProfile>(() => {
   return familyOptions.value.find((family) => family.id === activeFamilyId.value) ?? familyOptions.value[0] ?? getDefaultFamilies()[0];
 });
 const familyPreviewMembers = computed(() => currentFamily.value.members.slice(0, 2));
+
+const goToLogin = () => {
+  uni.navigateTo({ url: '/pages/login/index' });
+};
 
 const editProfile = () => {
   uni.navigateTo({ url: '/pages/profile-edit/index' });
@@ -244,10 +285,7 @@ onShow(() => {
   profile.value = loadUserProfile();
   familyOptions.value = loadFamilies();
   activeFamilyId.value = loadActiveFamilyId();
-  if (!authUser.value) {
-    uni.redirectTo({ url: '/pages/login/index' });
-  }
-});
+  });
 </script>
 
 <style scoped lang="scss">
@@ -950,5 +988,99 @@ onShow(() => {
 .qr-dot:nth-child(4),
 .qr-dot:nth-child(9) {
   background: var(--app-accent-soft);
+}
+
+.guest-card {
+  margin-top: 20rpx;
+  padding: 36rpx 28rpx;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+}
+
+.guest-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.guest-avatar {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  background: #e9e2d6;
+}
+
+.guest-title {
+  display: block;
+  margin-top: 20rpx;
+  color: var(--app-text);
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.guest-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--app-text-secondary);
+  font-size: 23rpx;
+}
+
+.guest-login-button {
+  width: 100%;
+  height: 82rpx;
+  margin-top: 28rpx;
+  border: 0;
+  border-radius: var(--app-radius-button);
+  background: var(--app-accent);
+  color: #fffdfc;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.guest-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14rpx;
+  margin-top: 28rpx;
+}
+
+.guest-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  padding: 18rpx 8rpx;
+  border-radius: 22rpx;
+  background: var(--app-bg);
+}
+
+.guest-action__icon {
+  font-size: 36rpx;
+}
+
+.guest-action__label {
+  color: var(--app-text-secondary);
+  font-size: 20rpx;
+}
+
+.guest-settings {
+  margin-top: 28rpx;
+  border-top: 1rpx solid var(--app-border);
+}
+
+.guest-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--app-border);
+  color: var(--app-text);
+  font-size: 26rpx;
+}
+
+.guest-arrow {
+  color: var(--app-text-tertiary);
+  font-size: 32rpx;
 }
 </style>

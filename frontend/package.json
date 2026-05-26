@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "unh dev",
+    "dev:h5": "uni dev -p h5",
     "build": "unh build",
     "about": "unh info",
     "type-check": "vue-tsc --noEmit"

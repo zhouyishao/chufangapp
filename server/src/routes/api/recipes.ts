@@ -24,6 +24,7 @@ apiRecipesRouter.get('/', async (req, res) => {
     deletedAt: null,
     isPublish: true,
     status: 'ACTIVE' as const,
+    auditStatus: 'APPROVED' as const,
     ...(categoryId ? { categoryId } : {}),
     ...(q ? { title: { contains: q, mode: 'insensitive' as const } } : {})
   };
@@ -49,7 +50,11 @@ apiRecipesRouter.get('/', async (req, res) => {
         favoriteCount: true,
         commentCount: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        categoryId: true,
+        category: { select: { id: true, name: true, type: true } },
+        cuisineId: true,
+        cuisine: { select: { id: true, name: true } }
       }
     }),
     prisma.recipe.count({ where })
@@ -64,9 +69,10 @@ apiRecipesRouter.get('/:id', async (req, res) => {
   if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
 
   const recipe = await prisma.recipe.findFirst({
-    where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE' },
+    where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE', auditStatus: 'APPROVED' },
     include: {
       category: { select: { id: true, name: true, type: true } },
+      cuisine: { select: { id: true, name: true } },
       steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
       ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
     }

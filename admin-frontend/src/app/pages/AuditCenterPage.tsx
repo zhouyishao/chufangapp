@@ -1,129 +1,192 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
+import { approveAudit, listAudits, rejectAudit } from '../api';
+import type { AuditItem } from '../types';
 import { Button } from '../components/Button';
-import { ConfirmModal } from '../components/ConfirmModal';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
-import { resolveMockList } from '../mockApi';
 
 type AuditStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-type AuditType = '菜谱投稿' | '评论' | '举报';
-
-type AuditItem = {
-  id: number;
-  title: string;
-  type: AuditType;
-  submitter: string;
-  status: AuditStatus;
-  reason?: string;
-  submittedAt: string;
-};
+type AuditType = AuditItem['type'];
 
 type Props = {
   mode?: 'pending' | 'approved' | 'rejected' | 'records';
 };
 
-const initialAudits: AuditItem[] = [
-  { id: 1001, title: '用户投稿：番茄牛肉焖饭', type: '菜谱投稿', submitter: 'Peinian', status: 'PENDING', submittedAt: '2026-05-25 10:18' },
-  { id: 1002, title: '评论：这个步骤少了盐', type: '评论', submitter: '一只碗', status: 'PENDING', submittedAt: '2026-05-25 09:40' },
-  { id: 1003, title: '举报：图片不清晰', type: '举报', submitter: '匿名用户', status: 'REJECTED', reason: '证据不足，保留原内容', submittedAt: '2026-05-24 18:12' },
-  { id: 1004, title: '用户投稿：春笋炒肉', type: '菜谱投稿', submitter: 'Z_ou', status: 'APPROVED', submittedAt: '2026-05-24 12:08' }
+const typeTabs: { key: 'all' | AuditType; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'RECIPE', label: '菜谱' },
+  { key: 'INGREDIENT', label: '食材' },
+  { key: 'POST', label: '用户投稿' },
+  { key: 'COMMENT', label: '评论' },
+  { key: 'REPORT', label: '举报' }
 ];
 
-const statusLabel: Record<AuditStatus, { label: string; tone: 'green' | 'orange' | 'red' }> = {
+const auditStatusLabels: Record<AuditStatus, { label: string; tone: 'green' | 'orange' | 'red' }> = {
   PENDING: { label: '待审核', tone: 'orange' },
   APPROVED: { label: '已通过', tone: 'green' },
   REJECTED: { label: '已驳回', tone: 'red' }
 };
 
+const typeLabels: Record<AuditType, string> = {
+  RECIPE: '菜谱审核',
+  INGREDIENT: '食材审核',
+  POST: '用户投稿',
+  COMMENT: '评论',
+  REPORT: '举报'
+};
+
+const mapStatusFromMode = (mode: Props['mode']): AuditStatus | 'all' => {
+  switch (mode) {
+    case 'pending': return 'PENDING';
+    case 'approved': return 'APPROVED';
+    case 'rejected': return 'REJECTED';
+    default: return 'all';
+  }
+};
+
+const emptyLabels: Record<string, string> = {
+  PENDING: '暂无待审核内容',
+  APPROVED: '暂无已通过内容',
+  REJECTED: '暂无已驳回内容'
+};
+
 export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
-  const [sourceItems, setSourceItems] = useState<AuditItem[]>(initialAudits);
+  const navigate = useNavigate();
+
   const [items, setItems] = useState<AuditItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [q, setQ] = useState('');
-  const [type, setType] = useState<'all' | AuditType>('all');
-  const [status, setStatus] = useState<'all' | AuditStatus>(mode === 'pending' ? 'PENDING' : mode === 'approved' ? 'APPROVED' : mode === 'rejected' ? 'REJECTED' : 'all');
+  const [keyword, setKeyword] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | AuditType>('all');
+  const [statusFilter, setStatusFilter] = useState<AuditStatus | 'all'>(mapStatusFromMode(mode));
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
   const [passing, setPassing] = useState<AuditItem | null>(null);
   const [rejecting, setRejecting] = useState<AuditItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listAudits({
+        page,
+        pageSize,
+        type: typeFilter === 'all' ? undefined : typeFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        keyword: keyword.trim() || undefined
+      });
+      setItems(result.list);
+      setTotal(result.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载审核数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setStatus(mode === 'pending' ? 'PENDING' : mode === 'approved' ? 'APPROVED' : mode === 'rejected' ? 'REJECTED' : 'all');
+    setStatusFilter(mapStatusFromMode(mode));
     setPage(1);
   }, [mode]);
 
-  const filteredItems = useMemo(() => {
-    return sourceItems.filter((item) => {
-      const matchKeyword = q.trim() ? item.title.includes(q.trim()) || item.submitter.includes(q.trim()) : true;
-      const matchType = type === 'all' ? true : item.type === type;
-      const matchStatus = status === 'all' ? true : item.status === status;
-      return matchKeyword && matchType && matchStatus;
-    });
-  }, [q, sourceItems, status, type]);
-
   useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      setLoading(true);
-      const response = await resolveMockList(filteredItems, page, pageSize);
-      if (!alive) return;
-      setItems(response.data.list);
-      setTotal(response.data.pagination.total);
-      setLoading(false);
-    };
-    void load();
-    return () => {
-      alive = false;
-    };
-  }, [filteredItems, page, pageSize]);
+    void fetchData();
+  }, [page, pageSize, typeFilter, statusFilter, keyword, mode]);
+
+  const handleApprove = async () => {
+    if (!passing) return;
+    setError(null);
+    try {
+      await approveAudit(passing.bizId, passing.type);
+      setPassing(null);
+      setNotice('审核已通过');
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '审核操作失败');
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejecting) return;
+    if (!rejectReason.trim()) {
+      setError('驳回原因不能为空');
+      return;
+    }
+    setError(null);
+    try {
+      await rejectAudit(rejecting.bizId, rejecting.type, rejectReason.trim());
+      setRejecting(null);
+      setRejectReason('');
+      setNotice('审核已驳回');
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '驳回操作失败');
+    }
+  };
+
+  const handleView = (item: AuditItem) => {
+    if (item.type === 'RECIPE') navigate(`/content/recipes/${item.bizId}`);
+    else if (item.type === 'INGREDIENT') navigate(`/content/ingredients/${item.bizId}`);
+    else setNotice(`查看：${item.title}`);
+  };
 
   const canPrev = page > 1;
   const canNext = page * pageSize < total;
 
-  const approve = () => {
-    if (!passing) return;
-    setSourceItems((prev) => prev.map((item) => (item.id === passing.id ? { ...item, status: 'APPROVED', reason: undefined } : item)));
-    setPassing(null);
-    setNotice('审核已通过');
-  };
-
-  const reject = () => {
-    if (!rejecting) return;
-    setSourceItems((prev) => prev.map((item) => (item.id === rejecting.id ? { ...item, status: 'REJECTED', reason: rejectReason.trim() || '内容不符合发布规范' } : item)));
-    setRejecting(null);
-    setRejectReason('');
-    setNotice('审核已驳回');
-  };
-
   const columns: DataTableColumn<AuditItem>[] = [
-    { key: 'id', title: 'ID', render: (item) => item.id },
-    { key: 'title', title: '内容标题', render: (item) => <span className="font-medium text-[#2f2f2f]">{item.title}</span> },
-    { key: 'type', title: '内容类型', render: (item) => item.type },
+    { key: 'id', title: 'ID', render: (item) => <span className="text-xs text-[#8c8c8c]">{item.id}</span> },
+    {
+      key: 'title',
+      title: '内容标题',
+      render: (item) => (
+        <span className="font-medium text-[#2f2f2f]">{item.title}</span>
+      )
+    },
+    {
+      key: 'type',
+      title: '内容类型',
+      render: (item) => (
+        <span className="inline-flex rounded-full bg-[#f5f1ea] px-2 py-0.5 text-xs text-[#8c8c8c]">
+          {typeLabels[item.type] ?? item.type}
+        </span>
+      )
+    },
     { key: 'submitter', title: '提交人', render: (item) => item.submitter },
-    { key: 'status', title: '审核状态', render: (item) => <StatusTag label={statusLabel[item.status].label} tone={statusLabel[item.status].tone} /> },
-    { key: 'submittedAt', title: '提交时间', render: (item) => item.submittedAt },
+    {
+      key: 'status',
+      title: '审核状态',
+      render: (item) => {
+        const s = auditStatusLabels[item.auditStatus as AuditStatus];
+        return s ? <StatusTag label={s.label} tone={s.tone} /> : <span className="text-xs text-[#8c8c8c]">{item.auditStatus}</span>;
+      }
+    },
+    {
+      key: 'submittedAt',
+      title: '提交时间',
+      render: (item) => <span className="text-xs text-[#8c8c8c]">{item.submittedAt.replace('T', ' ').slice(0, 19)}</span>
+    },
     {
       key: 'actions',
       title: '操作',
       render: (item) => (
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => setNotice(`查看：${item.title}`)}>查看</Button>
-          {item.status === 'PENDING' ? (
+          <Button variant="ghost" onClick={() => handleView(item)}>查看</Button>
+          {item.auditStatus === 'PENDING' ? (
             <>
               <Button variant="ghost" onClick={() => setPassing(item)}>通过</Button>
               <Button variant="danger" onClick={() => { setRejecting(item); setRejectReason(''); }}>驳回</Button>
             </>
-          ) : (
-            <Button variant="ghost" onClick={() => setNotice(item.reason ? `原因：${item.reason}` : '暂无驳回原因')}>审核记录</Button>
-          )}
+          ) : null}
         </div>
       )
     }
@@ -131,20 +194,40 @@ export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
 
   return (
     <section className="space-y-6">
-      <PageHeader title={mode === 'records' ? '审核记录' : '审核中心'} description="处理用户投稿、评论和举报内容，支持通过、驳回、查看和审核记录追踪。" />
+      <PageHeader
+        title={mode === 'records' ? '审核记录' : '审核中心'}
+        description="处理菜谱、食材、用户投稿、评论和举报内容审核，支持通过、驳回和审核记录追踪。"
+      />
 
       {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
+      {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+
+      <div className="flex flex-wrap gap-2">
+        {typeTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className={[
+              'rounded-full px-4 py-1.5 text-xs font-medium transition',
+              typeFilter === tab.key
+                ? 'bg-[#2f2f2f] text-white'
+                : 'bg-[#f5f1ea] text-[#8c8c8c] hover:bg-[#e9e2d6]'
+            ].join(' ')}
+            onClick={() => { setTypeFilter(tab.key); setPage(1); }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <FilterPanel>
-        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
-          <Input value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} placeholder="搜索标题 / 提交人..." />
-          <select value={type} onChange={(event) => { setPage(1); setType(event.target.value as typeof type); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-            <option value="all">全部类型</option>
-            <option value="菜谱投稿">菜谱投稿</option>
-            <option value="评论">评论</option>
-            <option value="举报">举报</option>
-          </select>
-          <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value as typeof status); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+        <div className="flex flex-1 gap-3">
+          <Input value={keyword} onChange={(event) => { setPage(1); setKeyword(event.target.value); }} placeholder="搜索标题 / 提交人..." />
+          <select
+            value={statusFilter}
+            onChange={(event) => { setPage(1); setStatusFilter(event.target.value as typeof statusFilter); }}
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+          >
             <option value="all">全部审核</option>
             <option value="PENDING">待审核</option>
             <option value="APPROVED">已通过</option>
@@ -152,30 +235,46 @@ export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
           </select>
         </div>
         <div className="flex items-center gap-2 text-sm text-[#8c8c8c]">
-          <select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+          <select
+            value={pageSize}
+            onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }}
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+          >
             <option value={10}>10 / 页</option>
             <option value={20}>20 / 页</option>
           </select>
-          <Button variant="ghost" disabled={!canPrev || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</Button>
+          <Button variant="ghost" disabled={!canPrev || loading} onClick={() => setPage((v) => Math.max(1, v - 1))}>上一页</Button>
           <span>第 {page} 页 / 共 {Math.max(1, Math.ceil(total / pageSize))} 页</span>
-          <Button variant="ghost" disabled={!canNext || loading} onClick={() => setPage((value) => value + 1)}>下一页</Button>
+          <Button variant="ghost" disabled={!canNext || loading} onClick={() => setPage((v) => v + 1)}>下一页</Button>
         </div>
       </FilterPanel>
 
-      <DataTable columns={columns} data={items} loading={loading} rowKey={(item) => item.id} emptyTitle="暂无审核内容" />
-
-      <ConfirmModal
-        title="审核通过"
-        open={!!passing}
-        description={passing ? `确认通过「${passing.title}」？通过后内容可进入发布流程。` : null}
-        confirmText="通过"
-        onClose={() => setPassing(null)}
-        onConfirm={approve}
+      <DataTable
+        columns={columns}
+        data={items}
+        loading={loading}
+        error={error}
+        rowKey={(item) => item.id}
+        emptyTitle={emptyLabels[statusFilter] ?? '暂无审核内容'}
       />
+
+      <Modal title="审核通过" open={!!passing} onClose={() => setPassing(null)}>
+        <div className="space-y-4">
+          <div className="text-sm text-zinc-600">
+            {passing ? `确认通过「${passing.title}」？通过后内容可进入发布流程。` : null}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setPassing(null)}>取消</Button>
+            <Button onClick={() => void handleApprove()}>确认通过</Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal title="审核驳回" open={!!rejecting} onClose={() => setRejecting(null)}>
         <div className="space-y-4">
-          <div className="text-sm text-zinc-600">{rejecting ? `请填写「${rejecting.title}」的驳回原因。` : null}</div>
+          <div className="text-sm text-zinc-600">
+            {rejecting ? `请填写「${rejecting.title}」的驳回原因。` : null}
+          </div>
           <textarea
             value={rejectReason}
             onChange={(event) => setRejectReason(event.target.value)}
@@ -184,7 +283,7 @@ export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setRejecting(null)}>取消</Button>
-            <Button variant="danger" onClick={reject}>确认驳回</Button>
+            <Button variant="danger" onClick={() => void handleReject()}>确认驳回</Button>
           </div>
         </div>
       </Modal>

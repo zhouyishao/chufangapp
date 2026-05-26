@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createIngredient, getIngredient, listCategories, updateIngredient } from '../api';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { MediaUploader } from '../components/MediaUploader';
 import { UploadImage } from '../components/UploadImage';
 import type { Ingredient, IngredientCategory } from '../types';
 
@@ -18,6 +19,8 @@ type Draft = {
   selectionTips: string | null;
   storageMethod: string | null;
   taboo: string | null;
+  detailImages: string[];
+  selectionMedia: string | null;
   currentPrice: number | null;
   priceUnit: string | null;
   priceSource: string | null;
@@ -36,6 +39,8 @@ const emptyDraft: Draft = {
   selectionTips: null,
   storageMethod: null,
   taboo: null,
+  detailImages: [],
+  selectionMedia: null,
   currentPrice: null,
   priceUnit: null,
   priceSource: null,
@@ -54,6 +59,8 @@ const ingredientToDraft = (ingredient: Ingredient): Draft => ({
   selectionTips: ingredient.selectionTips,
   storageMethod: ingredient.storageMethod,
   taboo: ingredient.taboo,
+  detailImages: Array.isArray(ingredient.detailImages) ? ingredient.detailImages.filter((item): item is string => typeof item === 'string') : [],
+  selectionMedia: ingredient.selectionMedia ?? null,
   currentPrice: ingredient.currentPrice,
   priceUnit: ingredient.priceUnit,
   priceSource: ingredient.priceSource,
@@ -72,6 +79,8 @@ const toPayload = (draft: Draft) => ({
   selectionTips: draft.selectionTips?.trim() ? draft.selectionTips.trim() : null,
   storageMethod: draft.storageMethod?.trim() ? draft.storageMethod.trim() : null,
   taboo: draft.taboo?.trim() ? draft.taboo.trim() : null,
+  detailImages: draft.detailImages,
+  selectionMedia: draft.selectionMedia,
   currentPrice: draft.currentPrice,
   priceUnit: draft.priceUnit?.trim() ? draft.priceUnit.trim() : null,
   priceSource: draft.priceSource?.trim() ? draft.priceSource.trim() : null,
@@ -81,16 +90,14 @@ const toPayload = (draft: Draft) => ({
   sort: draft.sort
 });
 
-const isValidSeasonMonth = (value: string | null) => {
-  if (!value?.trim()) return true;
-  return value
+const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
+const unitOptions = ['斤', '500g', 'kg', '个', '份'];
+
+const parseMonths = (value: string | null) =>
+  (value ?? '')
     .split(/[,，/\s]+/)
-    .filter(Boolean)
-    .every((month) => {
-      const numericMonth = Number(month);
-      return Number.isInteger(numericMonth) && numericMonth >= 1 && numericMonth <= 12;
-    });
-};
+    .map((month) => Number(month))
+    .filter((month) => Number.isInteger(month) && month >= 1 && month <= 12);
 
 type Props = {
   mode: IngredientFormMode;
@@ -137,10 +144,6 @@ export const IngredientFormPage = ({ mode }: Props) => {
 
   const handleSave = async () => {
     if (!canSave) return;
-    if (!isValidSeasonMonth(draft.seasonMonth)) {
-      setError('时令月份格式错误，请填写 1-12 的月份，多个值用逗号分隔');
-      return;
-    }
     if (draft.currentPrice !== null && !Number.isFinite(draft.currentPrice)) {
       setError('当前价格必须是数字');
       return;
@@ -219,7 +222,29 @@ export const IngredientFormPage = ({ mode }: Props) => {
             </div>
             <div>
               <div className="mb-1 text-xs text-[#8c8c8c]">时令月份</div>
-              <Input value={draft.seasonMonth ?? ''} onChange={(event) => setDraft({ ...draft, seasonMonth: event.target.value })} placeholder="5,6,7" />
+              <div className="grid grid-cols-6 gap-2 rounded-2xl border border-[#e9e2d6] bg-[#f5f1ea] p-3">
+                {monthOptions.map((month) => {
+                  const selected = parseMonths(draft.seasonMonth).includes(month);
+                  return (
+                    <button
+                      key={month}
+                      type="button"
+                      className={[
+                        'rounded-full px-2 py-1 text-xs',
+                        selected ? 'bg-[#7a8b6f] text-white' : 'bg-white text-[#8c8c8c]'
+                      ].join(' ')}
+                      onClick={() => {
+                        const months = new Set(parseMonths(draft.seasonMonth));
+                        if (months.has(month)) months.delete(month);
+                        else months.add(month);
+                        setDraft({ ...draft, seasonMonth: Array.from(months).sort((a, b) => a - b).join(',') || null });
+                      }}
+                    >
+                      {month}月
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <div className="mb-1 text-xs text-[#8c8c8c]">排序</div>
@@ -235,7 +260,35 @@ export const IngredientFormPage = ({ mode }: Props) => {
             </div>
             <div>
               <div className="mb-1 text-xs text-[#8c8c8c]">价格单位</div>
-              <Input value={draft.priceUnit ?? ''} onChange={(event) => setDraft({ ...draft, priceUnit: event.target.value })} placeholder="斤 / 500g / kg" />
+              <select
+                value={draft.priceUnit ?? ''}
+                onChange={(event) => setDraft({ ...draft, priceUnit: event.target.value || null })}
+                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200"
+              >
+                <option value="">请选择单位</option>
+                {unitOptions.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="lg:col-span-2">
+              <MediaUploader
+                label="食材详情图"
+                value={draft.detailImages.map((url) => ({ url, type: 'image' }))}
+                accept="image"
+                multiple
+                onChange={(items) => setDraft({ ...draft, detailImages: items.map((item) => item.url) })}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <MediaUploader
+                label="挑选指南图片/视频"
+                value={draft.selectionMedia ? [{ url: draft.selectionMedia, type: draft.selectionMedia.match(/\.(mp4|mov|webm)$/i) ? 'video' : 'image' }] : []}
+                accept="mixed"
+                onChange={(items) => setDraft({ ...draft, selectionMedia: items[0]?.url ?? null })}
+              />
             </div>
             <div className="lg:col-span-2">
               <div className="mb-1 text-xs text-[#8c8c8c]">价格来源</div>

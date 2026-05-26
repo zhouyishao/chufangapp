@@ -18,6 +18,13 @@ const idParam = (value: unknown) => {
   return id;
 };
 
+const publicRecipeWhere = {
+  deletedAt: null,
+  status: 'ACTIVE' as const,
+  isPublish: true,
+  auditStatus: 'APPROVED' as const
+};
+
 export const apiMobileRouter = Router();
 
 apiMobileRouter.post('/auth/login', async (req, res) => {
@@ -52,7 +59,12 @@ apiMobileRouter.get('/home', async (_req, res) => {
       take: 5
     }),
     prisma.recommendation.findMany({
-      where: { deletedAt: null, status: 'ACTIVE', isPublish: true },
+      where: {
+        deletedAt: null,
+        status: 'ACTIVE',
+        isPublish: true,
+        OR: [{ recipeId: null }, { recipe: publicRecipeWhere }]
+      },
       include: {
         recipe: { select: { id: true, title: true, cover: true, subtitle: true } },
         ingredient: { select: { id: true, name: true, cover: true } }
@@ -72,13 +84,41 @@ apiMobileRouter.get('/home', async (_req, res) => {
       take: 12
     }),
     prisma.menu.findMany({
-      where: { deletedAt: null, status: 'ACTIVE', isPublish: true },
-      include: { recipes: { include: { recipe: { select: { id: true, title: true, cover: true } } } } },
+      where: { deletedAt: null, status: 'ACTIVE', isPublish: true, recipes: { some: { recipe: publicRecipeWhere } } },
+      include: {
+        recipes: {
+          where: { recipe: publicRecipeWhere },
+          include: { recipe: { select: { id: true, title: true, cover: true } } }
+        }
+      },
       orderBy: [{ sort: 'desc' }, { id: 'desc' }],
       take: 6
     })
   ]);
-  res.json(ok({ banners, recommendations, seasonalFoods, categories, menus }));
+  const channels = categories
+    .filter((category) => category.type === 'RECIPE')
+    .map((category) => ({
+      id: category.id,
+      title: category.name,
+      code: `recipe_category_${category.id}`,
+      status: category.status,
+      sort: category.sort,
+      items: recommendations
+        .filter((item) => item.recipe)
+        .slice(0, 6)
+        .map((item, index) => ({
+          id: item.id,
+          channelId: category.id,
+          contentType: 'RECIPE',
+          contentId: item.recipe?.id ?? item.id,
+          title: item.recipe?.title ?? item.title,
+          imageUrl: item.recipe?.cover ?? item.cover,
+          sort: index + 1,
+          status: item.status
+        }))
+    }));
+
+  res.json(ok({ banners, recommendations, seasonalFoods, categories, menus, channels }));
 });
 
 apiMobileRouter.get('/recommendations', async (req, res) => {
@@ -133,7 +173,7 @@ apiMobileRouter.get('/search', async (req, res) => {
   const where = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true };
   const [recipes, ingredients] = await Promise.all([
     prisma.recipe.findMany({
-      where: { ...where, ...(keyword ? { title: { contains: keyword, mode: 'insensitive' as const } } : {}) },
+      where: { ...where, auditStatus: 'APPROVED', ...(keyword ? { title: { contains: keyword, mode: 'insensitive' as const } } : {}) },
       orderBy: [{ isRecommend: 'desc' }, { id: 'desc' }],
       take: 10
     }),

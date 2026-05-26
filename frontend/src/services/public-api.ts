@@ -18,6 +18,33 @@ export class ApiError extends Error {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api';
+const DEFAULT_IMAGE_URL = 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80';
+
+const deriveApiOrigin = () => {
+  try {
+    return new URL(API_BASE).origin;
+  } catch {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost:3002';
+  }
+};
+
+const API_ORIGIN = deriveApiOrigin();
+
+export const resolveAssetUrl = (url: string | null | undefined, fallback = DEFAULT_IMAGE_URL) => {
+  if (!url) return fallback;
+  const value = String(url).trim();
+  if (!value) return fallback;
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:') || value.startsWith('blob:')) {
+    return value;
+  }
+  if (value.startsWith('/uploads/')) {
+    return `${API_ORIGIN}${value}`;
+  }
+  return value;
+};
 
 type RequestOptions = {
   method?: UniApp.RequestOptions['method'];
@@ -94,6 +121,7 @@ type ApiMobileHome = {
     } | null;
   }[];
   categories: { id: number; type: 'RECIPE' | 'INGREDIENT'; name: string }[];
+  channels?: { id: number; title: string; code: string; status: string; sort: number; items: { id: number; title: string; imageUrl: string | null }[] }[];
 };
 
 export const getHome = async () => {
@@ -104,7 +132,7 @@ export const getHome = async () => {
       id: item.recipe?.id ?? item.id,
       title: item.recipe?.title ?? item.title,
       subtitle: item.recipe?.subtitle ?? null,
-      cover: item.recipe?.cover ?? null,
+      cover: resolveAssetUrl(item.recipe?.cover),
       description: item.description,
       cookTime: null,
       difficulty: null,
@@ -115,7 +143,7 @@ export const getHome = async () => {
   const recommendIngredients = data.seasonalFoods.map((item) => ({
     id: item.ingredient?.id ?? item.id,
     name: item.ingredient?.name ?? item.name,
-    cover: item.ingredient?.cover ?? null,
+    cover: resolveAssetUrl(item.ingredient?.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80'),
     seasonMonth: String(item.month),
     currentPrice: null,
     priceUnit: null,
@@ -146,6 +174,10 @@ export type ApiRecipeListItem = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  categoryId?: number | null;
+  category?: { id: number; name: string; type: string } | null;
+  cuisineId?: number | null;
+  cuisine?: { id: number; name: string } | null;
 };
 
 export type ApiRecipeDetail = ApiRecipeListItem & {
@@ -160,10 +192,21 @@ export type ApiRecipeDetail = ApiRecipeListItem & {
 export const listRecipes = async (params: { page: number; pageSize: number; q?: string }) => {
   const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
   if (params.q) qs.set('q', params.q);
-  return request<PageResult<ApiRecipeListItem>>(`/recipes?${qs.toString()}`);
+  const data = await request<PageResult<ApiRecipeListItem>>(`/recipes?${qs.toString()}`);
+  return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) })) };
 };
 
-export const getRecipe = async (id: number) => request<ApiRecipeDetail>(`/recipes/${id}`);
+export const getRecipe = async (id: number) => {
+  const data = await request<ApiRecipeDetail>(`/recipes/${id}`);
+  return {
+    ...data,
+    cover: resolveAssetUrl(data.cover),
+    steps: (data.steps ?? []).map((step) => ({
+      ...step,
+      image: step.image ? resolveAssetUrl(step.image) : null
+    }))
+  };
+};
 
 export type ApiIngredientListItem = {
   id: number;
@@ -179,7 +222,11 @@ export type ApiIngredientListItem = {
 export const listIngredients = async (params: { page: number; pageSize: number; q?: string }) => {
   const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
   if (params.q) qs.set('q', params.q);
-  return request<PageResult<ApiIngredientListItem>>(`/ingredients?${qs.toString()}`);
+  const data = await request<PageResult<ApiIngredientListItem>>(`/ingredients?${qs.toString()}`);
+  return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80') })) };
 };
 
-export const getIngredient = async (id: number) => request<ApiIngredientListItem>(`/ingredients/${id}`);
+export const getIngredient = async (id: number) => {
+  const data = await request<ApiIngredientListItem>(`/ingredients/${id}`);
+  return { ...data, cover: resolveAssetUrl(data.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80') };
+};

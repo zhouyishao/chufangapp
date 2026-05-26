@@ -130,6 +130,11 @@
         </view>
       </view>
 
+      <view v-if="!remoteLoading && !remoteError && displayRecipes.length === 0" class="empty-state glass-card">
+        <text class="empty-state__title">暂无菜谱</text>
+        <text class="empty-state__desc">当前筛选下没有可展示的菜谱，切换到“全部”或稍后再试。</text>
+      </view>
+
       <view v-if="hasMore" class="load-more" @tap="loadMore">
         <text class="load-more-text">加载更多</text>
       </view>
@@ -139,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { addBasketItem, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
 import { listRecipes } from '../../services/public-api';
@@ -206,120 +211,15 @@ const servingsOptions: FilterOption[] = [
 
 const categories = ref<Category[]>([
   { id: 'all', label: '全部' },
-  { id: 'home', label: '家常菜' },
-  { id: 'quick', label: '快手菜' },
-  { id: 'soup', label: '汤类' },
-  { id: 'breakfast', label: '早餐' },
-  { id: 'diet', label: '减脂餐' },
-  { id: 'rice', label: '下饭菜' },
-  { id: 'snack', label: '夜宵' }
+  { id: '家常菜', label: '家常菜' },
+  { id: '快手菜', label: '快手菜' },
+  { id: '早餐', label: '早餐' },
+  { id: '晚餐', label: '晚餐' },
+  { id: '减脂餐', label: '减脂餐' },
+  { id: '下饭菜', label: '下饭菜' }
 ]);
 
-const recipes = ref<Recipe[]>([
-  {
-    id: '1',
-    name: '芦笋虾仁',
-    image: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80',
-    duration: '15分钟',
-    difficulty: '简单',
-    servings: '2-3人',
-    reason: '清爽快手，适合工作日晚餐',
-    tags: ['快手', '清淡'],
-    collected: false,
-    category: 'quick',
-    basketIngredients: [
-      { name: '芦笋', amount: '200g' },
-      { name: '虾仁', amount: '150g' },
-      { name: '大蒜', amount: '3瓣' },
-      { name: '生姜', amount: '3片' }
-    ]
-  },
-  {
-    id: '2',
-    name: '番茄牛腩',
-    image: 'https://images.unsplash.com/photo-1604909052743-94e838986d24?auto=format&fit=crop&w=800&q=80',
-    duration: '60分钟',
-    difficulty: '中等',
-    servings: '3-4人',
-    reason: '番茄酸香，适合全家分食',
-    tags: ['家常', '下饭'],
-    collected: true,
-    category: 'home',
-    basketIngredients: [
-      { name: '番茄', amount: '4个' },
-      { name: '牛腩', amount: '500g' },
-      { name: '生姜', amount: '4片' },
-      { name: '大蒜', amount: '2瓣' }
-    ]
-  },
-  {
-    id: '3',
-    name: '菌菇豆腐汤',
-    image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
-    duration: '25分钟',
-    difficulty: '简单',
-    servings: '2-3人',
-    reason: '口味干净，步骤轻松',
-    tags: ['汤类', '轻负担'],
-    collected: false,
-    category: 'soup',
-    basketIngredients: [
-      { name: '豆腐', amount: '1盒' },
-      { name: '菌菇', amount: '250g' },
-      { name: '小葱', amount: '2根' }
-    ]
-  },
-  {
-    id: '4',
-    name: '蒜蓉西兰花',
-    image: 'https://images.unsplash.com/photo-1628773822503-930a7eaecf80?auto=format&fit=crop&w=800&q=80',
-    duration: '10分钟',
-    difficulty: '简单',
-    servings: '2人',
-    reason: '快手素菜，营养丰富',
-    tags: ['快手', '减脂'],
-    collected: false,
-    category: 'diet',
-    basketIngredients: [
-      { name: '西兰花', amount: '1颗' },
-      { name: '大蒜', amount: '3瓣' }
-    ]
-  },
-  {
-    id: '5',
-    name: '红烧肉',
-    image: 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=800&q=80',
-    duration: '90分钟',
-    difficulty: '中等',
-    servings: '4-5人',
-    reason: '经典家常，肥而不腻',
-    tags: ['家常', '下饭'],
-    collected: false,
-    category: 'home',
-    basketIngredients: [
-      { name: '五花肉', amount: '500g' },
-      { name: '冰糖', amount: '30g' },
-      { name: '生姜', amount: '4片' }
-    ]
-  },
-  {
-    id: '6',
-    name: '鸡蛋灌饼',
-    image: 'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?auto=format&fit=crop&w=800&q=80',
-    duration: '20分钟',
-    difficulty: '中等',
-    servings: '1-2人',
-    reason: '早餐经典，外酥里嫩',
-    tags: ['早餐', '主食'],
-    collected: false,
-    category: 'breakfast',
-    basketIngredients: [
-      { name: '面粉', amount: '200g' },
-      { name: '鸡蛋', amount: '2个' },
-      { name: '生菜', amount: '2片' }
-    ]
-  }
-]);
+const recipes = ref<Recipe[]>([]);
 
 const remoteLoading = ref(false);
 const remoteError = ref<string | null>(null);
@@ -335,9 +235,15 @@ const mapRemoteRecipe = (item: {
   cookTime: number | null;
   difficulty: string | null;
   servings: number | null;
+  taste?: string | null;
+  scene?: string | null;
+  category?: { id: number; name: string; type: string } | null;
+  cuisine?: { id: number; name: string } | null;
 }) => {
   const duration = item.cookTime ? `${item.cookTime}分钟` : '—';
-  const servings = item.servings ? `${item.servings}人` : '—';
+  const servingsText = item.servings ? `${item.servings}人` : '—';
+  const tags = [item.taste, item.scene].filter(Boolean) as string[];
+  const categoryName = item.category?.name ?? '';
   return {
     id: String(item.id),
     name: item.title,
@@ -346,11 +252,11 @@ const mapRemoteRecipe = (item: {
       'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
     duration,
     difficulty: item.difficulty ?? '—',
-    servings,
+    servings: servingsText,
     reason: item.description ?? '',
-    tags: ['推荐'],
+    tags: tags.length > 0 ? tags : ['推荐'],
     collected: false,
-    category: 'all',
+    category: categoryName,
     basketIngredients: []
   } satisfies Recipe;
 };
@@ -359,9 +265,12 @@ const loadRemoteRecipes = async (mode: 'reset' | 'append') => {
   remoteLoading.value = true;
   remoteError.value = null;
   try {
+    console.log('[recipes page] request /api/recipes');
     const data = await listRecipes({ page: remotePage.value, pageSize: remotePageSize.value });
+    console.log('[recipes page] raw response', data);
     const next = data.list.map(mapRemoteRecipe);
     recipes.value = mode === 'append' ? [...recipes.value, ...next] : next;
+    console.log('[recipes page] final recipes', recipes.value);
     remoteTotal.value = data.total;
     hasMore.value = remotePage.value * remotePageSize.value < data.total;
   } catch (err) {
@@ -379,6 +288,7 @@ const handleRetryRemote = () => {
 
 const displayRecipes = computed(() => {
   let filtered = recipes.value;
+  console.log('[recipes page] selectedCategory', activeCategory.value);
 
   if (activeCategory.value !== 'all') {
     filtered = filtered.filter(r => r.category === activeCategory.value);
@@ -396,6 +306,7 @@ const displayRecipes = computed(() => {
     filtered = filtered.filter((recipe) => matchServingsFilter(recipe.servings));
   }
 
+  console.log('[recipes page] filteredRecipes', filtered);
   return filtered;
 });
 
@@ -623,6 +534,10 @@ onShow(() => {
   void loadRemoteRecipes('reset');
 });
 
+onMounted(() => {
+  console.log('[recipes page] mounted');
+});
+
 </script>
 
 <style scoped lang="scss">
@@ -700,6 +615,28 @@ onShow(() => {
 
 .content {
   padding: 0 30rpx 30rpx;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 24rpx;
+  padding: 48rpx 32rpx;
+  text-align: center;
+}
+
+.empty-state__title {
+  color: var(--app-text);
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.empty-state__desc {
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+  line-height: 36rpx;
 }
 
 .category-section {

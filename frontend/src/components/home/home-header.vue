@@ -21,7 +21,7 @@
     <scroll-view class="category-scroll" scroll-x enable-flex>
       <view class="category-row">
         <button
-          v-for="category in categories"
+          v-for="category in visibleCategories"
           :key="category.id"
           :class="['category-tab', { 'is-active': selectedCategoryId === category.id }]"
           @tap="selectCategory(category.id)"
@@ -71,12 +71,14 @@ import { computed, ref } from 'vue';
 const props = withDefaults(
   defineProps<{
     activeCategoryId?: string;
+    categories?: { id: string; label: string }[];
     immersive?: boolean;
     pinned?: boolean;
     pinnedProgress?: number;
   }>(),
   {
     activeCategoryId: 'recommend',
+    categories: () => [],
     immersive: false,
     pinned: false,
     pinnedProgress: 0
@@ -91,7 +93,7 @@ const emit = defineEmits<{
 const keyword = ref('');
 const isActionSheetVisible = ref(false);
 const internalActiveCategoryId = ref(props.activeCategoryId);
-const categories = [
+const fallbackCategories = [
   { id: 'recommend', label: '推荐' },
   { id: 'home', label: '家常菜' },
   { id: 'quick', label: '快手菜' },
@@ -99,6 +101,7 @@ const categories = [
   { id: 'breakfast', label: '早餐' },
   { id: 'light', label: '减脂' }
 ];
+const visibleCategories = computed(() => (props.categories.length > 0 ? props.categories : fallbackCategories));
 
 const selectedCategoryId = computed(() => props.activeCategoryId || internalActiveCategoryId.value);
 const headerStyle = computed(() => ({

@@ -9,7 +9,7 @@ apiHomeRouter.get('/', async (_req, res) => {
   const [recommendRecipes, recommendIngredients, recipeCategories, ingredientCategories] =
     await Promise.all([
       prisma.recipe.findMany({
-        where: { deletedAt: null, isPublish: true, status: 'ACTIVE', isRecommend: true },
+        where: { deletedAt: null, isPublish: true, status: 'ACTIVE', auditStatus: 'APPROVED', isRecommend: true },
         orderBy: [{ sort: 'desc' }, { id: 'desc' }],
         take: 10,
         select: {
@@ -60,4 +60,3 @@ apiHomeRouter.get('/', async (_req, res) => {
     })
   );
 });
-

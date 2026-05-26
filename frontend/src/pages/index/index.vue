@@ -8,12 +8,21 @@
       />
       <home-header
         :active-category-id="activeCategoryId"
+        :categories="homeHeaderCategories"
         immersive
         :pinned="isHomeHeaderPinned"
         :pinned-progress="homeHeaderPinnedProgress"
         @search="handleSearch"
         @category-change="handleCategoryChange"
       />
+    </view>
+
+    <view v-if="isRecommendCategory" class="all-recipes-entry glass-card" @click="goToRecipesPage">
+      <view>
+        <text class="all-recipes-entry__title">全部菜谱</text>
+        <text class="all-recipes-entry__subtitle">查看后台已发布的全部菜谱</text>
+      </view>
+      <text class="all-recipes-entry__action">进入</text>
     </view>
 
     <view
@@ -62,6 +71,7 @@
       v-if="isRecommendCategory"
       :title="currentMenuTitle"
       :subtitle="currentMenuSubtitle"
+      action-text="更多菜谱"
       @action-click="goToRecipesPage"
     >
       <view class="recipe-list">
@@ -185,6 +195,7 @@ const homeLoading = ref(false);
 const homeError = ref<string | null>(null);
 const remoteRecipes = ref<RecipeCard[] | null>(null);
 const remoteSeasonalIngredients = ref<Ingredient[] | null>(null);
+const remoteHomeCategories = ref<{ id: string; label: string }[]>([]);
 
 const currentRecipes = computed(() => {
   if (activeCategoryId.value === 'recommend' && remoteRecipes.value) return remoteRecipes.value;
@@ -202,6 +213,7 @@ const seasonalIngredients = computed(() => {
   return monthlyIngredients.length > 0 ? monthlyIngredients : ingredientCatalog.slice(0, 8);
 });
 const isRecommendCategory = computed(() => activeCategoryId.value === 'recommend');
+const homeHeaderCategories = computed(() => [{ id: 'recommend', label: '推荐' }, ...remoteHomeCategories.value]);
 
 const handleSearch = async (keyword: string) => {
   const message = keyword ? `搜索：${keyword}` : '请输入想找的食材或菜谱';
@@ -291,6 +303,7 @@ const loadHome = async () => {
     const data = await getHome();
     remoteRecipes.value = data.recommendRecipes.map(mapRecipeCard);
     remoteSeasonalIngredients.value = data.recommendIngredients.map(mapIngredientCard);
+    remoteHomeCategories.value = data.recipeCategories.map((category) => ({ id: `category_${category.id}`, label: category.name }));
   } catch (err) {
     homeError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
@@ -312,6 +325,42 @@ void loadHome();
   margin: 0 -32rpx;
   padding: 0;
   background: transparent;
+}
+
+.all-recipes-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-top: 28rpx;
+  padding: 28rpx 30rpx;
+}
+
+.all-recipes-entry__title,
+.all-recipes-entry__subtitle,
+.all-recipes-entry__action {
+  display: block;
+}
+
+.all-recipes-entry__title {
+  color: var(--app-text);
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.all-recipes-entry__subtitle {
+  margin-top: 8rpx;
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+
+.all-recipes-entry__action {
+  flex: 0 0 auto;
+  border-radius: 999rpx;
+  background: var(--app-primary);
+  color: #fffdfc;
+  padding: 14rpx 24rpx;
+  font-size: 24rpx;
 }
 
 .seasonal-scroll {

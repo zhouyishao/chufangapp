@@ -25,6 +25,8 @@ const upsertSchema = z.object({
   selectionTips: z.string().trim().nullable().optional(),
   storageMethod: z.string().trim().nullable().optional(),
   taboo: z.string().trim().nullable().optional(),
+  detailImages: z.array(z.string().trim().max(255)).default([]),
+  selectionMedia: z.string().trim().max(255).nullable().optional(),
   currentPrice: z.coerce.number().finite().nullable().optional(),
   priceUnit: z.string().trim().max(20).nullable().optional(),
   priceSource: z.string().trim().max(80).nullable().optional(),

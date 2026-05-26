@@ -43,6 +43,8 @@ export type Ingredient = {
   selectionTips: string | null;
   storageMethod: string | null;
   taboo: string | null;
+  detailImages?: string[] | null;
+  selectionMedia?: string | null;
   currentPrice: number | null;
   priceUnit: string | null;
   priceSource: string | null;
@@ -59,15 +61,20 @@ export type Recipe = {
   title: string;
   subtitle: string | null;
   cover: string | null;
+  images?: string[] | null;
+  video?: string | null;
   description: string | null;
   categoryId: number | null;
   category?: { id: number; name: string; type: IngredientCategory['type'] } | null;
+  cuisineId?: number | null;
+  cuisine?: { id: number; name: string } | null;
   cookTime: number | null;
   servings: number | null;
   calories: number | null;
   difficulty: string | null;
   taste: string | null;
   scene: string | null;
+  visibility?: string | null;
   tips: string | null;
   isDraft: boolean;
   isPublish: boolean;
@@ -84,6 +91,8 @@ export type Recipe = {
     title: string | null;
     description: string;
     image: string | null;
+    video?: string | null;
+    duration?: number | null;
   }[];
   ingredients?: {
     id: number;
@@ -91,9 +100,26 @@ export type Recipe = {
     ingredientId: number | null;
     name: string;
     amount: string | null;
+    unit?: string | null;
+    type?: string | null;
+    note?: string | null;
   }[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type AuditItem = {
+  id: string;
+  bizId: number;
+  type: 'RECIPE' | 'INGREDIENT' | 'POST' | 'COMMENT' | 'REPORT';
+  title: string;
+  submitter: string;
+  auditStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT';
+  statusTone: 'orange' | 'green' | 'red' | 'gray';
+  cover: string | null;
+  description: string | null;
+  rejectReason: string | null;
+  submittedAt: string;
 };
 
 export type ResourceStatus = 'ACTIVE' | 'DISABLED';

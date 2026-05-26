@@ -11,12 +11,39 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api/admin';
 
-export const resolveAssetUrl = (url: string | null | undefined) => {
-  if (!url) return null;
-  if (/^(https?:|blob:|data:)/i.test(url)) return url;
-  if (!url.startsWith('/')) return url;
-  const apiUrl = new URL(API_BASE);
-  return `${apiUrl.origin}${url}`;
+const deriveApiOrigin = () => {
+  try {
+    return new URL(API_BASE).origin;
+  } catch {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost:3002';
+  }
+};
+
+const API_ORIGIN = deriveApiOrigin();
+
+export const resolveAssetUrl = (input?: string | null): string => {
+  if (!input) return '';
+  const value = String(input).trim();
+  if (!value) return '';
+  if (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('data:') ||
+    value.startsWith('blob:')
+  ) {
+    return value;
+  }
+  if (value.startsWith('/uploads/')) {
+    return `${API_ORIGIN}${value}`;
+  }
+  try {
+    return new URL(value, API_ORIGIN).toString();
+  } catch {
+    return '';
+  }
 };
 
 const normalizePage = (value: unknown, fallback: number) => {
@@ -78,9 +105,20 @@ const request = async <T>(
 
 export type UploadImageResult = {
   url: string;
+  type?: 'image' | 'video';
+  name?: string;
+  size?: number;
+  mimeType?: string;
 };
 
-export const uploadImage = async (file: File): Promise<UploadImageResult> => {
+export type UploadMediaResult = Required<Pick<UploadImageResult, 'url'>> & {
+  type: 'image' | 'video';
+  name: string;
+  size: number;
+  mimeType?: string;
+};
+
+const uploadFile = async <T extends UploadImageResult>(file: File, endpoint: 'image' | 'video' | 'media'): Promise<T> => {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -88,12 +126,12 @@ export const uploadImage = async (file: File): Promise<UploadImageResult> => {
   const token = loadToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const response = await fetch(`${API_BASE}/upload/image`, {
+  const response = await fetch(`${API_BASE}/upload/${endpoint}`, {
     method: 'POST',
     headers,
     body: formData
   });
-  const payload = (await response.json()) as ApiResponse<UploadImageResult>;
+  const payload = (await response.json()) as ApiResponse<T>;
   if (payload.code !== 0) {
     if (payload.code === 401) {
       clearToken();
@@ -101,9 +139,13 @@ export const uploadImage = async (file: File): Promise<UploadImageResult> => {
     }
     throw new ApiError(payload.message, payload.code);
   }
-  if (!payload.data) throw new ApiError('图片上传失败');
+  if (!payload.data) throw new ApiError('上传失败');
   return payload.data;
 };
+
+export const uploadImage = async (file: File): Promise<UploadImageResult> => uploadFile<UploadImageResult>(file, 'image');
+export const uploadVideo = async (file: File): Promise<UploadMediaResult> => uploadFile<UploadMediaResult>(file, 'video');
+export const uploadMedia = async (file: File): Promise<UploadMediaResult> => uploadFile<UploadMediaResult>(file, 'media');
 
 export const login = async (username: string, password: string) => {
   return request<LoginResult>('/auth/login', {
@@ -121,7 +163,7 @@ export const listCategories = async (params: {
   type?: IngredientCategory['type'];
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
-  setParam(qs, 'type', params.type ?? 'INGREDIENT');
+  setParam(qs, 'type', params.type);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   return request<PageResult<IngredientCategory>>(`/categories?${qs.toString()}`);
@@ -178,6 +220,87 @@ export const getCategory = async (id: number) => {
   return request<IngredientCategory>(`/categories/${id}`);
 };
 
+export type TagItem = {
+  id: number;
+  name: string;
+  scope: 'RECIPE' | 'INGREDIENT' | 'SCENE' | 'TASTE' | 'METHOD' | 'CROWD';
+  sort: number;
+  status: 'ACTIVE' | 'DISABLED';
+  isPublish: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const listTags = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: TagItem['status'];
+  scope?: TagItem['scope'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'scope', params.scope);
+  return request<PageResult<TagItem>>(`/tags?${qs.toString()}`);
+};
+
+export const createTag = async (payload: { name: string; scope: TagItem['scope']; sort: number; status: TagItem['status']; isPublish: boolean }) => {
+  return request<TagItem>('/tags', { method: 'POST', body: JSON.stringify(payload) });
+};
+
+export const updateTag = async (id: number, payload: { name: string; scope: TagItem['scope']; sort: number; status: TagItem['status']; isPublish: boolean }) => {
+  return request<TagItem>(`/tags/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+};
+
+export const deleteTag = async (id: number) => {
+  return request<TagItem>(`/tags/${id}`, { method: 'DELETE' });
+};
+
+export const setTagStatus = async (id: number, status: TagItem['status']) => {
+  return request<TagItem>(`/tags/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+};
+
+export type ChannelItem = {
+  id: number;
+  name: string;
+  code: string;
+  position: string | null;
+  sort: number;
+  status: 'ACTIVE' | 'DISABLED';
+  isPublish: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const listChannels = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ChannelItem['status'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<ChannelItem>>(`/channels?${qs.toString()}`);
+};
+
+export const createChannel = async (payload: { name: string; code: string; position: string | null; sort: number; status: ChannelItem['status']; isPublish: boolean }) => {
+  return request<ChannelItem>('/channels', { method: 'POST', body: JSON.stringify(payload) });
+};
+
+export const updateChannel = async (id: number, payload: { name: string; code: string; position: string | null; sort: number; status: ChannelItem['status']; isPublish: boolean }) => {
+  return request<ChannelItem>(`/channels/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+};
+
+export const deleteChannel = async (id: number) => {
+  return request<ChannelItem>(`/channels/${id}`, { method: 'DELETE' });
+};
+
+export const setChannelStatus = async (id: number, status: ChannelItem['status']) => {
+  return request<ChannelItem>(`/channels/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+};
+
 export const listIngredients = async (params: {
   page?: number;
   pageSize?: number;
@@ -205,6 +328,8 @@ type IngredientWritePayload = {
   selectionTips: string | null;
   storageMethod: string | null;
   taboo: string | null;
+  detailImages?: string[];
+  selectionMedia?: string | null;
   currentPrice: number | null;
   priceUnit: string | null;
   priceSource: string | null;
@@ -284,6 +409,8 @@ type RecipeWritePayload = {
   title: string;
   subtitle: string | null;
   coverUrl: string | null;
+  images?: string[];
+  video?: string | null;
   description: string | null;
   categoryId: number | null;
   cookTime: number | null;
@@ -292,6 +419,7 @@ type RecipeWritePayload = {
   difficulty: string | null;
   taste: string | null;
   scene: string | null;
+  visibility?: string | null;
   tips: string | null;
   sort: number;
   status: Recipe['status'];
@@ -299,12 +427,15 @@ type RecipeWritePayload = {
   isDraft: boolean;
   isPublish: boolean;
   isRecommend: boolean;
-  steps: { sortIndex: number; title: string | null; description: string; image: string | null }[];
+  steps: { sortIndex: number; title: string | null; description: string; image: string | null; video?: string | null; duration?: number | null }[];
   ingredients: {
     sortIndex: number;
     ingredientId: number | null;
     name: string;
     amount: string | null;
+    unit?: string | null;
+    type?: string | null;
+    note?: string | null;
   }[];
 };
 
@@ -326,11 +457,14 @@ export const deleteRecipe = async (id: number) => {
 };
 
 export const setRecipePublish = async (id: number, isPublish: boolean) => {
-  return request<Recipe>(`/recipes/${id}/publish`, {
-    method: 'PATCH',
-    body: JSON.stringify({ isPublish })
-  });
+  return isPublish ? publishRecipe(id) : offlineRecipe(id);
 };
+
+export const publishRecipe = async (id: number) => request<Recipe>(`/recipes/${id}/publish`, { method: 'PATCH', body: JSON.stringify({ isPublish: true }) });
+
+export const offlineRecipe = async (id: number) => request<Recipe>(`/recipes/${id}/offline`, { method: 'PATCH' });
+
+export const submitRecipeAudit = async (id: number) => request<Recipe>(`/recipes/${id}/submit-audit`, { method: 'PATCH' });
 
 export const setRecipeRecommend = async (id: number, isRecommend: boolean) => {
   return request<Recipe>(`/recipes/${id}/recommend`, {
@@ -346,10 +480,10 @@ export const setRecipeStatus = async (id: number, status: Recipe['status']) => {
   });
 };
 
-export const setRecipeAudit = async (id: number, auditStatus: Recipe['auditStatus']) => {
+export const setRecipeAudit = async (id: number, auditStatus: Recipe['auditStatus'], rejectReason?: string) => {
   return request<Recipe>(`/recipes/${id}/audit`, {
     method: 'PATCH',
-    body: JSON.stringify({ auditStatus })
+    body: JSON.stringify({ auditStatus, rejectReason })
   });
 };
 
@@ -385,6 +519,42 @@ export const updateAdminResource = async <T extends AdminResourceItem>(
   payload: Record<string, unknown>
 ) => {
   return request<T>(`/${resource}/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+};
+
+import type { AuditItem } from './types';
+
+export const listAudits = async (params: {
+  page?: number;
+  pageSize?: number;
+  type?: AuditItem['type'];
+  status?: AuditItem['auditStatus'];
+  keyword?: string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  if (params.type) qs.set('type', params.type);
+  if (params.status) qs.set('status', params.status);
+  if (params.keyword) qs.set('keyword', params.keyword.trim());
+  return request<PageResult<AuditItem>>(`/audits?${qs.toString()}`);
+};
+
+export const approveAudit = async (bizId: number, type: string) => {
+  if (type === 'RECIPE') {
+    return request<Recipe>(`/recipes/${bizId}/audit`, {
+      method: 'PATCH',
+      body: JSON.stringify({ auditStatus: 'APPROVED' })
+    });
+  }
+  throw new ApiError('暂不支持此类型的审核操作');
+};
+
+export const rejectAudit = async (bizId: number, type: string, rejectReason: string) => {
+  if (type === 'RECIPE') {
+    return request<Recipe>(`/recipes/${bizId}/audit`, {
+      method: 'PATCH',
+      body: JSON.stringify({ auditStatus: 'REJECTED', rejectReason })
+    });
+  }
+  throw new ApiError('暂不支持此类型的审核操作');
 };
 
 export const deleteAdminResource = async <T extends AdminResourceItem>(resource: string, id: number) => {
