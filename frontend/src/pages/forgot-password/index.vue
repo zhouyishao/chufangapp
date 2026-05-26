@@ -163,17 +163,17 @@ const resetPassword = async () => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .top-title {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 900;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -198,14 +198,14 @@ const resetPassword = async () => {
 .step-label {
   color: var(--app-text-tertiary);
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .title {
   margin-top: 14rpx;
   color: var(--app-text);
   font-size: 44rpx;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.24;
 }
 
@@ -225,14 +225,14 @@ const resetPassword = async () => {
   margin-bottom: 12rpx;
   color: var(--app-text-secondary);
   font-size: 23rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .input {
   height: 82rpx;
   padding: 0 24rpx;
   border-radius: 28rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 27rpx;
 }
@@ -242,11 +242,11 @@ const resetPassword = async () => {
   height: 88rpx;
   margin-top: 34rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .phone-tip {
@@ -259,10 +259,10 @@ const resetPassword = async () => {
   height: 112rpx;
   margin-top: 24rpx;
   border-radius: 32rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 48rpx;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 12rpx;
   text-align: center;
 }

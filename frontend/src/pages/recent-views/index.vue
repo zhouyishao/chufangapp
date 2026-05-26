@@ -112,11 +112,11 @@ const goToRecipe = (recipeId: string) => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
   font-weight: 700;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .back-button::after {
@@ -142,7 +142,7 @@ const goToRecipe = (recipeId: string) => {
   margin-top: 4rpx;
   color: var(--app-text);
   font-size: 42rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .timeline-card {
@@ -159,7 +159,7 @@ const goToRecipe = (recipeId: string) => {
   margin-bottom: 16rpx;
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .recipe-row {
@@ -188,7 +188,7 @@ const goToRecipe = (recipeId: string) => {
 .recipe-name {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .recipe-desc {

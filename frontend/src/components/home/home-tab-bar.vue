@@ -97,18 +97,18 @@ const handleTabClick = (tabId: string) => {
 <style scoped lang="scss">
 .home-tab-bar {
   position: fixed;
-  right: 24rpx;
+  right: 32rpx;
   bottom: 18rpx;
-  left: 24rpx;
+  left: 32rpx;
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8rpx;
   padding: 18rpx 14rpx calc(18rpx + env(safe-area-inset-bottom, 0));
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20rpx);
-  -webkit-backdrop-filter: blur(20rpx);
-  box-shadow: 0 -2rpx 20rpx rgba(0, 0, 0, 0.04);
+  background: rgba(255, 253, 252, 0.94);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--app-shadow);
 }
 
 .home-tab-bar__item {
@@ -124,7 +124,7 @@ const handleTabClick = (tabId: string) => {
 }
 
 .home-tab-bar__item:active {
-  transform: scale(0.92);
+  opacity: 0.72;
 }
 
 .icon-wrapper {
@@ -135,38 +135,37 @@ const handleTabClick = (tabId: string) => {
   width: 48rpx;
   height: 48rpx;
   border-radius: 12rpx;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(10rpx);
-  -webkit-backdrop-filter: blur(10rpx);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .is-active .icon-wrapper {
   background: var(--app-accent-soft);
-  box-shadow: 0 4rpx 12rpx rgba(17, 17, 17, 0.08);
+  box-shadow: none;
 }
 
 .tab-icon {
   width: 24rpx;
   height: 24rpx;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--app-text-secondary);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .is-active .tab-icon {
-  color: var(--app-text);
-  transform: scale(1.1);
+  color: var(--app-primary);
 }
 
 .home-tab-bar__label {
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--app-text-secondary);
   font-size: 20rpx;
   font-weight: 500;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .is-active .home-tab-bar__label {
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--app-primary);
   font-weight: 600;
 }
 </style>

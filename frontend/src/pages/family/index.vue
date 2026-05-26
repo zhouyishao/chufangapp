@@ -60,6 +60,7 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: calc(-32rpx + env(safe-area-inset-top, 0));
   margin-bottom: 24rpx;
 }
 
@@ -71,11 +72,11 @@ onShow(() => {
   height: 74rpx;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
   font-size: 38rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .nav-button::after {
@@ -87,7 +88,7 @@ onShow(() => {
   margin-top: 6rpx;
   color: var(--app-text);
   font-size: 68rpx;
-  font-weight: 950;
+  font-weight: 600;
   letter-spacing: -1.2rpx;
 }
 
@@ -104,8 +105,8 @@ onShow(() => {
   justify-content: space-between;
   gap: 16rpx;
   padding: 26rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .family-card__main {
@@ -123,7 +124,7 @@ onShow(() => {
   overflow: hidden;
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 950;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -141,4 +142,3 @@ onShow(() => {
   font-weight: 700;
 }
 </style>
-

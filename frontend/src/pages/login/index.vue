@@ -55,7 +55,7 @@ const goToRegister = () => {
   min-height: 100vh;
   padding: calc(var(--status-bar-height) + 22rpx) 30rpx 60rpx;
   background:
-    radial-gradient(circle at 72% 4%, rgba(255, 255, 255, 0.98), transparent 34%),
+    radial-gradient(circle at 72% 4%, rgba(255, 253, 252, 0.98), transparent 34%),
     var(--app-bg);
 }
 
@@ -71,11 +71,11 @@ const goToRegister = () => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .back-button::after,
@@ -102,14 +102,14 @@ const goToRegister = () => {
 .eyebrow {
   color: var(--app-text-tertiary);
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .title {
   margin-top: 20rpx;
   color: var(--app-text);
   font-size: 48rpx;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -129,19 +129,19 @@ const goToRegister = () => {
   width: 100%;
   height: 88rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .primary-button {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .secondary-button {
   margin-top: 16rpx;
-  background: #f2f4f7;
+  background: #e9e2d6;
   color: var(--app-text);
 }
 
@@ -161,7 +161,7 @@ const goToRegister = () => {
 .benefit-title {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .benefit-desc {

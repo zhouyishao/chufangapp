@@ -14,6 +14,14 @@
     </view>
 
     <view class="content">
+      <view v-if="remoteLoading" class="remote-banner glass-card">
+        <text class="remote-banner__text">正在加载食材详情...</text>
+      </view>
+      <view v-else-if="remoteError" class="remote-banner glass-card">
+        <text class="remote-banner__error">加载失败：{{ remoteError }}</text>
+        <button class="remote-banner__retry" @tap="handleRetryRemote">重试</button>
+      </view>
+
       <view class="ingredient-header glass-card">
         <view class="ingredient-header__content">
           <view class="ingredient-header__main">
@@ -285,6 +293,7 @@ import {
 } from '../../services/favorites';
 import { addPriceRecords, getPriceRecordsByIngredient, removePriceRecord } from '../../services/price';
 import type { IngredientPriceRecord } from '../../services/price';
+import { getIngredient } from '../../services/public-api';
 
 interface BasicInfo {
   label: string;
@@ -360,6 +369,35 @@ const ingredient = ref<Ingredient>({
     }
   ]
 });
+
+const remoteLoading = ref(false);
+const remoteError = ref<string | null>(null);
+const currentIngredientId = ref<number | null>(null);
+
+const loadRemoteIngredient = async (id: number) => {
+  remoteLoading.value = true;
+  remoteError.value = null;
+  try {
+    const data = await getIngredient(id);
+    ingredient.value = {
+      ...ingredient.value,
+      id: String(data.id),
+      name: data.name,
+      subtitle: data.seasonMonth ? `时令：${data.seasonMonth}` : ingredient.value.subtitle,
+      image:
+        data.cover ??
+        ingredient.value.image,
+      seasonTag: {
+        type: 'success',
+        label: data.seasonMonth ? `${data.seasonMonth.split(',')[0]?.trim() ?? ''}月当季` : ingredient.value.seasonTag.label
+      }
+    };
+  } catch (err) {
+    remoteError.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    remoteLoading.value = false;
+  }
+};
 
 const ingredientOverrides: Record<string, Partial<Ingredient>> = {
   '1': {
@@ -598,10 +636,20 @@ onLoad((query?: Record<string, string | undefined>) => {
       ...override
     };
   }
+  const numericId = Number.parseInt(id, 10);
+  if (Number.isFinite(numericId)) {
+    currentIngredientId.value = numericId;
+    void loadRemoteIngredient(numericId);
+  }
   refreshPriceRecords();
   syncBasketState();
   syncFavoriteState();
 });
+
+const handleRetryRemote = () => {
+  if (!currentIngredientId.value) return;
+  void loadRemoteIngredient(currentIngredientId.value);
+};
 
 onShow(() => {
   refreshPriceRecords();
@@ -773,7 +821,7 @@ const deleteSelectedPriceRecord = () => {
     title: '删除价格记录',
     content: `确认删除 ${formatPriceDate(record.date)} 的 ¥${record.price}/${record.unit}？`,
     confirmText: '删除',
-    confirmColor: '#111111',
+    confirmColor: '#7a8b6f',
     success: (result) => {
       if (!result.confirm) {
         return;
@@ -878,8 +926,8 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 
 .header-overlay.is-solid {
   border-radius: 0 0 34rpx 34rpx;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 14rpx 36rpx rgba(15, 23, 42, 0.08);
+  background: rgba(255, 253, 252, 0.96);
+  box-shadow: 0 14rpx 36rpx rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(22rpx);
   -webkit-backdrop-filter: blur(22rpx);
 }
@@ -892,10 +940,10 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 253, 252, 0.9);
   backdrop-filter: blur(10rpx);
   pointer-events: auto;
-  box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.04);
   transition:
     background 0.22s ease,
     box-shadow 0.22s ease;
@@ -908,13 +956,13 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 }
 
 .favorite-button.is-favorite {
-  background: rgba(15, 23, 42, 0.92);
-  color: #ffffff;
+  background: rgba(47, 47, 47, 0.82);
+  color: #fffdfc;
 }
 
 .header-overlay.is-solid .favorite-button.is-favorite {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .back-icon,
@@ -925,7 +973,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 }
 
 .favorite-button.is-favorite .favorite-icon {
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .favorite-icon {
@@ -952,6 +1000,33 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   position: relative;
   margin-top: -40rpx;
   padding: 0 30rpx calc(170rpx + env(safe-area-inset-bottom, 0));
+}
+
+.remote-banner {
+  margin-bottom: 20rpx;
+  padding: 18rpx 22rpx;
+  border-radius: var(--app-radius-card);
+}
+
+.remote-banner__text {
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+
+.remote-banner__error {
+  color: #dc2626;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.remote-banner__retry {
+  margin-top: 12rpx;
+  padding: 14rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 253, 252, 0.9);
+  color: var(--app-text);
+  font-size: 24rpx;
 }
 
 .ingredient-header {
@@ -1005,7 +1080,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 .estimate-value {
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .overview-section,
@@ -1071,24 +1146,24 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   gap: 8rpx;
   margin-bottom: 24rpx;
   padding: 8rpx;
-  border-radius: 999rpx;
-  background: #f2f4f7;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
 }
 
 .overview-tab {
   height: 62rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .overview-tab.is-active {
   background: var(--app-accent);
-  color: #ffffff;
-  box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.12);
+  color: #fffdfc;
+  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.06);
 }
 
 .overview-tab::after {
@@ -1120,12 +1195,12 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   height: 48rpx;
   padding: 0 18rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 22rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.18);
+  font-weight: 500;
+  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.08);
 }
 
 .delete-price-button::after,
@@ -1148,7 +1223,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   margin-top: 10rpx;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .price-line-chart {
@@ -1161,8 +1236,8 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   height: 144rpx;
   border-radius: 24rpx;
   background:
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1rpx, transparent 1rpx) 0 0 / 100% 33%,
-    #f7f9fb;
+    linear-gradient(to bottom, rgba(122, 139, 111, 0.14) 1rpx, transparent 1rpx) 0 0 / 100% 33%,
+    #e9e2d6;
 }
 
 .price-line-chart__line {
@@ -1173,14 +1248,14 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 }
 
 .price-line-chart__point {
-  fill: #ffffff;
+  fill: #fffdfc;
   stroke: var(--app-accent);
   stroke-width: 3;
 }
 
 .price-line-chart__point.is-active {
   fill: var(--app-accent);
-  stroke: #ffffff;
+  stroke: #fffdfc;
   stroke-width: 4;
 }
 
@@ -1205,23 +1280,23 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   gap: 8rpx;
   margin-bottom: 22rpx;
   padding: 8rpx;
-  border-radius: 999rpx;
-  background: #f2f4f7;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
 }
 
 .tips-tab {
   height: 58rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .tips-tab.is-active {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .tips-tab::after {
@@ -1235,7 +1310,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   display: flex;
   align-items: flex-end;
   padding: 24rpx;
-  background: rgba(15, 23, 42, 0.24);
+  background: rgba(47, 47, 47, 0.18);
   backdrop-filter: blur(10rpx);
   -webkit-backdrop-filter: blur(10rpx);
 }
@@ -1260,7 +1335,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 .price-panel__title {
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .price-panel__desc {
@@ -1300,10 +1375,10 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   height: 72rpx;
   padding: 0 20rpx;
   border-radius: 24rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .field-input.is-select {
@@ -1325,12 +1400,12 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   align-items: center;
   gap: 6rpx;
   padding: 11rpx 14rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 23rpx;
-  font-weight: 900;
-  box-shadow: inset 0 0 0 1rpx rgba(15, 23, 42, 0.06);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1rpx rgba(0, 0, 0, 0.04);
 }
 
 .select-arrow {
@@ -1354,7 +1429,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   margin-top: 18rpx;
   padding: 18rpx 20rpx;
   border-radius: 24rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
 }
 
 .converted-price__label {
@@ -1366,7 +1441,7 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 .converted-price__value {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .save-price-button {
@@ -1374,11 +1449,11 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   height: 76rpx;
   margin-top: 24rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 27rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .recipe-list {
@@ -1437,25 +1512,25 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
   width: 100%;
   height: 82rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .record-bottom-button {
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
-  box-shadow: 0 16rpx 38rpx rgba(15, 23, 42, 0.12);
+  box-shadow: 0 16rpx 38rpx rgba(0, 0, 0, 0.06);
 }
 
 .add-basket-button {
   background: var(--app-accent);
-  color: #ffffff;
-  box-shadow: 0 18rpx 46rpx rgba(15, 23, 42, 0.2);
+  color: #fffdfc;
+  box-shadow: 0 18rpx 46rpx rgba(0, 0, 0, 0.1);
 }
 
 .add-basket-button.is-in-basket {
-  background: #27384a;
+  background: #a8b48a;
 }
 
 .bottom-button__icon {

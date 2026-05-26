@@ -131,11 +131,11 @@ const save = async () => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
   font-weight: 700;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .back-button::after {
@@ -155,7 +155,7 @@ const save = async () => {
 .page-title {
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 900;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -169,8 +169,8 @@ const save = async () => {
   flex-direction: column;
   align-items: center;
   padding: 44rpx 34rpx 38rpx;
-  border-radius: 42rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
 }
 
 .avatar-stage {
@@ -183,10 +183,10 @@ const save = async () => {
 .avatar {
   width: 150rpx;
   height: 150rpx;
-  border: 6rpx solid #ffffff;
+  border: 6rpx solid #fffdfc;
   border-radius: 50%;
-  background: #eef2f6;
-  box-shadow: 0 18rpx 44rpx rgba(15, 23, 42, 0.12);
+  background: #e9e2d6;
+  box-shadow: 0 18rpx 44rpx rgba(0, 0, 0, 0.06);
 }
 
 .avatar-action {
@@ -194,18 +194,18 @@ const save = async () => {
   right: -10rpx;
   bottom: 2rpx;
   padding: 8rpx 14rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 20rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .preview-name {
   max-width: 100%;
   color: var(--app-text);
   font-size: 40rpx;
-  font-weight: 950;
+  font-weight: 600;
   line-height: 1.25;
   text-align: center;
 }
@@ -222,8 +222,8 @@ const save = async () => {
 .form-card {
   margin-top: 22rpx;
   padding: 26rpx 26rpx 28rpx;
-  border-radius: 42rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
 }
 
 .form-row {
@@ -245,14 +245,14 @@ const save = async () => {
 .field-label {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .field-count {
   flex-shrink: 0;
   color: var(--app-text-tertiary);
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .text-input {
@@ -262,10 +262,10 @@ const save = async () => {
   padding: 0 26rpx;
   border: 0;
   border-radius: 28rpx;
-  background: #f3f5f8;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 27rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .text-area {
@@ -275,7 +275,7 @@ const save = async () => {
   padding: 22rpx 26rpx;
   border: 0;
   border-radius: 28rpx;
-  background: #f3f5f8;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 27rpx;
   font-weight: 700;
@@ -290,8 +290,8 @@ const save = async () => {
   z-index: 20;
   display: flex;
   padding: 16rpx;
-  border-radius: 38rpx;
-  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.94);
 }
 
 .primary-button {
@@ -301,11 +301,11 @@ const save = async () => {
   width: 100%;
   height: 84rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 27rpx;
-  font-weight: 900;
+  font-weight: 600;
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .primary-button::after {

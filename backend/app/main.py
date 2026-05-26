@@ -18,6 +18,19 @@ def create_app() -> FastAPI:
     redoc_url="/redoc",
   )
 
+  @app.get("/")
+  async def root():
+    return {
+      "message": "家庭时令菜谱 API",
+      "version": settings.app_version,
+      "docs": "/docs",
+      "status": "running"
+    }
+
+  @app.get("/health")
+  async def health():
+    return {"status": "healthy"}
+
   @app.exception_handler(StarletteHTTPException)
   async def http_exception_handler(_: Request, exc: StarletteHTTPException):
     return JSONResponse(

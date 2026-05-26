@@ -29,10 +29,15 @@ unpackage/
 
 # Codex / agent artifacts
 .codex/
+.claude/
 
 # Python caches
 __pycache__/
 *.pyc
+
+# Local databases / uploads
+*.db
+uploads/
 
 # Misc
 *.log

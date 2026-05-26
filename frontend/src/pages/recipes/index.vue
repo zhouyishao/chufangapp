@@ -58,6 +58,14 @@
         </view>
       </view>
 
+      <view v-if="remoteLoading" class="remote-banner glass-card">
+        <text class="remote-banner__text">正在加载菜谱...</text>
+      </view>
+      <view v-else-if="remoteError" class="remote-banner glass-card">
+        <text class="remote-banner__error">加载失败：{{ remoteError }}</text>
+        <button class="remote-banner__retry" @tap="handleRetryRemote">重试</button>
+      </view>
+
       <view class="recipes-list">
         <view
           v-for="recipe in displayRecipes"
@@ -134,6 +142,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { addBasketItem, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
+import { listRecipes } from '../../services/public-api';
 
 interface Recipe {
   id: string;
@@ -311,6 +320,62 @@ const recipes = ref<Recipe[]>([
     ]
   }
 ]);
+
+const remoteLoading = ref(false);
+const remoteError = ref<string | null>(null);
+const remotePage = ref(1);
+const remotePageSize = ref(10);
+const remoteTotal = ref(0);
+
+const mapRemoteRecipe = (item: {
+  id: number;
+  title: string;
+  cover: string | null;
+  description: string | null;
+  cookTime: number | null;
+  difficulty: string | null;
+  servings: number | null;
+}) => {
+  const duration = item.cookTime ? `${item.cookTime}分钟` : '—';
+  const servings = item.servings ? `${item.servings}人` : '—';
+  return {
+    id: String(item.id),
+    name: item.title,
+    image:
+      item.cover ??
+      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
+    duration,
+    difficulty: item.difficulty ?? '—',
+    servings,
+    reason: item.description ?? '',
+    tags: ['推荐'],
+    collected: false,
+    category: 'all',
+    basketIngredients: []
+  } satisfies Recipe;
+};
+
+const loadRemoteRecipes = async (mode: 'reset' | 'append') => {
+  remoteLoading.value = true;
+  remoteError.value = null;
+  try {
+    const data = await listRecipes({ page: remotePage.value, pageSize: remotePageSize.value });
+    const next = data.list.map(mapRemoteRecipe);
+    recipes.value = mode === 'append' ? [...recipes.value, ...next] : next;
+    remoteTotal.value = data.total;
+    hasMore.value = remotePage.value * remotePageSize.value < data.total;
+  } catch (err) {
+    remoteError.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    remoteLoading.value = false;
+  }
+};
+
+const handleRetryRemote = () => {
+  if (remoteLoading.value) return;
+  remotePage.value = 1;
+  void loadRemoteRecipes('reset');
+};
 
 const displayRecipes = computed(() => {
   let filtered = recipes.value;
@@ -543,14 +608,19 @@ const handleSearch = () => {
 };
 
 const loadMore = () => {
-  uni.showToast({
-    title: '加载更多',
-    icon: 'none'
-  });
+  if (remoteLoading.value) return;
+  if (!hasMore.value) {
+    uni.showToast({ title: '没有更多了', icon: 'none' });
+    return;
+  }
+  remotePage.value += 1;
+  void loadRemoteRecipes('append');
 };
 
 onShow(() => {
   syncBasketState();
+  remotePage.value = 1;
+  void loadRemoteRecipes('reset');
 });
 
 </script>
@@ -585,8 +655,8 @@ onShow(() => {
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.06);
+  background: rgba(255, 253, 252, 0.9);
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
 }
 
 .back-icon {
@@ -613,7 +683,7 @@ onShow(() => {
   margin-bottom: 18rpx;
   padding: 24rpx 32rpx;
   border-radius: 48rpx;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 253, 252, 0.9);
   backdrop-filter: blur(20rpx);
   box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.04);
 }
@@ -660,7 +730,7 @@ onShow(() => {
   bottom: 0;
   left: 8rpx;
   height: 5rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
   content: '';
 }
@@ -674,7 +744,7 @@ onShow(() => {
 
 .category-chip.active .category-label {
   color: var(--app-accent);
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .filter-section {
@@ -729,11 +799,11 @@ onShow(() => {
   height: 64rpx;
   margin: 0;
   border: 0;
-  border-radius: 999rpx;
-  background: #f4f6f8;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
   color: var(--app-text-secondary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .filter-option::after {
@@ -742,13 +812,40 @@ onShow(() => {
 
 .filter-option.is-active {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .recipes-list {
   display: flex;
   flex-direction: column;
   gap: 24rpx;
+}
+
+.remote-banner {
+  margin: 0 30rpx 18rpx;
+  padding: 18rpx 22rpx;
+  border-radius: var(--app-radius-card);
+}
+
+.remote-banner__text {
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+
+.remote-banner__error {
+  color: #dc2626;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.remote-banner__retry {
+  margin-top: 12rpx;
+  padding: 14rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 253, 252, 0.9);
+  color: var(--app-text);
+  font-size: 24rpx;
 }
 
 .recipe-card {
@@ -855,7 +952,7 @@ onShow(() => {
 }
 
 .basket-icon-button.is-added {
-  background: rgba(61, 122, 87, 0.12);
+  background: rgba(107, 163, 104, 0.12);
   color: var(--app-success);
 }
 

@@ -68,14 +68,14 @@
           <text class="settings-title">通知提醒</text>
           <text class="settings-desc">采购和菜谱提醒</text>
         </view>
-        <switch :checked="notificationOn" color="#111111" @change="toggleNotification" />
+        <switch :checked="notificationOn" color="#7a8b6f" @change="toggleNotification" />
       </view>
       <view class="settings-item">
         <view>
           <text class="settings-title">家庭共享</text>
           <text class="settings-desc">同步家庭菜篮子</text>
         </view>
-        <switch :checked="familyShareOn" color="#111111" @change="toggleFamilyShare" />
+        <switch :checked="familyShareOn" color="#7a8b6f" @change="toggleFamilyShare" />
       </view>
       <button class="logout-button" @click="logout">退出登录</button>
     </view>
@@ -109,8 +109,8 @@
               min="0"
               max="100"
               block-size="22"
-              activeColor="#111111"
-              backgroundColor="#e8ecf1"
+              activeColor="#7a8b6f"
+              backgroundColor="#e9e2d6"
               @change="changeBackgroundOffset"
             />
             <text>下移</text>
@@ -218,7 +218,7 @@ const logout = () => {
     title: '退出登录',
     content: '退出后将回到未登录状态，本地收藏和记录不会删除。',
     confirmText: '退出',
-    confirmColor: '#111111',
+    confirmColor: '#7a8b6f',
     success: (result) => {
       if (!result.confirm) {
         return;
@@ -261,8 +261,8 @@ onShow(() => {
   overflow: hidden;
   padding: 0;
   border-radius: 44rpx;
-  background: #ffffff;
-  box-shadow: 0 24rpx 80rpx rgba(15, 23, 42, 0.06);
+  background: #fffdfc;
+  box-shadow: 0 24rpx 80rpx rgba(0, 0, 0, 0.04);
 }
 
 .mine-hero__bg,
@@ -275,8 +275,8 @@ onShow(() => {
 
 .mine-hero__shade {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.96) 48%, #ffffff 100%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.58));
+    linear-gradient(180deg, rgba(255, 253, 252, 0.3), rgba(255, 253, 252, 0.96) 48%, #fffdfc 100%),
+    linear-gradient(90deg, rgba(255, 253, 252, 0.92), rgba(255, 253, 252, 0.58));
 }
 
 .mine-hero__content {
@@ -295,10 +295,10 @@ onShow(() => {
 .profile__avatar {
   width: 142rpx;
   height: 142rpx;
-  border: 6rpx solid #ffffff;
+  border: 6rpx solid #fffdfc;
   border-radius: 50%;
-  background: #eef2f6;
-  box-shadow: 0 24rpx 56rpx rgba(15, 23, 42, 0.12);
+  background: #e9e2d6;
+  box-shadow: 0 24rpx 56rpx rgba(0, 0, 0, 0.06);
 }
 
 .hero-actions {
@@ -314,17 +314,17 @@ onShow(() => {
   height: 64rpx;
   margin-top: 2rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.86);
+  border-radius: var(--app-radius-button);
+  background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
   font-size: 23rpx;
-  font-weight: 900;
-  box-shadow: 0 14rpx 34rpx rgba(15, 23, 42, 0.08);
+  font-weight: 600;
+  box-shadow: 0 14rpx 34rpx rgba(0, 0, 0, 0.04);
 }
 
 .profile__edit--dark {
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
 }
 
 .profile__name {
@@ -332,7 +332,7 @@ onShow(() => {
   margin-top: 42rpx;
   color: var(--app-text);
   font-size: 48rpx;
-  font-weight: 950;
+  font-weight: 600;
   line-height: 1.12;
   letter-spacing: -1rpx;
 }
@@ -349,12 +349,12 @@ onShow(() => {
 .family-module {
   margin-top: 20rpx;
   padding: 28rpx;
-  border: 1rpx solid rgba(226, 232, 240, 0.74);
-  border-radius: 36rpx;
+  border: 1rpx solid rgba(233, 226, 214, 0.9);
+  border-radius: var(--app-radius-card);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(250, 252, 255, 0.9)),
-    #ffffff;
-  box-shadow: 0 18rpx 58rpx rgba(15, 23, 42, 0.07);
+    linear-gradient(135deg, rgba(255, 253, 252, 0.96), rgba(255, 253, 252, 0.9)),
+    #fffdfc;
+  box-shadow: 0 18rpx 58rpx rgba(0, 0, 0, 0.04);
 }
 
 .family-module__content {
@@ -394,10 +394,10 @@ onShow(() => {
   width: 72rpx;
   height: 72rpx;
   margin-left: -20rpx;
-  border: 4rpx solid #ffffff;
+  border: 4rpx solid #fffdfc;
   border-radius: 50%;
-  background: #eef2f6;
-  box-shadow: 0 10rpx 26rpx rgba(15, 23, 42, 0.08);
+  background: #e9e2d6;
+  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.04);
 }
 
 .family-add-button {
@@ -417,12 +417,12 @@ onShow(() => {
   gap: 0;
   margin-top: 22rpx;
   padding: 10rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.72);
-  border-radius: 30rpx;
-  background: rgba(255, 255, 255, 0.68);
+  border: 1rpx solid rgba(255, 253, 252, 0.72);
+  border-radius: var(--app-radius-input);
+  background: rgba(255, 253, 252, 0.68);
   box-shadow:
-    inset 0 1rpx 0 rgba(255, 255, 255, 0.88),
-    0 18rpx 44rpx rgba(15, 23, 42, 0.06);
+    inset 0 1rpx 0 rgba(255, 253, 252, 0.88),
+    0 18rpx 44rpx rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(18rpx);
   -webkit-backdrop-filter: blur(18rpx);
 }
@@ -453,7 +453,7 @@ onShow(() => {
   right: 0;
   bottom: 20rpx;
   width: 1rpx;
-  background: rgba(148, 163, 184, 0.18);
+  background: rgba(183, 174, 161, 0.22);
   content: '';
 }
 
@@ -474,7 +474,7 @@ onShow(() => {
 .profile-action__value {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -482,14 +482,14 @@ onShow(() => {
   margin-top: 10rpx;
   color: var(--app-text-secondary);
   font-size: 19rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .family-card__name {
   display: inline-block;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .family-summary {
@@ -501,11 +501,11 @@ onShow(() => {
 
 .family-summary text {
   padding: 7rpx 12rpx;
-  border-radius: 999rpx;
-  background: rgba(243, 245, 248, 0.9);
+  border-radius: var(--app-radius-button);
+  background: rgba(233, 226, 214, 0.72);
   color: var(--app-text-secondary);
   font-size: 19rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .family-add-button::after,
@@ -524,8 +524,8 @@ onShow(() => {
 .settings-card {
   margin-top: 20rpx;
   padding: 28rpx;
-  border-radius: 38rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
 }
 
 .settings-item {
@@ -540,7 +540,7 @@ onShow(() => {
 .settings-title {
   color: var(--app-text);
   font-size: 27rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .settings-desc {
@@ -554,11 +554,11 @@ onShow(() => {
   height: 82rpx;
   margin-top: 22rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #fff1f0;
-  color: #d92d20;
+  border-radius: var(--app-radius-button);
+  background: rgba(229, 115, 95, 0.12);
+  color: #e5735f;
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .join-mask {
@@ -568,7 +568,7 @@ onShow(() => {
   display: flex;
   align-items: flex-end;
   padding: 24rpx 24rpx calc(124rpx + env(safe-area-inset-bottom, 0));
-  background: rgba(16, 17, 20, 0.28);
+  background: rgba(47, 47, 47, 0.28);
   backdrop-filter: blur(10rpx);
   -webkit-backdrop-filter: blur(10rpx);
 }
@@ -594,7 +594,7 @@ onShow(() => {
   display: block;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .join-panel__subtitle {
@@ -617,14 +617,14 @@ onShow(() => {
   margin-top: 26rpx;
   padding: 8rpx;
   border: 1rpx solid var(--app-border);
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--app-radius-button);
+  background: rgba(255, 253, 252, 0.72);
 }
 
 .join-tab {
   height: 62rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 24rpx;
@@ -633,7 +633,7 @@ onShow(() => {
 
 .join-tab.is-active {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .join-section {
@@ -668,18 +668,18 @@ onShow(() => {
   min-width: 104rpx;
   height: 56rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #111111;
-  color: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 23rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .family-invite-card {
   margin-top: 12rpx;
   padding: 20rpx;
   border-radius: 28rpx;
-  background: #f3f5f8;
+  background: #e9e2d6;
 }
 
 .family-invite-title,
@@ -691,7 +691,7 @@ onShow(() => {
 .family-invite-title {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .family-invite-desc {
@@ -715,14 +715,14 @@ onShow(() => {
   justify-content: center;
   padding: 20rpx;
   border-radius: 24rpx;
-  background: #ffffff;
+  background: #fffdfc;
 }
 
 .family-qr-dot {
   width: 24rpx;
   height: 24rpx;
   border-radius: 7rpx;
-  background: #111111;
+  background: #7a8b6f;
 }
 
 .family-link-box {
@@ -733,7 +733,7 @@ onShow(() => {
   overflow: hidden;
   color: var(--app-text-secondary);
   font-size: 21rpx;
-  font-weight: 800;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -742,23 +742,23 @@ onShow(() => {
 .share-card-button {
   height: 58rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 22rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .family-link-button {
   min-width: 132rpx;
   margin-top: 12rpx;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
 }
 
 .share-card-button {
   width: 100%;
   margin-top: 16rpx;
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
 }
 
 .invite-input {
@@ -767,7 +767,7 @@ onShow(() => {
   padding: 0 24rpx;
   border: 1rpx solid var(--app-border);
   border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 253, 252, 0.82);
   color: var(--app-text);
   font-size: 24rpx;
 }
@@ -777,11 +777,11 @@ onShow(() => {
   height: 82rpx;
   margin-top: 28rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .member-list {
@@ -797,14 +797,14 @@ onShow(() => {
   gap: 18rpx;
   padding: 18rpx;
   border-radius: 28rpx;
-  background: #f3f5f8;
+  background: #e9e2d6;
 }
 
 .member-avatar {
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
 }
 
 .member-main {
@@ -816,14 +816,14 @@ onShow(() => {
   display: block;
   color: var(--app-text);
   font-size: 27rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .member-role {
   flex: 0 0 auto;
   color: var(--app-text-secondary);
   font-size: 21rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .member-note-input {
@@ -842,11 +842,11 @@ onShow(() => {
   min-width: 78rpx;
   height: 50rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #fff1f0;
-  color: #d92d20;
+  border-radius: var(--app-radius-button);
+  background: rgba(229, 115, 95, 0.12);
+  color: #e5735f;
   font-size: 21rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .invite-preview {
@@ -885,7 +885,7 @@ onShow(() => {
   height: 260rpx;
   border-radius: 28rpx;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(238, 242, 246, 0.86));
+    linear-gradient(135deg, rgba(255, 253, 252, 0.92), rgba(233, 226, 214, 0.76));
 }
 
 .qr-grid {
@@ -894,8 +894,8 @@ onShow(() => {
   gap: 16rpx;
   padding: 28rpx;
   border-radius: 28rpx;
-  background: #ffffff;
-  box-shadow: 0 16rpx 40rpx rgba(15, 23, 42, 0.08);
+  background: #fffdfc;
+  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.04);
 }
 
 .qr-dot {
@@ -910,8 +910,8 @@ onShow(() => {
   height: 300rpx;
   margin-top: 26rpx;
   overflow: hidden;
-  border-radius: 30rpx;
-  background: #eef2f6;
+  border-radius: var(--app-radius-input);
+  background: #e9e2d6;
 }
 
 .background-preview__image {
@@ -928,11 +928,11 @@ onShow(() => {
   width: 100%;
   height: 74rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #f1f3f6;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .background-slider-row {
@@ -943,7 +943,7 @@ onShow(() => {
   margin-top: 22rpx;
   color: var(--app-text-secondary);
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .qr-dot:nth-child(2),

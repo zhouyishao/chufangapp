@@ -222,7 +222,7 @@ const confirmLeaveFamily = () => {
     title: '退出家庭',
     content: `确认退出「${family.name}」吗？退出后将看不到该家庭的共享内容。`,
     confirmText: '退出',
-    confirmColor: '#d92d20',
+    confirmColor: '#e5735f',
     success: (result) => {
       if (!result.confirm) {
         return;
@@ -245,7 +245,7 @@ const confirmRemoveMember = () => {
     title: '移除成员',
     content: `确认将「${targetName}」移出当前家庭吗？`,
     confirmText: '移除',
-    confirmColor: '#d92d20',
+    confirmColor: '#e5735f',
     success: (result) => {
       if (!result.confirm || !member.value) {
         return;
@@ -285,11 +285,11 @@ onLoad((options) => {
   height: 74rpx;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
   font-size: 38rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .nav-button::after,
@@ -331,7 +331,7 @@ onLoad((options) => {
 .member-name {
   color: var(--app-text);
   font-size: 64rpx;
-  font-weight: 950;
+  font-weight: 600;
   letter-spacing: -1rpx;
   line-height: 1.05;
 }
@@ -346,8 +346,8 @@ onLoad((options) => {
 .info-section {
   margin-top: 18rpx;
   padding: 10rpx 22rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .info-row {
@@ -366,7 +366,7 @@ onLoad((options) => {
 .info-label {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .info-right {
@@ -396,37 +396,37 @@ onLoad((options) => {
 .action-section {
   margin-top: 18rpx;
   padding: 20rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .danger-button {
   width: 100%;
   height: 82rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #fff1f0;
-  color: #d92d20;
+  border-radius: var(--app-radius-button);
+  background: rgba(229, 115, 95, 0.12);
+  color: #e5735f;
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .danger-button--soft {
-  background: #f4f6f8;
+  background: #e9e2d6;
   color: var(--app-text);
 }
 
 .empty-card {
   margin-top: 24rpx;
   padding: 26rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .empty-title {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .empty-desc {
@@ -443,7 +443,7 @@ onLoad((options) => {
   display: flex;
   align-items: flex-end;
   padding: 24rpx;
-  background: rgba(16, 17, 20, 0.28);
+  background: rgba(47, 47, 47, 0.28);
   backdrop-filter: blur(10rpx);
   -webkit-backdrop-filter: blur(10rpx);
 }
@@ -451,7 +451,7 @@ onLoad((options) => {
 .panel {
   width: 100%;
   padding: 26rpx;
-  border-radius: 34rpx;
+  border-radius: var(--app-radius-card);
 }
 
 .panel-head {
@@ -465,7 +465,7 @@ onLoad((options) => {
   display: block;
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .center-title {
@@ -485,7 +485,7 @@ onLoad((options) => {
   padding: 0 22rpx;
   border: 1rpx solid var(--app-border);
   border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
   font-size: 24rpx;
 }
@@ -505,19 +505,19 @@ onLoad((options) => {
 .primary-button {
   height: 76rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 253, 252, 0.74);
   color: var(--app-text);
 }
 
 .primary-button {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .role-list {
@@ -534,7 +534,7 @@ onLoad((options) => {
   gap: 18rpx;
   padding: 18rpx 16rpx;
   border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 253, 252, 0.72);
 }
 
 .role-main {
@@ -550,7 +550,7 @@ onLoad((options) => {
 .role-title {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .role-desc {
@@ -564,12 +564,12 @@ onLoad((options) => {
   width: 34rpx;
   height: 34rpx;
   border-radius: 50%;
-  border: 4rpx solid rgba(17, 17, 17, 0.18);
+  border: 4rpx solid rgba(47, 47, 47, 0.18);
   background: transparent;
 }
 
 .radio.is-checked {
-  border-color: rgba(17, 17, 17, 0.18);
+  border-color: rgba(47, 47, 47, 0.18);
   background: radial-gradient(circle, var(--app-accent) 46%, transparent 48%);
 }
 </style>

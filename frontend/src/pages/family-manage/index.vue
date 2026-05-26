@@ -215,7 +215,7 @@ const confirmLeaveFamily = () => {
     title: '退出家庭',
     content: `确认退出「${currentFamily.value.name}」吗？退出后将看不到该家庭的菜篮子和共享菜谱。`,
     confirmText: '退出',
-    confirmColor: '#d92d20',
+    confirmColor: '#e5735f',
     success: (result) => {
       if (!result.confirm) {
         return;
@@ -255,6 +255,7 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: calc(-32rpx + env(safe-area-inset-top, 0));
 }
 
 .nav-button {
@@ -265,11 +266,11 @@ onShow(() => {
   height: 74rpx;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
   font-size: 38rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .nav-button::after,
@@ -293,7 +294,7 @@ onShow(() => {
   display: block;
   color: var(--app-text);
   font-size: 46rpx;
-  font-weight: 950;
+  font-weight: 600;
   letter-spacing: -0.6rpx;
 }
 
@@ -319,8 +320,8 @@ onShow(() => {
 .section {
   margin-top: 22rpx;
   padding: 26rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .action-section {
@@ -328,23 +329,23 @@ onShow(() => {
   gap: 14rpx;
   margin-top: 22rpx;
   padding: 20rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .danger-button {
   width: 100%;
   height: 82rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #fff1f0;
-  color: #d92d20;
+  border-radius: var(--app-radius-button);
+  background: rgba(229, 115, 95, 0.12);
+  color: #e5735f;
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .danger-button--soft {
-  background: #f4f6f8;
+  background: #e9e2d6;
   color: var(--app-text);
 }
 
@@ -353,7 +354,7 @@ onShow(() => {
   margin-bottom: 18rpx;
   color: var(--app-text-tertiary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .cell-list {
@@ -370,7 +371,7 @@ onShow(() => {
   min-height: 106rpx;
   padding: 18rpx 12rpx;
   border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 253, 252, 0.7);
 }
 
 .cell-avatar {
@@ -396,7 +397,7 @@ onShow(() => {
 .cell-left {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .cell-subtitle {
@@ -411,20 +412,20 @@ onShow(() => {
 }
 
 .cell--invite {
-  background: rgba(245, 247, 250, 0.92);
+  background: rgba(245, 241, 234, 0.92);
 }
 
 .cell-icon {
   width: 78rpx;
   height: 78rpx;
   border-radius: 50%;
-  background: rgba(17, 17, 17, 0.06);
+  background: rgba(47, 47, 47, 0.06);
   color: var(--app-text);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 40rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .cell-right {
@@ -450,7 +451,7 @@ onShow(() => {
   display: flex;
   align-items: flex-end;
   padding: 24rpx;
-  background: rgba(16, 17, 20, 0.28);
+  background: rgba(47, 47, 47, 0.28);
   backdrop-filter: blur(10rpx);
   -webkit-backdrop-filter: blur(10rpx);
 }
@@ -462,7 +463,7 @@ onShow(() => {
   display: flex;
   align-items: flex-start;
   padding: 260rpx 24rpx 24rpx;
-  background: rgba(16, 17, 20, 0.28);
+  background: rgba(47, 47, 47, 0.28);
   backdrop-filter: blur(10rpx);
   -webkit-backdrop-filter: blur(10rpx);
 }
@@ -471,18 +472,18 @@ onShow(() => {
 .edit-panel {
   width: 100%;
   padding: 26rpx;
-  border-radius: 34rpx;
+  border-radius: var(--app-radius-card);
 }
 
 .edit-panel {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 253, 252, 0.96);
 }
 
 .sheet-title {
   display: block;
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .sheet-list {
@@ -498,7 +499,7 @@ onShow(() => {
   justify-content: space-between;
   padding: 18rpx 16rpx;
   border-radius: 26rpx;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 253, 252, 0.72);
 }
 
 .sheet-item.is-active {
@@ -514,7 +515,7 @@ onShow(() => {
 .sheet-item__name {
   color: var(--app-text);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .sheet-item__desc {
@@ -526,7 +527,7 @@ onShow(() => {
 .sheet-item__check {
   color: var(--app-text);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .edit-head {
@@ -540,7 +541,7 @@ onShow(() => {
   display: block;
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .edit-close {
@@ -556,7 +557,7 @@ onShow(() => {
   padding: 0 22rpx;
   border: 1rpx solid var(--app-border);
   border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
   font-size: 24rpx;
 }
@@ -570,7 +571,7 @@ onShow(() => {
   padding: 20rpx 22rpx;
   border: 1rpx solid var(--app-border);
   border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
   font-size: 26rpx;
   line-height: 1.55;
@@ -602,18 +603,18 @@ onShow(() => {
 .primary-button {
   height: 76rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 253, 252, 0.74);
   color: var(--app-text);
 }
 
 .primary-button {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 </style>

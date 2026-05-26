@@ -7,6 +7,18 @@
       }
     },
     {
+      "path": "pages/recommendations/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/seasonal/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/ingredient-detail/index",
       "style": {
         "navigationStyle": "custom"
@@ -26,6 +38,36 @@
     },
     {
       "path": "pages/ingredients/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/search/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/category-filter/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/today/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/serving-recommendation/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/family-menu/index",
       "style": {
         "navigationStyle": "custom"
       }

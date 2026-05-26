@@ -22,6 +22,14 @@
       </scroll-view>
     </view>
 
+    <view v-if="remoteLoading || remoteError" class="remote-banner glass-card">
+      <text v-if="remoteLoading" class="remote-banner__text">正在加载食材...</text>
+      <view v-else class="remote-banner__row">
+        <text class="remote-banner__error">加载失败：{{ remoteError }}</text>
+        <button class="remote-banner__retry" @tap="loadRemoteIngredients">重试</button>
+      </view>
+    </view>
+
     <view class="content-wrapper">
       <scroll-view class="left-nav" scroll-y>
         <view
@@ -142,6 +150,7 @@ import {
 } from '../../services/basket';
 import type { HomeTab } from '../../types/home';
 import type { Ingredient } from '../../types/ingredient';
+import { listIngredients } from '../../services/public-api';
 
 interface Tab {
   id: string;
@@ -201,6 +210,52 @@ const recipeCategories = ref<Tab[]>([
 ]);
 
 const allIngredients = ref<Ingredient[]>(ingredientCatalog);
+
+const remoteLoading = ref(false);
+const remoteError = ref<string | null>(null);
+
+const mapRemoteIngredient = (item: {
+  id: number;
+  name: string;
+  cover: string | null;
+  seasonMonth: string | null;
+  currentPrice: number | null;
+  priceUnit: string | null;
+}) => {
+  const month = (() => {
+    if (!item.seasonMonth) return undefined;
+    const first = Number.parseInt(item.seasonMonth.split(',')[0]?.trim() ?? '', 10);
+    return Number.isFinite(first) ? first : undefined;
+  })();
+  const priceText =
+    item.currentPrice !== null && item.currentPrice !== undefined
+      ? `${item.currentPrice}${item.priceUnit ?? ''}`
+      : '';
+  return {
+    id: String(item.id),
+    name: item.name,
+    description: priceText ? `当前价格：${priceText}` : '时令食材',
+    image:
+      item.cover ??
+      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+    tags: ['推荐'],
+    category: 'recommend',
+    month
+  } satisfies Ingredient;
+};
+
+const loadRemoteIngredients = async () => {
+  remoteLoading.value = true;
+  remoteError.value = null;
+  try {
+    const data = await listIngredients({ page: 1, pageSize: 50 });
+    allIngredients.value = data.list.map(mapRemoteIngredient);
+  } catch (err) {
+    remoteError.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    remoteLoading.value = false;
+  }
+};
 
 const recipes = ref<Recipe[]>([
   {
@@ -382,6 +437,7 @@ const syncBasketIngredientIds = () => {
 
 onShow(() => {
   syncBasketIngredientIds();
+  void loadRemoteIngredients();
 });
 </script>
 
@@ -395,8 +451,42 @@ onShow(() => {
 
 .header {
   padding: calc(var(--status-bar-height) + 20rpx) 30rpx 20rpx;
-  background: #ffffff;
+  background: #fffdfc;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+
+.remote-banner {
+  margin: 16rpx 30rpx 0;
+  padding: 18rpx 22rpx;
+  border-radius: var(--app-radius-card);
+}
+
+.remote-banner__text {
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+
+.remote-banner__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.remote-banner__error {
+  flex: 1;
+  color: #dc2626;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.remote-banner__retry {
+  padding: 14rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 253, 252, 0.9);
+  color: var(--app-text);
+  font-size: 24rpx;
 }
 
 .search-bar {
@@ -419,7 +509,7 @@ onShow(() => {
 }
 
 .top-tabs {
-  background: #ffffff;
+  background: #fffdfc;
   border-bottom: 1rpx solid rgba(0, 0, 0, 0.06);
 }
 
@@ -474,8 +564,8 @@ onShow(() => {
   width: 150rpx;
   flex-shrink: 0;
   padding-bottom: calc(300rpx + env(safe-area-inset-bottom, 0));
-  background: rgba(255, 255, 255, 0.68);
-  border-right: 1rpx solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 253, 252, 0.68);
+  border-right: 1rpx solid rgba(0, 0, 0, 0.04);
 }
 
 .nav-item {
@@ -493,12 +583,12 @@ onShow(() => {
 }
 
 .nav-item.active {
-  background: #ffffff;
+  background: #fffdfc;
 }
 
 .nav-item.active .nav-label {
   color: var(--app-text);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .nav-indicator {
@@ -507,7 +597,7 @@ onShow(() => {
   left: 0;
   width: 6rpx;
   height: 38rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
 }
 
@@ -530,15 +620,15 @@ onShow(() => {
   display: flex;
   gap: 18rpx;
   padding: 18rpx 90rpx 18rpx 18rpx;
-  border-radius: 30rpx;
-  background: #ffffff;
-  box-shadow: 0 14rpx 34rpx rgba(18, 24, 40, 0.06);
+  border-radius: var(--app-radius-input);
+  background: #fffdfc;
+  box-shadow: 0 14rpx 34rpx rgba(0, 0, 0, 0.04);
 }
 
 .ingredient-card--in-basket {
-  border: 2rpx solid rgba(15, 23, 42, 0.08);
+  border: 2rpx solid rgba(0, 0, 0, 0.04);
   background: linear-gradient(135deg, rgba(230, 238, 250, 0.98), rgba(244, 247, 251, 0.96));
-  box-shadow: inset 0 0 0 1rpx rgba(255, 255, 255, 0.72), 0 18rpx 38rpx rgba(18, 24, 40, 0.08);
+  box-shadow: inset 0 0 0 1rpx rgba(255, 253, 252, 0.72), 0 18rpx 38rpx rgba(0, 0, 0, 0.04);
 }
 
 .ingredient-image {
@@ -560,7 +650,7 @@ onShow(() => {
 .ingredient-name {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .ingredient-desc {
@@ -572,11 +662,11 @@ onShow(() => {
 .ingredient-price {
   width: fit-content;
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
-  background: rgba(15, 23, 42, 0.06);
+  border-radius: var(--app-radius-button);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--app-text);
   font-size: 21rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .ingredient-tags {
@@ -587,7 +677,7 @@ onShow(() => {
 
 .ingredient-tag {
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
   font-size: 20rpx;
@@ -604,9 +694,9 @@ onShow(() => {
   width: 54rpx;
   height: 54rpx;
   border-radius: 50%;
-  background: #f4f7fb;
+  background: #e9e2d6;
   color: var(--app-text);
-  box-shadow: inset 0 0 0 1rpx rgba(15, 23, 42, 0.04);
+  box-shadow: inset 0 0 0 1rpx rgba(0, 0, 0, 0.04);
   transform: translateY(-50%);
 }
 
@@ -625,9 +715,9 @@ onShow(() => {
   width: 54rpx;
   height: 54rpx;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.86);
-  color: #ffffff;
-  box-shadow: 0 12rpx 26rpx rgba(15, 23, 42, 0.18);
+  background: rgba(47, 47, 47, 0.78);
+  color: #fffdfc;
+  box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.08);
   transform: translateY(-50%);
 }
 
@@ -639,15 +729,15 @@ onShow(() => {
 .recipe-card {
   overflow: hidden;
   border-radius: 32rpx;
-  background: #ffffff;
-  box-shadow: 0 14rpx 34rpx rgba(18, 24, 40, 0.06);
+  background: #fffdfc;
+  box-shadow: 0 14rpx 34rpx rgba(0, 0, 0, 0.04);
 }
 
 .recipe-image {
   display: block;
   width: 100%;
   height: 220rpx;
-  background: #eef2f6;
+  background: #e9e2d6;
 }
 
 .recipe-info {
@@ -667,18 +757,18 @@ onShow(() => {
 .recipe-name {
   color: var(--app-text);
   font-size: 31rpx;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.25;
 }
 
 .recipe-calories {
   flex-shrink: 0;
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
   font-size: 20rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .recipe-summary {
@@ -702,10 +792,10 @@ onShow(() => {
 
 .recipe-tag {
   padding: 6rpx 12rpx;
-  border: 1rpx solid rgba(15, 23, 42, 0.16);
+  border: 1rpx solid rgba(0, 0, 0, 0.08);
   border-radius: 10rpx;
   color: var(--app-text);
   font-size: 20rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 </style>

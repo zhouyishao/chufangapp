@@ -138,11 +138,11 @@ const addRecipe = () => {
   position: sticky;
   top: 0;
   z-index: 30;
-  margin: -32rpx -24rpx 0;
+  margin: -32rpx -32rpx 0;
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: rgba(245, 247, 250, 0.94);
+  background: rgba(245, 241, 234, 0.94);
   box-shadow: none;
   backdrop-filter: blur(24rpx);
   -webkit-backdrop-filter: blur(24rpx);
@@ -157,7 +157,7 @@ const addRecipe = () => {
   margin: 0;
   border-radius: 0;
   background: transparent;
-  color: #ffffff;
+  color: #fffdfc;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   overflow: hidden;
@@ -173,14 +173,14 @@ const addRecipe = () => {
   z-index: -1;
   height: 100%;
   border-radius: inherit;
-  background: #ffffff;
+  background: #fffdfc;
   opacity: var(--header-bg-progress, 0);
   content: '';
 }
 
 .home-header.is-immersive.is-pinned {
   background: transparent;
-  box-shadow: 0 16rpx 44rpx rgba(15, 23, 42, 0.1);
+  box-shadow: var(--app-shadow);
   color: var(--app-text);
 }
 
@@ -205,8 +205,8 @@ const addRecipe = () => {
   border: 0;
   border-radius: 50%;
   background: var(--app-accent);
-  color: #ffffff;
-  box-shadow: 0 16rpx 36rpx rgba(17, 17, 17, 0.16);
+  color: #fffdfc;
+  box-shadow: 0 8rpx 28rpx rgba(122, 139, 111, 0.2);
 }
 
 .add-button::after,
@@ -229,7 +229,7 @@ const addRecipe = () => {
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 46rpx;
+  gap: 38rpx;
   min-width: 100%;
   height: 92rpx;
   padding: 0 24rpx 14rpx;
@@ -245,19 +245,19 @@ const addRecipe = () => {
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 29rpx;
-  font-weight: 420;
+  font-weight: 400;
 }
 
 .category-tab.is-active {
-  color: var(--app-text);
+  color: var(--app-primary);
   font-size: 32rpx;
-  font-weight: 620;
+  font-weight: 600;
 }
 
 .home-header.is-immersive .category-tab {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 253, 252, 0.5);
   font-size: 30rpx;
-  font-weight: 420;
+  font-weight: 400;
 }
 
 .home-header.is-immersive.is-pinned .category-tab {
@@ -265,9 +265,9 @@ const addRecipe = () => {
 }
 
 .home-header.is-immersive .category-tab.is-active {
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 32rpx;
-  font-weight: 620;
+  font-weight: 600;
 }
 
 .home-header.is-immersive.is-pinned .category-tab.is-active {
@@ -293,13 +293,13 @@ const addRecipe = () => {
   bottom: 0;
   left: 10rpx;
   height: 5rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
   content: '';
 }
 
 .home-header.is-immersive .category-tab.is-active .category-label::after {
-  background: #ffffff;
+  background: #fffdfc;
 }
 
 .home-header.is-immersive.is-pinned .category-tab.is-active .category-label::after {
@@ -314,19 +314,22 @@ const addRecipe = () => {
 
 :deep(.nut-searchbar__search-input) {
   min-height: 82rpx;
-  border-radius: 999rpx;
-  background: #f4f5f7;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-radius-input);
+  background: rgba(255, 253, 252, 0.8);
 }
 
 .home-header.is-immersive :deep(.nut-searchbar__search-input) {
-  background: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+  border-color: rgba(255, 253, 252, 0.32);
+  background: rgba(255, 253, 252, 0.3);
+  color: #fffdfc;
   backdrop-filter: blur(22rpx);
   -webkit-backdrop-filter: blur(22rpx);
 }
 
 .home-header.is-immersive.is-pinned :deep(.nut-searchbar__search-input) {
-  background: #f4f5f7;
+  border-color: var(--app-border);
+  background: rgba(255, 253, 252, 0.8);
   color: var(--app-text);
 }
 
@@ -342,7 +345,7 @@ const addRecipe = () => {
 
 .home-header.is-immersive :deep(.nut-searchbar__input),
 .home-header.is-immersive :deep(.nut-searchbar__input::placeholder) {
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 253, 252, 0.82);
   font-weight: 400;
 }
 
@@ -365,9 +368,10 @@ const addRecipe = () => {
   z-index: 61;
   width: 278rpx;
   padding: 12rpx;
-  border-radius: 30rpx;
-  background: rgba(17, 17, 17, 0.96);
-  box-shadow: 0 24rpx 64rpx rgba(0, 0, 0, 0.28);
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-radius-input);
+  background: var(--app-surface-strong);
+  box-shadow: var(--app-shadow);
 }
 
 .add-action__title {
@@ -388,7 +392,7 @@ const addRecipe = () => {
   padding: 18rpx 16rpx;
   border-radius: 22rpx;
   background: transparent;
-  color: #ffffff;
+  color: var(--app-text);
 }
 
 .add-action__icon {
@@ -399,7 +403,8 @@ const addRecipe = () => {
   height: 50rpx;
   flex: 0 0 50rpx;
   border-radius: 16rpx;
-  color: #ffffff;
+  background: var(--app-accent-soft);
+  color: var(--app-primary);
 }
 
 .add-action__icon svg {
@@ -408,8 +413,8 @@ const addRecipe = () => {
 }
 
 .add-action__title {
-  color: #ffffff;
+  color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 </style>

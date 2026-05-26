@@ -111,7 +111,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   height: 500rpx;
   margin: -32rpx -32rpx 0;
   overflow: hidden;
-  background: #eef2f6;
+  background: #e9e2d6;
 }
 
 .header-image__bg {
@@ -136,11 +136,11 @@ onLoad((query?: Record<string, string | undefined>) => {
   height: 76rpx;
   padding: 0 24rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-button);
+  background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
   backdrop-filter: blur(14rpx);
 }
 
@@ -157,8 +157,8 @@ onLoad((query?: Record<string, string | undefined>) => {
 .recipe-title-card,
 .detail-card {
   padding: 30rpx;
-  border-radius: 36rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
 }
 
 .detail-card {
@@ -190,22 +190,22 @@ onLoad((query?: Record<string, string | undefined>) => {
 .recipe-name {
   color: var(--app-text);
   font-size: 42rpx;
-  font-weight: 950;
+  font-weight: 600;
   line-height: 1.15;
 }
 
 .status-pill {
   flex: 0 0 auto;
   padding: 10rpx 16rpx;
-  border-radius: 999rpx;
-  background: #111111;
-  color: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 21rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .status-pill.is-draft {
-  background: #eef1f5;
+  background: #e9e2d6;
   color: var(--app-text-secondary);
 }
 
@@ -226,39 +226,39 @@ onLoad((query?: Record<string, string | undefined>) => {
 .meta-item {
   padding: 18rpx;
   border-radius: 24rpx;
-  background: #f3f5f8;
+  background: #e9e2d6;
 }
 
 .meta-label {
   color: var(--app-text-tertiary);
   font-size: 20rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .meta-value {
   margin-top: 8rpx;
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .section-title {
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .section-note {
   color: var(--app-text-tertiary);
   font-size: 23rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .ingredient-list {
   margin-top: 18rpx;
   border-radius: 26rpx;
   overflow: hidden;
-  background: #f6f7f9;
+  background: #e9e2d6;
 }
 
 .ingredient-row {
@@ -267,7 +267,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   justify-content: space-between;
   min-height: 82rpx;
   padding: 0 22rpx;
-  border-bottom: 1rpx solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.04);
 }
 
 .ingredient-row:last-child {
@@ -277,13 +277,13 @@ onLoad((query?: Record<string, string | undefined>) => {
 .ingredient-name {
   color: var(--app-text);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .ingredient-amount {
   color: var(--app-text-secondary);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .step-list {
@@ -298,7 +298,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   gap: 18rpx;
   padding: 20rpx;
   border-radius: 28rpx;
-  background: #f6f7f9;
+  background: #e9e2d6;
 }
 
 .step-index {
@@ -309,10 +309,10 @@ onLoad((query?: Record<string, string | undefined>) => {
   height: 54rpx;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 24rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .step-main {
@@ -323,7 +323,7 @@ onLoad((query?: Record<string, string | undefined>) => {
 .step-title {
   color: var(--app-text);
   font-size: 27rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .step-desc {
@@ -348,10 +348,10 @@ onLoad((query?: Record<string, string | undefined>) => {
 
 .setting-tags text {
   padding: 10rpx 16rpx;
-  border-radius: 999rpx;
-  background: #f3f5f8;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
   color: var(--app-text-secondary);
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 </style>

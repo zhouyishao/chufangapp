@@ -194,8 +194,8 @@ const goToPhoneLogin = () => {
   min-height: 100vh;
   padding: calc(var(--status-bar-height) + 22rpx) 30rpx 72rpx;
   background:
-    radial-gradient(circle at 78% 4%, rgba(255, 255, 255, 0.95), transparent 34%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f4f8 100%);
+    radial-gradient(circle at 78% 4%, rgba(255, 253, 252, 0.95), transparent 34%),
+    linear-gradient(180deg, #fffdfc 0%, #e9e2d6 100%);
 }
 
 .topbar {
@@ -213,17 +213,17 @@ const goToPhoneLogin = () => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .top-title {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 900;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -238,10 +238,10 @@ const goToPhoneLogin = () => {
   gap: 12rpx;
   margin-bottom: 22rpx;
   padding: 38rpx 36rpx 42rpx;
-  border: 1rpx solid rgba(15, 23, 42, 0.06);
-  border-radius: 42rpx;
-  background: #ffffff;
-  box-shadow: 0 24rpx 70rpx rgba(15, 23, 42, 0.06);
+  border: 1rpx solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+  box-shadow: 0 24rpx 70rpx rgba(0, 0, 0, 0.04);
 }
 
 .hero-kicker,
@@ -253,13 +253,13 @@ const goToPhoneLogin = () => {
 .hero-kicker {
   color: var(--app-text-tertiary);
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .hero-title {
   color: var(--app-text);
   font-size: 54rpx;
-  font-weight: 950;
+  font-weight: 600;
   letter-spacing: -1rpx;
   line-height: 1.16;
 }
@@ -272,9 +272,9 @@ const goToPhoneLogin = () => {
 
 .form-card {
   padding: 36rpx;
-  border-radius: 42rpx;
-  background: #ffffff;
-  box-shadow: 0 28rpx 80rpx rgba(15, 23, 42, 0.07);
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+  box-shadow: 0 28rpx 80rpx rgba(0, 0, 0, 0.04);
 }
 
 .step-label,
@@ -296,7 +296,7 @@ const goToPhoneLogin = () => {
 .step-label {
   color: var(--app-text-secondary);
   font-size: 22rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .step-track {
@@ -304,15 +304,15 @@ const goToPhoneLogin = () => {
   align-items: center;
   gap: 8rpx;
   padding: 10rpx 12rpx;
-  border-radius: 999rpx;
-  background: #f2f5f8;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
 }
 
 .step-dot {
   width: 28rpx;
   height: 8rpx;
-  border-radius: 999rpx;
-  background: #d9e0e8;
+  border-radius: var(--app-radius-button);
+  background: #b7aea1;
   transition: width 0.2s ease, background 0.2s ease;
 }
 
@@ -325,7 +325,7 @@ const goToPhoneLogin = () => {
   margin-top: 22rpx;
   color: var(--app-text);
   font-size: 46rpx;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.22;
 }
 
@@ -349,17 +349,17 @@ const goToPhoneLogin = () => {
   margin-bottom: 12rpx;
   color: var(--app-text-secondary);
   font-size: 23rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .input {
   height: 94rpx;
   padding: 0 28rpx;
-  border-radius: 30rpx;
-  background: #f3f5f8;
+  border-radius: var(--app-radius-input);
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .primary-button {
@@ -367,29 +367,29 @@ const goToPhoneLogin = () => {
   height: 94rpx;
   margin-top: 36rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 29rpx;
-  font-weight: 900;
-  box-shadow: 0 20rpx 44rpx rgba(17, 17, 17, 0.16);
+  font-weight: 600;
+  box-shadow: 0 20rpx 44rpx rgba(122, 139, 111, 0.2);
 }
 
 .phone-tip {
   color: var(--app-text-secondary);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .code-input {
   width: 100%;
   height: 128rpx;
   margin-top: 24rpx;
-  border-radius: 34rpx;
-  background: #f3f5f8;
+  border-radius: var(--app-radius-card);
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 52rpx;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 16rpx;
   text-align: center;
 }
@@ -409,6 +409,6 @@ const goToPhoneLogin = () => {
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 </style>

@@ -16,6 +16,17 @@
       />
     </view>
 
+    <view
+      v-if="isRecommendCategory && (homeLoading || homeError)"
+      class="glass-card home-data-banner"
+    >
+      <text v-if="homeLoading" class="home-data-banner__text">正在加载首页数据...</text>
+      <view v-else class="home-data-banner__row">
+        <text class="home-data-banner__error">加载失败：{{ homeError }}</text>
+        <nut-button size="small" type="primary" plain @click="loadHome">重试</nut-button>
+      </view>
+    </view>
+
     <section-block
       v-if="isRecommendCategory"
       title="时令食材"
@@ -135,6 +146,9 @@ import {
   homeTabs,
   quickActions
 } from '../../constants/home';
+import { getHome } from '../../services/public-api';
+import type { RecipeCard } from '../../types/home';
+import type { Ingredient } from '../../types/ingredient';
 
 const activeCategoryId = ref('recommend');
 const isHomeHeaderPinned = ref(false);
@@ -167,7 +181,15 @@ const categoryMeta: Record<string, { title: string; subtitle: string }> = {
   }
 };
 
-const currentRecipes = computed(() => homeCategoryRecipes[activeCategoryId.value] ?? featuredRecipes);
+const homeLoading = ref(false);
+const homeError = ref<string | null>(null);
+const remoteRecipes = ref<RecipeCard[] | null>(null);
+const remoteSeasonalIngredients = ref<Ingredient[] | null>(null);
+
+const currentRecipes = computed(() => {
+  if (activeCategoryId.value === 'recommend' && remoteRecipes.value) return remoteRecipes.value;
+  return homeCategoryRecipes[activeCategoryId.value] ?? featuredRecipes;
+});
 const currentHeroRecipes = computed(() => {
   const recipes = currentRecipes.value.length > 0 ? currentRecipes.value : featuredRecipes;
   return recipes.slice(0, 6);
@@ -175,6 +197,7 @@ const currentHeroRecipes = computed(() => {
 const currentMenuTitle = computed(() => categoryMeta[activeCategoryId.value]?.title ?? '家常菜单');
 const currentMenuSubtitle = computed(() => categoryMeta[activeCategoryId.value]?.subtitle ?? '做法清楚、节奏轻松，适合日常反复使用');
 const seasonalIngredients = computed(() => {
+  if (remoteSeasonalIngredients.value) return remoteSeasonalIngredients.value;
   const monthlyIngredients = ingredientCatalog.filter((ingredient) => ingredient.month === currentMonth);
   return monthlyIngredients.length > 0 ? monthlyIngredients : ingredientCatalog.slice(0, 8);
 });
@@ -219,6 +242,63 @@ onPageScroll((event) => {
   homeHeaderPinnedProgress.value = Number(progress.toFixed(2));
   isHomeHeaderPinned.value = progress > 0.88;
 });
+
+const mapRecipeCard = (item: {
+  id: number;
+  title: string;
+  cover: string | null;
+  description: string | null;
+  cookTime: number | null;
+  difficulty: string | null;
+}) => {
+  return {
+    id: String(item.id),
+    name: item.title,
+    duration: item.cookTime ? `${item.cookTime} 分钟` : '—',
+    difficulty: item.difficulty ?? '—',
+    calories: '',
+    tag: '推荐',
+    image:
+      item.cover ??
+      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
+    summary: item.description ?? ''
+  } satisfies RecipeCard;
+};
+
+const mapIngredientCard = (item: { id: number; name: string; cover: string | null; seasonMonth: string | null }) => {
+  const month = (() => {
+    if (!item.seasonMonth) return undefined;
+    const first = Number.parseInt(item.seasonMonth.split(',')[0]?.trim() ?? '', 10);
+    return Number.isFinite(first) ? first : undefined;
+  })();
+  return {
+    id: String(item.id),
+    name: item.name,
+    description: item.seasonMonth ? `时令：${item.seasonMonth}` : '时令食材',
+    image:
+      item.cover ??
+      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+    tags: ['推荐'],
+    category: 'recommend',
+    month
+  } satisfies Ingredient;
+};
+
+const loadHome = async () => {
+  homeLoading.value = true;
+  homeError.value = null;
+  try {
+    const data = await getHome();
+    remoteRecipes.value = data.recommendRecipes.map(mapRecipeCard);
+    remoteSeasonalIngredients.value = data.recommendIngredients.map(mapIngredientCard);
+  } catch (err) {
+    homeError.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    homeLoading.value = false;
+  }
+};
+
+void loadHome();
 </script>
 
 <style scoped lang="scss">
@@ -229,7 +309,7 @@ onPageScroll((event) => {
 
 .recommend-stage {
   position: relative;
-  margin: 0 -24rpx;
+  margin: 0 -32rpx;
   padding: 0;
   background: transparent;
 }
@@ -243,7 +323,7 @@ onPageScroll((event) => {
   flex-direction: column;
   width: 260rpx;
   height: 408rpx;
-  margin-right: 20rpx;
+  margin-right: 24rpx;
   overflow: hidden;
   vertical-align: top;
   white-space: normal;
@@ -264,7 +344,7 @@ onPageScroll((event) => {
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding: 16rpx 18rpx 18rpx;
+  padding: 18rpx 20rpx 20rpx;
 }
 
 .seasonal-card__title {
@@ -283,9 +363,9 @@ onPageScroll((event) => {
   display: inline-flex;
   align-items: center;
   padding: 5rpx 10rpx;
-  border-radius: 999rpx;
-  background: #f0f3f7;
-  color: var(--app-text-tertiary);
+  border-radius: var(--app-radius-button);
+  background: var(--app-accent-soft);
+  color: var(--app-accent-warm);
   font-size: 18rpx;
   line-height: 1;
 }
@@ -316,7 +396,7 @@ onPageScroll((event) => {
 .recipe-list {
   display: flex;
   flex-direction: column;
-  gap: 20rpx;
+  gap: 24rpx;
 }
 
 .recipe-card {
@@ -341,8 +421,9 @@ onPageScroll((event) => {
 
 .recipe-card__title {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 48rpx;
 }
 
 .recipe-card__meta-row {
@@ -361,7 +442,7 @@ onPageScroll((event) => {
 .recipe-card__calories {
   flex: 0 0 auto;
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
   font-size: 20rpx;
@@ -397,8 +478,8 @@ onPageScroll((event) => {
   grid-template-columns: 204rpx 1fr;
   gap: 20rpx;
   padding: 18rpx;
-  border-radius: 34rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-card);
+  background: var(--app-surface-strong);
 }
 
 .topic-recipe-card--home {
@@ -427,7 +508,7 @@ onPageScroll((event) => {
 
 .topic-recipe-card--light {
   grid-template-columns: 176rpx 1fr;
-  border: 1rpx solid rgba(87, 132, 105, 0.12);
+  border: 1rpx solid rgba(122, 139, 111, 0.14);
 }
 
 .topic-recipe-card__image {
@@ -490,9 +571,9 @@ onPageScroll((event) => {
 
 .topic-recipe-card__title {
   color: var(--app-text);
-  font-size: 31rpx;
-  font-weight: 950;
-  line-height: 1.2;
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 44rpx;
 }
 
 .topic-recipe-card--quick .topic-recipe-card__title,
@@ -504,26 +585,26 @@ onPageScroll((event) => {
   flex: 0 0 auto;
   max-width: 132rpx;
   padding: 7rpx 12rpx;
-  border-radius: 999rpx;
-  background: #f0f3f7;
-  color: var(--app-text-secondary);
+  border-radius: var(--app-radius-button);
+  background: var(--app-accent-soft);
+  color: var(--app-accent-warm);
   font-size: 19rpx;
-  font-weight: 850;
+  font-weight: 500;
 }
 
 .topic-recipe-card--home .topic-recipe-card__tag {
-  background: #111111;
-  color: #ffffff;
+  background: var(--app-primary);
+  color: #fffdfc;
 }
 
 .topic-recipe-card--soup .topic-recipe-card__tag {
-  background: #fff2df;
-  color: #8a5a20;
+  background: rgba(194, 123, 72, 0.14);
+  color: var(--app-accent-warm);
 }
 
 .topic-recipe-card--light .topic-recipe-card__tag {
-  background: #eef7ef;
-  color: #3f6b4c;
+  background: rgba(122, 139, 111, 0.14);
+  color: var(--app-primary);
 }
 
 .topic-recipe-card__summary {
@@ -552,11 +633,11 @@ onPageScroll((event) => {
 
 .topic-recipe-card__meta text {
   padding: 7rpx 12rpx;
-  border-radius: 999rpx;
-  background: #f5f7fa;
+  border-radius: var(--app-radius-button);
+  background: var(--app-bg);
   color: var(--app-text-secondary);
   font-size: 19rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .topic-recipe-card--quick .topic-recipe-card__meta {
@@ -568,8 +649,8 @@ onPageScroll((event) => {
 }
 
 .topic-recipe-card--light .topic-recipe-card__meta text {
-  background: #f0f7f2;
-  color: #51705a;
+  background: rgba(122, 139, 111, 0.14);
+  color: var(--app-primary);
 }
 
 .action-grid {
@@ -588,14 +669,15 @@ onPageScroll((event) => {
 
 .action-card__title {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 44rpx;
 }
 
 .action-card__badge {
   margin-top: 10rpx;
   padding: 8rpx 14rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
   font-size: 20rpx;
@@ -606,5 +688,30 @@ onPageScroll((event) => {
   color: var(--app-text-secondary);
   font-size: 22rpx;
   line-height: 1.5;
+}
+
+.home-data-banner {
+  margin: 0 32rpx 24rpx;
+  padding: 20rpx 24rpx;
+  border-radius: var(--app-radius-card);
+}
+
+.home-data-banner__text {
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+
+.home-data-banner__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.home-data-banner__error {
+  flex: 1;
+  color: #dc2626;
+  font-size: 24rpx;
+  line-height: 1.4;
 }
 </style>

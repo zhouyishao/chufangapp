@@ -315,7 +315,7 @@ const saveRecipe = () => {
   margin-bottom: 18rpx;
   padding: 18rpx 22rpx;
   border-radius: 32rpx;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 253, 252, 0.94);
   backdrop-filter: blur(18rpx);
 }
 
@@ -352,10 +352,10 @@ const saveRecipe = () => {
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
-  background: #f3f5f8;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .icon-button text {
@@ -366,11 +366,11 @@ const saveRecipe = () => {
   min-width: 104rpx;
   height: 60rpx;
   margin-left: auto;
-  border-radius: 999rpx;
-  background: #111111;
-  color: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .eyebrow,
@@ -388,23 +388,23 @@ const saveRecipe = () => {
 .eyebrow {
   color: var(--app-text-tertiary);
   font-size: 20rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .page-title {
   margin-top: 2rpx;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .cover-card {
   position: relative;
   height: 268rpx;
   overflow: hidden;
-  border-radius: 34rpx;
-  background: #ffffff;
-  box-shadow: 0 20rpx 60rpx rgba(15, 23, 42, 0.06);
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+  box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.04);
 }
 
 .cover-image {
@@ -419,16 +419,16 @@ const saveRecipe = () => {
   justify-content: center;
   height: 100%;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(241, 244, 248, 0.94)),
-    #ffffff;
+    linear-gradient(135deg, rgba(255, 253, 252, 0.9), rgba(233, 226, 214, 0.78)),
+    #fffdfc;
 }
 
 .cover-icon {
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 40rpx;
   font-weight: 600;
   line-height: 68rpx;
@@ -439,7 +439,7 @@ const saveRecipe = () => {
   margin-top: 16rpx;
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .cover-desc {
@@ -455,31 +455,31 @@ const saveRecipe = () => {
   display: flex;
   gap: 12rpx;
   padding: 8rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--app-radius-button);
+  background: rgba(255, 253, 252, 0.9);
   backdrop-filter: blur(14rpx);
 }
 
 .cover-action {
   min-width: 92rpx;
   height: 54rpx;
-  border-radius: 999rpx;
-  background: #f1f3f6;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
   color: var(--app-text-secondary);
   font-size: 22rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .cover-action.is-active {
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
 }
 
 .form-section {
   margin-top: 20rpx;
   padding: 26rpx;
-  border-radius: 36rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
 }
 
 .title-input,
@@ -493,13 +493,13 @@ const saveRecipe = () => {
   width: 100%;
   border: 0;
   color: var(--app-text);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .field-block {
   padding: 22rpx;
   border-radius: 26rpx;
-  background: #f6f7f9;
+  background: #e9e2d6;
 }
 
 .field-block + .field-block {
@@ -507,7 +507,7 @@ const saveRecipe = () => {
 }
 
 .field-block--title {
-  background: #ffffff;
+  background: #fffdfc;
   border: 1rpx solid var(--app-border);
 }
 
@@ -516,7 +516,7 @@ const saveRecipe = () => {
   padding: 0;
   background: transparent;
   font-size: 34rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .intro-input {
@@ -539,13 +539,13 @@ const saveRecipe = () => {
   min-height: 98rpx;
   padding: 16rpx;
   border-radius: 24rpx;
-  background: #f3f5f8;
+  background: #e9e2d6;
 }
 
 .quick-label {
   color: var(--app-text-tertiary);
   font-size: 20rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .quick-input,
@@ -553,7 +553,7 @@ const saveRecipe = () => {
   margin-top: 8rpx;
   color: var(--app-text);
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .quick-input {
@@ -573,7 +573,7 @@ const saveRecipe = () => {
 .section-title {
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .section-desc {
@@ -598,7 +598,7 @@ const saveRecipe = () => {
   min-height: 78rpx;
   padding: 0 16rpx;
   border-radius: 24rpx;
-  background: #f6f7f9;
+  background: #e9e2d6;
 }
 
 .ingredient-name,
@@ -617,7 +617,7 @@ const saveRecipe = () => {
   width: 48rpx;
   height: 48rpx;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text-tertiary);
   font-size: 30rpx;
   line-height: 44rpx;
@@ -628,10 +628,10 @@ const saveRecipe = () => {
   height: 74rpx;
   margin-top: 16rpx;
   border-radius: 22rpx;
-  background: #f1f3f6;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .step-card {
@@ -639,7 +639,7 @@ const saveRecipe = () => {
   gap: 16rpx;
   padding: 18rpx 16rpx;
   border-radius: 28rpx;
-  background: #f6f7f9;
+  background: #e9e2d6;
 }
 
 .step-index {
@@ -650,10 +650,10 @@ const saveRecipe = () => {
   height: 52rpx;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .step-main {
@@ -681,24 +681,24 @@ const saveRecipe = () => {
 .step-delete-button {
   height: 58rpx;
   padding: 0 20rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 22rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .step-image-button {
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
 }
 
 .step-video-button {
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
 }
 
 .step-delete-button {
-  background: #fff1f1;
-  color: #d43d3d;
+  background: rgba(229, 115, 95, 0.12);
+  color: #e5735f;
 }
 
 .media-state {
@@ -710,11 +710,11 @@ const saveRecipe = () => {
 
 .media-state text {
   padding: 8rpx 14rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #fffdfc;
   color: var(--app-text-secondary);
   font-size: 21rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .setting-row {
@@ -728,27 +728,27 @@ const saveRecipe = () => {
 .setting-label {
   color: var(--app-text);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .setting-value {
   color: var(--app-text-secondary);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .note-box {
   margin-top: 22rpx;
   padding: 22rpx;
   border-radius: 26rpx;
-  background: #f6f7f9;
+  background: #e9e2d6;
 }
 
 .note-box text {
   display: block;
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .note-box textarea {
@@ -771,26 +771,26 @@ const saveRecipe = () => {
   grid-template-columns: 0.85fr 1.15fr;
   gap: 18rpx;
   padding: 18rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.94);
   backdrop-filter: blur(18rpx);
 }
 
 .primary-button,
 .secondary-button {
   height: 82rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   font-size: 27rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .primary-button {
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
 }
 
 .secondary-button {
-  background: #f1f3f6;
+  background: #e9e2d6;
   color: var(--app-text);
 }
 </style>

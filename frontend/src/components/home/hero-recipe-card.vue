@@ -94,16 +94,17 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
 .hero-card {
   position: relative;
   overflow: hidden;
-  min-height: 740rpx;
-  background: #111111;
-  border-radius: 0 0 26rpx 26rpx;
-  box-shadow: 0 28rpx 80rpx rgba(15, 23, 42, 0.12);
+  min-height: 704rpx;
+  border: 0;
+  border-radius: 0 0 48rpx 48rpx;
+  background: var(--app-muted);
+  box-shadow: var(--app-shadow);
 }
 
 .hero-card__swiper,
 .hero-card__item {
   width: 100%;
-  height: 740rpx;
+  height: 704rpx;
 }
 
 .hero-card__swiper {
@@ -120,8 +121,8 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(7, 12, 18, 0.18) 0%, rgba(7, 12, 18, 0.06) 36%, rgba(7, 12, 18, 0.2) 100%),
-    linear-gradient(90deg, rgba(7, 12, 18, 0.12), transparent 54%);
+    linear-gradient(180deg, rgba(47, 47, 47, 0.08) 0%, rgba(47, 47, 47, 0.02) 42%, rgba(47, 47, 47, 0.16) 100%),
+    linear-gradient(90deg, rgba(194, 123, 72, 0.08), transparent 58%);
 }
 
 .hero-card__content {
@@ -130,7 +131,7 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 740rpx;
+  min-height: 704rpx;
   padding: 0;
 }
 
@@ -151,13 +152,13 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
 .hero-card__progress-dot {
   width: 44rpx;
   height: 5rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.38);
+  border-radius: var(--app-radius-button);
+  background: rgba(255, 253, 252, 0.52);
 }
 
 .hero-card__progress-dot.is-active {
   width: 78rpx;
-  background: #ffffff;
+  background: var(--app-surface-strong);
 }
 
 .hero-card__glass {
@@ -167,19 +168,20 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   gap: 22rpx;
   min-height: 142rpx;
   padding: 24rpx 34rpx 28rpx;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 22, 28, 0.48);
-  backdrop-filter: blur(28rpx);
-  -webkit-backdrop-filter: blur(28rpx);
+  border-top: 1rpx solid rgba(255, 253, 252, 0.64);
+  background: rgba(255, 253, 252, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .hero-card__title {
   display: block;
-  color: #ffffff;
-  font-size: 35rpx;
+  color: var(--app-text);
+  font-family: var(--app-font-serif);
+  font-size: 40rpx;
   font-weight: 600;
-  line-height: 1.12;
-  text-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.28);
+  line-height: 1.25;
+  text-shadow: none;
 }
 
 .hero-card__summary {
@@ -187,10 +189,10 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   overflow: hidden;
   max-width: 500rpx;
   margin-top: 10rpx;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 23rpx;
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
   font-weight: 400;
-  line-height: 1.45;
+  line-height: 1.55;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -204,10 +206,10 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   height: 58rpx;
   gap: 6rpx;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: #b8e24b;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-warm);
   font-size: 23rpx;
-  font-weight: 850;
+  font-weight: 500;
 }
 
 .hero-card__arrow {

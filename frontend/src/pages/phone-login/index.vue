@@ -110,17 +110,17 @@ const goToForgotPassword = () => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .top-title {
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 900;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -143,7 +143,7 @@ const goToForgotPassword = () => {
 .title {
   color: var(--app-text);
   font-size: 46rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .desc {
@@ -159,10 +159,10 @@ const goToForgotPassword = () => {
   margin-top: 22rpx;
   padding: 20rpx 22rpx;
   border-radius: 24rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
   color: var(--app-text-secondary);
   font-size: 23rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .field {
@@ -173,14 +173,14 @@ const goToForgotPassword = () => {
   margin-bottom: 12rpx;
   color: var(--app-text-secondary);
   font-size: 23rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .input {
   height: 82rpx;
   padding: 0 24rpx;
   border-radius: 28rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 27rpx;
 }
@@ -190,11 +190,11 @@ const goToForgotPassword = () => {
   height: 88rpx;
   margin-top: 34rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .link-row {
@@ -209,6 +209,6 @@ const goToForgotPassword = () => {
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 </style>

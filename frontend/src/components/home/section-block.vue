@@ -39,7 +39,7 @@ const handleAction = () => {
 
 <style scoped lang="scss">
 .section-block {
-  margin-top: 36rpx;
+  margin-top: 40rpx;
 }
 
 .section-header {
@@ -47,7 +47,7 @@ const handleAction = () => {
   align-items: flex-end;
   justify-content: space-between;
   gap: 20rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
 }
 
 .section-title,
@@ -58,19 +58,22 @@ const handleAction = () => {
 
 .section-title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: 40rpx;
+  font-weight: 500;
+  line-height: 56rpx;
 }
 
 .section-subtitle {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: 24rpx;
+  line-height: 36rpx;
 }
 
 .section-link {
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
+  color: var(--app-primary);
+  font-size: 24rpx;
+  line-height: 36rpx;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

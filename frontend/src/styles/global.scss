@@ -1,23 +1,40 @@
 :root,
 page {
-  --app-bg: #f5f7fa;
-  --app-surface: rgba(255, 255, 255, 0.88);
-  --app-surface-strong: #ffffff;
-  --app-text: #101114;
-  --app-text-secondary: #6b7280;
-  --app-text-tertiary: #98a2b3;
-  --app-border: rgba(15, 23, 42, 0.08);
-  --app-accent: #111111;
-  --app-accent-soft: #eef2f6;
-  --app-success: #3d7a57;
-  --app-warning: #b7791f;
-  --app-shadow: 0 16rpx 40rpx rgba(15, 23, 42, 0.06);
+  --app-bg: #f5f1ea;
+  --app-surface: rgba(255, 253, 252, 0.92);
+  --app-surface-strong: #fffdfc;
+  --app-text: #2f2f2f;
+  --app-text-secondary: #b7aea1;
+  --app-text-tertiary: rgba(183, 174, 161, 0.72);
+  --app-border: #e9e2d6;
+  --app-primary: #7a8b6f;
+  --app-accent: #7a8b6f;
+  --app-accent-warm: #c27b48;
+  --app-accent-gold: #e2c48a;
+  --app-accent-fresh: #a8b48a;
+  --app-accent-soft: #e9e2d6;
+  --app-muted: #e9e2d6;
+  --app-muted-strong: #b7aea1;
+  --app-success: #6ba368;
+  --app-warning: #e0a23a;
+  --app-danger: #e5735f;
+  --app-info: #6a8fb7;
+  --app-shadow: 0 8rpx 40rpx rgba(0, 0, 0, 0.04);
+  --app-radius-card: 40rpx;
+  --app-radius-button: 28rpx;
+  --app-radius-input: 32rpx;
 
   /* Font stacks (bundled via @fontsource in src/main.ts) */
   --app-font-sans: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   --app-font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
   --app-font-number: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   --app-font-vibe: 'LXGW WenKai', 'Noto Serif SC', serif;
+}
+
+page {
+  color: var(--app-text);
+  font-size: 28rpx;
+  line-height: 1.7;
 }
 
 view,
@@ -29,6 +46,31 @@ scroll-view,
 swiper,
 swiper-item {
   box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font-family: var(--app-font-sans);
+}
+
+button {
+  cursor: pointer;
+}
+
+button[disabled] {
+  color: #fffdfc;
+  opacity: 0.54;
+}
+
+input,
+textarea {
+  color: var(--app-text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--app-text-tertiary);
 }
 
 /* App 内滚动保留手势，但不展示浏览器默认滚动条。 */
@@ -45,15 +87,40 @@ swiper-item {
 
 .app-page {
   min-height: 100vh;
-  padding: 32rpx 24rpx calc(220rpx + env(safe-area-inset-bottom, 0));
+  padding: 32rpx 32rpx calc(220rpx + env(safe-area-inset-bottom, 0));
   background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.95), rgba(245, 247, 250, 0.92) 38%, #f5f7fa 100%);
+    radial-gradient(circle at 18% 0, rgba(255, 253, 252, 0.86), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 252, 0.42), rgba(245, 241, 234, 0) 360rpx),
+    var(--app-bg);
+}
+
+.page-title,
+.hero-title,
+.title {
+  font-family: var(--app-font-serif);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.section-title {
+  font-family: var(--app-font-sans);
+  font-weight: 500;
+}
+
+.eyebrow,
+.step-label,
+.meta-label,
+.field-count,
+.recipe-card__meta,
+.recipe-card__calories {
+  font-family: var(--app-font-number);
 }
 
 .glass-card {
   background: var(--app-surface);
   border: 1rpx solid var(--app-border);
-  border-radius: 32rpx;
+  border-radius: var(--app-radius-card);
   box-shadow: var(--app-shadow);
-  backdrop-filter: blur(24rpx);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }

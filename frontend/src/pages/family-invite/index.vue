@@ -79,11 +79,11 @@ onLoad((options) => {
   height: 74rpx;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
   font-size: 38rpx;
-  font-weight: 800;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  font-weight: 500;
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .nav-button::after {
@@ -107,7 +107,7 @@ onLoad((options) => {
   margin-top: 6rpx;
   color: var(--app-text);
   font-size: 62rpx;
-  font-weight: 950;
+  font-weight: 600;
   letter-spacing: -1rpx;
 }
 
@@ -115,14 +115,14 @@ onLoad((options) => {
   margin-top: 14rpx;
   color: var(--app-text-tertiary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .invite-card {
   margin-top: 28rpx;
   padding: 28rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .qr-wrap {
@@ -137,8 +137,8 @@ onLoad((options) => {
   gap: 12rpx;
   padding: 26rpx;
   border-radius: 28rpx;
-  background: #ffffff;
-  box-shadow: 0 16rpx 40rpx rgba(15, 23, 42, 0.08);
+  background: #fffdfc;
+  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.04);
 }
 
 .qr-dot {
@@ -167,14 +167,14 @@ onLoad((options) => {
 .link-card {
   margin-top: 18rpx;
   padding: 26rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
 }
 
 .link-title {
   color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .link-value {

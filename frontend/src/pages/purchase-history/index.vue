@@ -192,8 +192,8 @@ const goBack = () => {
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 16rpx 36rpx rgba(18, 24, 40, 0.08);
+  background: #fffdfc;
+  box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.04);
 }
 
 .back-icon {
@@ -214,7 +214,7 @@ const goBack = () => {
   margin-top: 6rpx;
   color: var(--app-text);
   font-size: 44rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .summary-card {
@@ -235,7 +235,7 @@ const goBack = () => {
   margin-top: 8rpx;
   color: var(--app-text);
   font-size: 44rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .history-card {
@@ -265,7 +265,7 @@ const goBack = () => {
   margin-bottom: 8rpx;
   color: var(--app-text-tertiary);
   font-size: 24rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .history-item {
@@ -281,7 +281,7 @@ const goBack = () => {
   display: block;
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .history-meta {

@@ -111,11 +111,11 @@ const openRecipe = (recipeId: string) => {
   height: 72rpx;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fffdfc;
   color: var(--app-text);
   font-size: 34rpx;
   font-weight: 700;
-  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .back-button::after,
@@ -151,7 +151,7 @@ const openRecipe = (recipeId: string) => {
   margin-top: 4rpx;
   color: var(--app-text);
   font-size: 42rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .studio-card {
@@ -161,8 +161,8 @@ const openRecipe = (recipeId: string) => {
   gap: 24rpx;
   padding: 30rpx;
   background:
-    radial-gradient(circle at 88% 18%, rgba(15, 23, 42, 0.12), transparent 30%),
-    linear-gradient(135deg, #ffffff, #eef3f8);
+    radial-gradient(circle at 88% 18%, rgba(0, 0, 0, 0.06), transparent 30%),
+    linear-gradient(135deg, #fffdfc, #e9e2d6);
 }
 
 .studio-card__label {
@@ -175,7 +175,7 @@ const openRecipe = (recipeId: string) => {
   margin-top: 10rpx;
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .studio-card__desc {
@@ -193,10 +193,10 @@ const openRecipe = (recipeId: string) => {
   height: 92rpx;
   flex: 0 0 auto;
   border-radius: 28rpx;
-  background: #111111;
-  color: #ffffff;
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .stats-card {
@@ -214,7 +214,7 @@ const openRecipe = (recipeId: string) => {
 .stat-value {
   color: var(--app-text);
   font-size: 38rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .stat-label {
@@ -268,16 +268,16 @@ const openRecipe = (recipeId: string) => {
   flex: 1;
   color: var(--app-text);
   font-size: 30rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .status-pill {
   padding: 7rpx 12rpx;
-  border-radius: 999rpx;
-  background: #111111;
-  color: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #7a8b6f;
+  color: #fffdfc;
   font-size: 20rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .status-pill.is-draft {
@@ -309,7 +309,7 @@ const openRecipe = (recipeId: string) => {
 .empty-tip__title {
   color: var(--app-text);
   font-size: 26rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .empty-tip__desc {

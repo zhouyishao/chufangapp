@@ -7,7 +7,12 @@ import Uni from '@uni-helper/plugin-uni';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      vue: fileURLToPath(new URL('./src/shims/vue-compat.js', import.meta.url)),
+      '@vue/shared': fileURLToPath(new URL('./node_modules/@vue/shared/dist/shared.esm-bundler.js', import.meta.url)),
+      '@vue/reactivity': fileURLToPath(new URL('./node_modules/@vue/reactivity/dist/reactivity.esm-bundler.js', import.meta.url)),
+      '@vue/runtime-core': fileURLToPath(new URL('./node_modules/@vue/runtime-core/dist/runtime-core.esm-bundler.js', import.meta.url)),
+      '@vue/runtime-dom': fileURLToPath(new URL('./node_modules/@vue/runtime-dom/dist/runtime-dom.esm-bundler.js', import.meta.url))
     }
   },
   server: {

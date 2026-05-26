@@ -506,7 +506,7 @@ onShow(() => {
 .basket-page {
   padding-bottom: calc(330rpx + env(safe-area-inset-bottom, 0));
   background:
-    radial-gradient(circle at 50% -12%, rgba(255, 255, 255, 0.96), rgba(245, 247, 250, 0.9) 34%, #f2f4f7 100%);
+    radial-gradient(circle at 50% -12%, rgba(255, 253, 252, 0.96), rgba(245, 241, 234, 0.9) 34%, #e9e2d6 100%);
 }
 
 .mode-button::after,
@@ -529,7 +529,7 @@ onShow(() => {
   overflow: hidden;
   color: var(--app-text);
   font-size: 48rpx;
-  font-weight: 950;
+  font-weight: 600;
   line-height: 1.14;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -538,7 +538,7 @@ onShow(() => {
 .family-selector__arrow {
   color: var(--app-text-secondary);
   font-size: 26rpx;
-  font-weight: 900;
+  font-weight: 600;
   transition: transform 160ms ease;
 }
 
@@ -551,7 +551,7 @@ onShow(() => {
   inset: 0;
   z-index: 35;
   padding: 128rpx 24rpx 24rpx;
-  background: rgba(16, 17, 20, 0.16);
+  background: rgba(47, 47, 47, 0.16);
   backdrop-filter: blur(8rpx);
   -webkit-backdrop-filter: blur(8rpx);
 }
@@ -559,9 +559,9 @@ onShow(() => {
 .family-sheet {
   overflow: hidden;
   border: 0;
-  border-radius: 34rpx;
-  background: #ffffff;
-  box-shadow: 0 28rpx 80rpx rgba(15, 23, 42, 0.16);
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+  box-shadow: 0 28rpx 80rpx rgba(0, 0, 0, 0.08);
 }
 
 .family-option {
@@ -571,11 +571,11 @@ onShow(() => {
   gap: 18rpx;
   min-height: 96rpx;
   padding: 0 32rpx;
-  background: #ffffff;
+  background: #fffdfc;
 }
 
 .family-option.is-active {
-  background: #e9faf4;
+  background: rgba(107, 163, 104, 0.12);
 }
 
 .family-option--plain {
@@ -592,17 +592,17 @@ onShow(() => {
 .family-option__name {
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .family-option.is-active .family-option__name,
 .family-option__check {
-  color: #10b981;
+  color: #7a8b6f;
 }
 
 .family-option__check {
   font-size: 36rpx;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .family-sheet__divider {
@@ -623,7 +623,7 @@ onShow(() => {
 .family-manage-row__name {
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .family-manage-row__icon {
@@ -639,10 +639,10 @@ onShow(() => {
   gap: 24rpx;
   padding: 26rpx 28rpx;
   border: 0;
-  background: #ffffff;
-  border-radius: 38rpx;
+  background: #fffdfc;
+  border-radius: var(--app-radius-card);
   overflow: hidden;
-  box-shadow: 0 18rpx 48rpx rgba(18, 24, 40, 0.06);
+  box-shadow: 0 18rpx 48rpx rgba(0, 0, 0, 0.04);
 }
 
 .status-card::after {
@@ -652,7 +652,7 @@ onShow(() => {
   width: 190rpx;
   height: 190rpx;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(17, 17, 17, 0.05), transparent 66%);
+  background: radial-gradient(circle, rgba(47, 47, 47, 0.05), transparent 66%);
   content: '';
 }
 
@@ -667,7 +667,7 @@ onShow(() => {
   margin-top: 8rpx;
   color: var(--app-text);
   font-size: 48rpx;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1;
 }
 
@@ -686,9 +686,9 @@ onShow(() => {
   margin-top: 24rpx;
   padding: 24rpx;
   border: 0;
-  border-radius: 42rpx;
-  background: #ffffff;
-  box-shadow: 0 20rpx 56rpx rgba(18, 24, 40, 0.07);
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+  box-shadow: 0 20rpx 56rpx rgba(0, 0, 0, 0.04);
 }
 
 .board-head {
@@ -707,7 +707,7 @@ onShow(() => {
 .board-title {
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .board-desc {
@@ -724,15 +724,15 @@ onShow(() => {
   width: 210rpx;
   flex: 0 0 auto;
   padding: 7rpx;
-  border-radius: 999rpx;
-  background: #f2f4f7;
-  border: 1rpx solid rgba(15, 23, 42, 0.05);
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
+  border: 1rpx solid rgba(122, 139, 111, 0.14);
 }
 
 .mode-button {
   height: 58rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: transparent;
   color: var(--app-text-secondary);
   font-size: 22rpx;
@@ -741,8 +741,8 @@ onShow(() => {
 
 .mode-button.is-active {
   background: var(--app-accent);
-  color: #ffffff;
-  box-shadow: 0 14rpx 30rpx rgba(17, 17, 17, 0.14);
+  color: #fffdfc;
+  box-shadow: 0 14rpx 30rpx rgba(47, 47, 47, 0.12);
 }
 
 .single-card,
@@ -751,7 +751,7 @@ onShow(() => {
 .empty-card {
   padding: 20rpx;
   border-radius: 32rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
 }
 
 .recipe-list {
@@ -776,7 +776,7 @@ onShow(() => {
   margin-bottom: 12rpx;
   padding: 0 18rpx;
   border-radius: 26rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
   transition: transform 0.22s ease;
 }
 
@@ -788,7 +788,7 @@ onShow(() => {
   display: block;
   color: var(--app-text);
   font-size: 32rpx;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1.35;
 }
 
@@ -814,13 +814,13 @@ onShow(() => {
   overflow: hidden;
   margin: 4rpx 0 10rpx;
   border-radius: 28rpx;
-  background: #ffffff;
+  background: #fffdfc;
 }
 
 .swipe-row {
   position: relative;
   overflow: hidden;
-  border-bottom: 1rpx solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.04);
 }
 
 .swipe-row:last-child {
@@ -835,7 +835,7 @@ onShow(() => {
   align-items: center;
   min-height: 86rpx;
   padding: 0 18rpx;
-  background: #ffffff;
+  background: #fffdfc;
   transition: transform 0.22s ease;
 }
 
@@ -857,9 +857,9 @@ onShow(() => {
   justify-content: center;
   width: 34rpx;
   height: 34rpx;
-  border: 1rpx solid rgba(15, 23, 42, 0.13);
+  border: 1rpx solid rgba(122, 139, 111, 0.2);
   border-radius: 50%;
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 20rpx;
   font-weight: 700;
 }
@@ -900,9 +900,9 @@ onShow(() => {
   justify-content: center;
   width: 116rpx;
   height: 58rpx;
-  border-radius: 999rpx;
-  background: #ff4b3f;
-  color: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #e5735f;
+  color: #fffdfc;
   font-size: 24rpx;
   font-weight: 700;
 }
@@ -922,17 +922,17 @@ onShow(() => {
   gap: 12rpx;
   margin-top: 0;
   padding: 14rpx;
-  border: 1rpx solid rgba(15, 23, 42, 0.06);
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 16rpx 42rpx rgba(18, 24, 40, 0.08);
+  border: 1rpx solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.96);
+  box-shadow: 0 16rpx 42rpx rgba(0, 0, 0, 0.04);
 }
 
 .dock-button {
   height: 64rpx;
   border: 0;
-  border-radius: 999rpx;
-  background: #f1f4f7;
+  border-radius: var(--app-radius-button);
+  background: #e9e2d6;
   color: var(--app-text);
   font-size: 23rpx;
   font-weight: 750;
@@ -940,7 +940,7 @@ onShow(() => {
 
 .dock-button.is-primary {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .empty-card {
@@ -962,7 +962,7 @@ onShow(() => {
   width: 300rpx;
   height: 300rpx;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(17, 17, 17, 0.06), transparent 68%);
+  background: radial-gradient(circle, rgba(47, 47, 47, 0.06), transparent 68%);
   content: '';
 }
 
@@ -977,8 +977,8 @@ onShow(() => {
   margin-bottom: 12rpx;
   border-radius: 50%;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(238, 242, 246, 0.88));
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.9), 0 20rpx 44rpx rgba(15, 23, 42, 0.08);
+    linear-gradient(145deg, rgba(255, 253, 252, 0.98), rgba(233, 226, 214, 0.78));
+  box-shadow: inset 0 1rpx 0 rgba(255, 253, 252, 0.9), 0 20rpx 44rpx rgba(0, 0, 0, 0.04);
 }
 
 .basket-line {
@@ -1026,7 +1026,7 @@ onShow(() => {
   position: relative;
   z-index: 1;
   padding: 8rpx 16rpx;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
   font-size: 21rpx;
@@ -1038,7 +1038,7 @@ onShow(() => {
   z-index: 1;
   color: var(--app-text);
   font-size: 38rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .empty-desc {
@@ -1063,7 +1063,7 @@ onShow(() => {
 .empty-button {
   height: 72rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text);
   font-size: 24rpx;
@@ -1072,7 +1072,7 @@ onShow(() => {
 
 .empty-button.is-primary {
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
 }
 
 .empty-button::after {
@@ -1087,7 +1087,7 @@ onShow(() => {
   align-items: center;
   justify-content: center;
   padding: 48rpx;
-  background: rgba(16, 17, 20, 0.28);
+  background: rgba(47, 47, 47, 0.28);
   backdrop-filter: blur(10rpx);
   -webkit-backdrop-filter: blur(10rpx);
 }
@@ -1097,9 +1097,9 @@ onShow(() => {
   max-height: 78vh;
   padding: 28rpx;
   overflow-y: auto;
-  border-radius: 42rpx;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 28rpx 80rpx rgba(15, 23, 42, 0.18);
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.94);
+  box-shadow: 0 28rpx 80rpx rgba(0, 0, 0, 0.08);
 }
 
 .price-panel__head {
@@ -1117,7 +1117,7 @@ onShow(() => {
 .price-panel__title {
   color: var(--app-text);
   font-size: 34rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .price-panel__desc {
@@ -1147,13 +1147,13 @@ onShow(() => {
   gap: 18rpx;
   padding: 18rpx;
   border-radius: 24rpx;
-  background: #f7f9fb;
+  background: #e9e2d6;
 }
 
 .price-row__name {
   color: var(--app-text);
   font-size: 27rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .price-row__field {
@@ -1161,8 +1161,8 @@ onShow(() => {
   align-items: center;
   height: 62rpx;
   padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
+  border-radius: var(--app-radius-button);
+  background: #fffdfc;
 }
 
 .price-row__prefix,
@@ -1177,7 +1177,7 @@ onShow(() => {
   flex: 1;
   color: var(--app-text);
   font-size: 25rpx;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .save-price-button {
@@ -1185,11 +1185,11 @@ onShow(() => {
   height: 76rpx;
   margin-top: 24rpx;
   border: 0;
-  border-radius: 999rpx;
+  border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #ffffff;
+  color: #fffdfc;
   font-size: 27rpx;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .save-price-button::after {
