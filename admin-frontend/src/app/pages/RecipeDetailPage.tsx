@@ -9,14 +9,14 @@ import { ImagePreview } from '../components/ImagePreview';
 export const RecipeDetailPage = () => {
   const navigate = useNavigate();
   const params = useParams();
-  const id = Number.parseInt(params.id ?? '', 10);
+  const id = params.id ?? '';
 
   const [item, setItem] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!Number.isFinite(id)) {
+    if (!id) {
       setError('无效的 ID');
       return;
     }

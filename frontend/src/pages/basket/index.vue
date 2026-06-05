@@ -467,7 +467,7 @@ const goHome = () => {
 };
 
 const goToRecipes = () => {
-  uni.navigateTo({ url: '/pages/recipes/index' });
+  uni.navigateTo({ url: '/pages/ingredients/index?tab=recipes' });
 };
 
 const handleTouchStart = (event: TouchEvent, id: string) => {

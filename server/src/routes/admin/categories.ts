@@ -5,24 +5,33 @@ import { prisma } from '../../prisma';
 import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
+import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   q: z.string().trim().optional(),
-  type: z.enum(['RECIPE', 'INGREDIENT', 'SEASONING', 'FRUIT', 'COCKTAIL']).optional(),
+  type: z.enum(['RECIPE', 'INGREDIENT', 'SEASONING', 'FRUIT', 'COCKTAIL', 'BEVERAGE']).optional(),
   status: z.enum(['ACTIVE', 'DISABLED']).optional()
 });
 
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  type: z.enum(['RECIPE', 'INGREDIENT', 'SEASONING', 'FRUIT', 'COCKTAIL']).default('INGREDIENT'),
+  type: z.enum(['RECIPE', 'INGREDIENT', 'SEASONING', 'FRUIT', 'COCKTAIL', 'BEVERAGE']).default('INGREDIENT'),
   sort: z.coerce.number().int().min(0).default(0),
   status: z.enum(['ACTIVE', 'DISABLED']).default('ACTIVE'),
   isPublish: z.coerce.boolean().default(true)
 });
 
 export const adminCategoriesRouter = Router();
+
+const serializeCategory = <T extends { id: number; bizId?: string | null; code?: string | null; sort?: number; sortOrder?: number }>(item: T) => ({
+  ...item,
+  legacyId: item.id,
+  id: getPublicId('category', item),
+  code: getPublicCode('category', item),
+  sortOrder: item.sortOrder ?? item.sort ?? 0
+});
 
 adminCategoriesRouter.get('/', requireAdminAuth, async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
@@ -45,9 +54,12 @@ adminCategoriesRouter.get('/', requireAdminAuth, async (req, res) => {
       take: pageSize,
       select: {
         id: true,
+        bizId: true,
+        code: true,
         type: true,
         name: true,
         sort: true,
+        sortOrder: true,
         status: true,
         isPublish: true,
         isRecommend: true,
@@ -58,46 +70,48 @@ adminCategoriesRouter.get('/', requireAdminAuth, async (req, res) => {
     prisma.category.count({ where })
   ]);
 
-  const data: PageResult<(typeof list)[number]> = { list, total, page, pageSize };
+  const data: PageResult<ReturnType<typeof serializeCategory>> = { list: list.map(serializeCategory), total, page, pageSize };
   res.json(ok(data));
 });
 
 adminCategoriesRouter.get('/:id', requireAdminAuth, async (req, res) => {
-  const id = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
-
-  const item = await prisma.category.findFirst({ where: { id, deletedAt: null } });
+  const item = await prisma.category.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
   if (!item) throw new HttpError('not found', 404, 404);
-  res.json(ok(item));
+  res.json(ok(serializeCategory(item)));
 });
 
 adminCategoriesRouter.post('/', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const created = await prisma.category.create({ data: parsed.data });
-  res.json(ok(created));
+  const codes = await prisma.category.findMany({ select: { code: true } });
+  const created = await prisma.category.create({
+    data: {
+      ...parsed.data,
+      bizId: createBusinessId('category'),
+      code: nextCodeFromItems('category', codes),
+      sortOrder: parsed.data.sort
+    }
+  });
+  res.json(ok(serializeCategory(created)));
 });
 
 adminCategoriesRouter.put('/:id', requireAdminAuth, async (req, res) => {
-  const id = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
-
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const existing = await prisma.category.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
+  if (!existing) throw new HttpError('not found', 404, 404);
 
   const updated = await prisma.category.update({
-    where: { id },
-    data: parsed.data
+    where: { id: existing.id },
+    data: { ...parsed.data, sortOrder: parsed.data.sort }
   });
-  res.json(ok(updated));
+  res.json(ok(serializeCategory(updated)));
 });
 
 adminCategoriesRouter.delete('/:id', requireAdminAuth, async (req, res) => {
-  const id = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
-
-  const existing = await prisma.category.findFirst({ where: { id, deletedAt: null } });
+  const existing = await prisma.category.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
   if (!existing) throw new HttpError('not found', 404, 404);
+  const id = existing.id;
 
   const [recipeCount, ingredientCount] = await Promise.all([
     prisma.recipe.count({ where: { categoryId: id, deletedAt: null } }),
@@ -109,37 +123,35 @@ adminCategoriesRouter.delete('/:id', requireAdminAuth, async (req, res) => {
 
   const deleted = await prisma.category.update({
     where: { id },
-    data: { deletedAt: new Date() }
+    data: { deletedAt: new Date(), isDeleted: true }
   });
-  res.json(ok(deleted));
+  res.json(ok(serializeCategory(deleted)));
 });
 
 adminCategoriesRouter.patch('/:id/publish', requireAdminAuth, async (req, res) => {
-  const id = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
-
   const schema = z.object({ isPublish: z.coerce.boolean() });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const existing = await prisma.category.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
+  if (!existing) throw new HttpError('not found', 404, 404);
 
   const updated = await prisma.category.update({
-    where: { id },
+    where: { id: existing.id },
     data: { isPublish: parsed.data.isPublish }
   });
-  res.json(ok(updated));
+  res.json(ok(serializeCategory(updated)));
 });
 
 adminCategoriesRouter.patch('/:id/status', requireAdminAuth, async (req, res) => {
-  const id = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
-
   const schema = z.object({ status: z.enum(['ACTIVE', 'DISABLED']) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const existing = await prisma.category.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
+  if (!existing) throw new HttpError('not found', 404, 404);
 
   const updated = await prisma.category.update({
-    where: { id },
+    where: { id: existing.id },
     data: { status: parsed.data.status }
   });
-  res.json(ok(updated));
+  res.json(ok(serializeCategory(updated)));
 });

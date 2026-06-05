@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { createRecipe, getRecipe, listCategories, submitRecipeAudit, updateRecipe } from '../api';
+import { createRecipe, getRecipe, listCategories, resolveAssetUrl, submitRecipeAudit, updateRecipe, uploadMedia } from '../api';
 import { Button } from '../components/Button';
+import { ImageEditorUploader } from '../components/ImageEditorUploader';
 import { Input } from '../components/Input';
-import { MediaUploader, type MediaItem } from '../components/MediaUploader';
 import { StatusTag } from '../components/StatusTag';
-import { UploadImage } from '../components/UploadImage';
 import type { IngredientCategory, Recipe } from '../types';
 
 type RecipeFormMode = 'create' | 'edit';
@@ -20,7 +20,7 @@ type Draft = {
   images: string[];
   video: string | null;
   description: string | null;
-  categoryId: number | null;
+  categoryId: string | null;
   cookTime: number | null;
   servings: number | null;
   calories: number | null;
@@ -175,13 +175,10 @@ const auditLabels: Record<Recipe['auditStatus'], { label: string; tone: 'green' 
   REJECTED: { label: '审核驳回', tone: 'red' }
 };
 
-const toMediaItems = (urls: string[], type: MediaItem['type']): MediaItem[] => urls.map((url) => ({ url, type }));
-const singleMedia = (url: string | null, type: MediaItem['type']): MediaItem[] => (url ? [{ url, type }] : []);
-
 export const RecipeFormPage = ({ mode }: Props) => {
   const navigate = useNavigate();
   const params = useParams();
-  const id = Number.parseInt(params.id ?? '', 10);
+  const id = params.id ?? '';
 
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [categories, setCategories] = useState<IngredientCategory[]>([]);
@@ -213,7 +210,7 @@ export const RecipeFormPage = ({ mode }: Props) => {
       try {
         const [categoryResult, recipe] = await Promise.all([
           listCategories({ page: 1, pageSize: 100, type: 'RECIPE' }),
-          mode === 'edit' && Number.isFinite(id) ? getRecipe(id) : Promise.resolve(null)
+          mode === 'edit' && id ? getRecipe(id) : Promise.resolve(null)
         ]);
         if (!alive) return;
         setCategories(categoryResult.list);
@@ -251,7 +248,7 @@ export const RecipeFormPage = ({ mode }: Props) => {
 
   const saveBase = async (nextDraft: Draft) => {
     const payload = toPayload(nextDraft);
-    return mode === 'edit' ? updateRecipe(id, payload) : createRecipe(payload);
+    return mode === 'edit' && id ? updateRecipe(id, payload) : createRecipe(payload);
   };
 
   const handleSave = async (intent: 'draft' | 'submit') => {
@@ -283,7 +280,6 @@ export const RecipeFormPage = ({ mode }: Props) => {
     <section className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-sm text-[#8c8c8c]">内容管理 / 菜谱管理</div>
           <h1 className="mt-2 text-3xl font-semibold text-[#2f2f2f]">{mode === 'edit' ? '编辑菜谱' : '新增菜谱'}</h1>
           <p className="mt-2 text-sm text-[#8c8c8c]">结构化维护菜谱基础信息、成品媒体、食材清单和步骤，审核状态只能通过流程流转。</p>
         </div>
@@ -297,148 +293,355 @@ export const RecipeFormPage = ({ mode }: Props) => {
       {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
       {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
 
-      <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6">
+      <div>
         {loading ? (
-          <div className="text-sm text-[#8c8c8c]">加载中...</div>
+          <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 text-sm text-[#8c8c8c]">加载中...</div>
         ) : (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-[#8c8c8c]">审核状态</span>
-              <StatusTag label={audit.label} tone={audit.tone} />
-              <span className="text-xs text-[#8c8c8c]">此状态不可在表单手动修改，请通过“提交审核 / 审核中心 / 发布”流转。</span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <label className="lg:col-span-2">
-                <div className="mb-1 text-xs text-[#8c8c8c]">标题 *</div>
-                <Input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
-              </label>
-              <label className="lg:col-span-2">
-                <div className="mb-1 text-xs text-[#8c8c8c]">副标题</div>
-                <Input value={draft.subtitle ?? ''} onChange={(event) => setDraft({ ...draft, subtitle: event.target.value })} />
-              </label>
-              <div className="lg:col-span-2">
-                <UploadImage label="主封面图片上传" value={draft.coverUrl} helperText="列表页和 C 端详情页优先展示主封面。" onChange={(coverUrl) => setDraft({ ...draft, coverUrl })} />
-              </div>
-              <div className="lg:col-span-2">
-                <MediaUploader
-                  label="成品图上传"
-                  value={toMediaItems(draft.images, 'image')}
-                  accept="image"
-                  multiple
-                  primaryUrl={draft.coverUrl}
-                  onSetPrimary={(coverUrl) => setDraft({ ...draft, coverUrl })}
-                  onChange={(items) => setDraft({ ...draft, images: items.map((item) => item.url) })}
-                />
-              </div>
-              <div className="lg:col-span-2">
-                <MediaUploader label="成品视频上传" value={singleMedia(draft.video, 'video')} accept="video" onChange={(items) => setDraft({ ...draft, video: items[0]?.url ?? null })} />
-              </div>
-              <label>
-                <div className="mb-1 text-xs text-[#8c8c8c]">分类 *</div>
-                <select value={draft.categoryId ?? ''} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value ? Number(event.target.value) : null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                  <option value="">请选择分类</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </label>
-              <label>
-                <div className="mb-1 text-xs text-[#8c8c8c]">难度 *</div>
-                <select value={draft.difficulty ?? ''} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                  <option value="">请选择难度</option>
-                  {difficultyOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </label>
-              <label>
-                <div className="mb-1 text-xs text-[#8c8c8c]">口味</div>
-                <select value={draft.taste ?? ''} onChange={(event) => setDraft({ ...draft, taste: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                  <option value="">请选择口味</option>
-                  {tasteOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </label>
-              <label>
-                <div className="mb-1 text-xs text-[#8c8c8c]">烹饪方式</div>
-                <select value={draft.scene ?? ''} onChange={(event) => setDraft({ ...draft, scene: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                  <option value="">请选择方式</option>
-                  {sceneOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </label>
-              <label>
-                <div className="mb-1 text-xs text-[#8c8c8c]">可见范围</div>
-                <select value={draft.visibility ?? 'PUBLIC'} onChange={(event) => setDraft({ ...draft, visibility: event.target.value })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                  {visibilityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
-              <Input type="number" placeholder="烹饪时间（分钟）" value={draft.cookTime ?? ''} onChange={(event) => setDraft({ ...draft, cookTime: event.target.value === '' ? null : Number(event.target.value) })} />
-              <Input type="number" placeholder="份量" value={draft.servings ?? ''} onChange={(event) => setDraft({ ...draft, servings: event.target.value === '' ? null : Number(event.target.value) })} />
-              <Input type="number" placeholder="热量 kcal" value={draft.calories ?? ''} onChange={(event) => setDraft({ ...draft, calories: event.target.value === '' ? null : Number(event.target.value) })} />
-              <Input type="number" placeholder="排序" value={draft.sort} onChange={(event) => setDraft({ ...draft, sort: Number(event.target.value) })} />
-              <label className="lg:col-span-2">
-                <div className="mb-1 text-xs text-[#8c8c8c]">描述</div>
-                <textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="min-h-24 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" />
-              </label>
-              <label className="lg:col-span-2">
-                <div className="mb-1 text-xs text-[#8c8c8c]">小贴士</div>
-                <textarea value={draft.tips ?? ''} onChange={(event) => setDraft({ ...draft, tips: event.target.value })} className="min-h-20 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" />
-              </label>
-            </div>
-
-            <div className="rounded-2xl border border-[#e9e2d6] p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-[#2f2f2f]">食材清单</h2>
-                <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, createIngredient(draft.ingredients.length + 1)] })}>添加食材</Button>
-              </div>
-              <div className="space-y-3">
-                {draft.ingredients.map((item, index) => (
-                  <div key={item.id} className="grid grid-cols-1 gap-2 rounded-2xl bg-[#f5f1ea] p-3 lg:grid-cols-[1.5fr_1fr_0.8fr_0.9fr_1.5fr_auto]">
-                    <Input placeholder="食材名称" value={item.name} onChange={(event) => updateIngredient(index, { name: event.target.value })} />
-                    <Input placeholder="用量" value={item.amount} onChange={(event) => updateIngredient(index, { amount: event.target.value })} />
-                    <Input placeholder="单位" value={item.unit} onChange={(event) => updateIngredient(index, { unit: event.target.value })} />
-                    <select value={item.type} onChange={(event) => updateIngredient(index, { type: event.target.value })} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                      {['主料', '辅料', '调料'].map((option) => <option key={option} value={option}>{option}</option>)}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
+              <NumberedSection number={1} title="基础信息">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="菜谱名称 *"><Input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="请输入菜谱名称" /></Field>
+                  <Field label="菜谱副标题"><Input value={draft.subtitle ?? ''} onChange={(event) => setDraft({ ...draft, subtitle: event.target.value })} placeholder="请输入副标题" /></Field>
+                  <Field label="菜谱分类 *">
+                    <select value={draft.categoryId ?? ''} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value ? event.target.value : null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+                      <option value="">请选择分类</option>
+                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                     </select>
-                    <Input placeholder="备注" value={item.note} onChange={(event) => updateIngredient(index, { note: event.target.value })} />
-                    <div className="flex gap-2">
-                      <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: moveRow(draft.ingredients, index, -1) })}>上移</Button>
-                      <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: moveRow(draft.ingredients, index, 1) })}>下移</Button>
-                      <Button type="button" variant="danger" onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}>删除</Button>
+                  </Field>
+                  <Field label="难度 *">
+                    <select value={draft.difficulty ?? ''} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+                      <option value="">请选择难度</option>
+                      {difficultyOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="烹饪时长"><Input type="number" placeholder="如：15" value={draft.cookTime ?? ''} onChange={(event) => setDraft({ ...draft, cookTime: event.target.value === '' ? null : Number(event.target.value) })} /></Field>
+                  <Field label="热量 kcal"><Input type="number" placeholder="如：320" value={draft.calories ?? ''} onChange={(event) => setDraft({ ...draft, calories: event.target.value === '' ? null : Number(event.target.value) })} /></Field>
+                  <Field label="份量 / 几人食"><Input type="number" placeholder="如：2" value={draft.servings ?? ''} onChange={(event) => setDraft({ ...draft, servings: event.target.value === '' ? null : Number(event.target.value) })} /></Field>
+                  <Field label="发布状态">
+                    <div className="flex h-10 items-center gap-4 text-sm text-[#2f2f2f]">
+                      <label className="flex items-center gap-2"><input type="radio" checked={draft.isDraft} onChange={() => setDraft({ ...draft, isDraft: true, isPublish: false })} />草稿</label>
+                      <label className="flex items-center gap-2"><input type="radio" checked={draft.isPublish} onChange={() => setDraft({ ...draft, isDraft: false, isPublish: true })} />发布</label>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </Field>
+                  <Field label="是否推荐"><label className="flex h-10 items-center gap-2 text-sm"><input type="checkbox" checked={draft.isRecommend} onChange={(event) => setDraft({ ...draft, isRecommend: event.target.checked })} />推荐到首页或频道位</label></Field>
+                  <Field label="审核状态"><div className="flex h-10 items-center gap-3"><StatusTag label={audit.label} tone={audit.tone} /><span className="text-xs text-[#8c8c8c]">通过流程流转</span></div></Field>
+                  <Field label="菜谱简介 / 描述 *" className="md:col-span-2">
+                    <textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="min-h-20 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" placeholder="简要介绍这道菜的特色、口感、适合人群或食用场景..." />
+                  </Field>
+                </div>
+              </NumberedSection>
+
+              <NumberedSection number={2} title="封面与图文素材">
+                <PrototypeMediaSection
+                  coverUrl={draft.coverUrl}
+                  images={draft.images}
+                  video={draft.video}
+                  tags={[draft.taste, draft.scene].filter(Boolean).join('、')}
+                  onCoverChange={(coverUrl) => setDraft({ ...draft, coverUrl })}
+                  onImagesChange={(images) => setDraft({ ...draft, images })}
+                  onVideoChange={(video) => setDraft({ ...draft, video })}
+                  onTagsChange={(tags) => setDraft({ ...draft, taste: tags })}
+                />
+              </NumberedSection>
+
+              <NumberedSection number={3} title="食材配料">
+                <IngredientRows
+                  items={draft.ingredients}
+                  kind="ingredient"
+                  updateIngredient={updateIngredient}
+                  remove={(index) => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}
+                />
+                <div className="mt-4 flex gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, createIngredient(draft.ingredients.length + 1)] })}>＋ 新增食材</Button>
+                  <Button type="button" variant="ghost" onClick={() => setNotice('批量导入入口已预留')}>批量导入</Button>
+                </div>
+              </NumberedSection>
+
+              <NumberedSection number={4} title="调料配比（可选）">
+                <IngredientRows
+                  items={draft.ingredients}
+                  kind="seasoning"
+                  updateIngredient={updateIngredient}
+                  remove={(index) => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}
+                />
+                <div className="mt-4">
+                  <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { ...createIngredient(draft.ingredients.length + 1), type: '调料' }] })}>＋ 新增调料</Button>
+                </div>
+              </NumberedSection>
+
+              <NumberedSection number={5} title="制作步骤" className="2xl:col-span-2">
+                <div className="space-y-3">
+                  {draft.steps.map((step, index) => (
+                    <div key={step.id} className="grid grid-cols-[32px_1fr_116px_52px] items-center gap-3 rounded-2xl bg-[#f5f1ea] p-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sm font-semibold text-[#2f2f2f]">{index + 1}</span>
+                      <textarea value={step.description} onChange={(event) => updateStep(index, { description: event.target.value })} className="min-h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" placeholder="请输入制作步骤" />
+                      <StepImageUpload value={step.image} onChange={(image) => updateStep(index, { image })} />
+                      <Button type="button" variant="danger" onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}>删除</Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, steps: [...draft.steps, createStep(draft.steps.length + 1)] })}>＋ 新增步骤</Button>
+                  <span className="text-xs text-[#8c8c8c]">拖拽排序后续接入，当前可通过删除和新增调整内容。</span>
+                </div>
+              </NumberedSection>
+
+              <NumberedSection number={6} title="关联信息" className="2xl:col-span-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Field label="关联食材（可多选）"><Input value={draft.ingredients.filter((item) => item.name.trim()).map((item) => item.name).join('、')} readOnly placeholder="自动来自食材配料" /></Field>
+                  <Field label="适用场景"><select value={draft.scene ?? ''} onChange={(event) => setDraft({ ...draft, scene: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value="">请选择</option>{sceneOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></Field>
+                  <Field label="关键词"><Input value={[draft.title, draft.taste, draft.scene].filter(Boolean).join('、')} onChange={(event) => setDraft({ ...draft, taste: event.target.value })} placeholder="用逗号分隔" /></Field>
+                  <Field label="来源 / 作者"><Input placeholder="如：原创 / 家庭作者 / 网络" /></Field>
+                  <Field label="审核备注" className="md:col-span-2"><Input placeholder="给审核人员看的备注信息" /></Field>
+                  <Field label="小贴士" className="md:col-span-3"><textarea value={draft.tips ?? ''} onChange={(event) => setDraft({ ...draft, tips: event.target.value })} className="min-h-20 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" /></Field>
+                </div>
+              </NumberedSection>
             </div>
 
-            <div className="rounded-2xl border border-[#e9e2d6] p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-[#2f2f2f]">步骤编辑器</h2>
-                <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, steps: [...draft.steps, createStep(draft.steps.length + 1)] })}>添加步骤</Button>
+            <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+              <RecipePreview draft={draft} categoryName={categories.find((category) => category.id === draft.categoryId)?.name} />
+              <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5">
+                <h2 className="text-lg font-semibold text-[#2f2f2f]">发布提示</h2>
+                <ul className="mt-4 space-y-3 text-sm leading-6 text-[#6f6a61]">
+                  <li>• 发布后可被首页推荐、专题和频道引用</li>
+                  <li>• 请确保封面清晰、步骤完整</li>
+                  <li>• 分类与标签将影响搜索与推荐</li>
+                </ul>
               </div>
-              <div className="space-y-4">
-                {draft.steps.map((step, index) => (
-                  <div key={step.id} className="rounded-2xl bg-[#f5f1ea] p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <strong className="text-[#2f2f2f]">步骤 {index + 1}</strong>
-                      <div className="flex gap-2">
-                        <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, steps: moveRow(draft.steps, index, -1) })}>上移</Button>
-                        <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, steps: moveRow(draft.steps, index, 1) })}>下移</Button>
-                        <Button type="button" variant="danger" onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}>删除</Button>
-                      </div>
-                    </div>
-                    <textarea value={step.description} onChange={(event) => updateStep(index, { description: event.target.value })} className="mb-3 min-h-24 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" placeholder="步骤说明" />
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                      <MediaUploader label="步骤图片" value={singleMedia(step.image, 'image')} accept="image" onChange={(items) => updateStep(index, { image: items[0]?.url ?? null })} />
-                      <MediaUploader label="步骤视频" value={singleMedia(step.video, 'video')} accept="video" onChange={(items) => updateStep(index, { video: items[0]?.url ?? null })} />
-                      <label>
-                        <div className="mb-1 text-xs text-[#8c8c8c]">计时/时长（秒）</div>
-                        <Input type="number" value={step.duration ?? ''} onChange={(event) => updateStep(index, { duration: event.target.value === '' ? null : Number(event.target.value) })} />
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            </aside>
           </div>
         )}
       </div>
     </section>
+  );
+};
+
+const NumberedSection = ({ number, title, children, className = '' }: { number: number; title: string; children: ReactNode; className?: string }) => (
+  <section className={`rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5 shadow-sm ${className}`}>
+    <div className="mb-5 flex items-center gap-3">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#6f8b62] text-sm font-semibold text-white">{number}</span>
+      <h2 className="text-lg font-semibold text-[#2f2f2f]">{title}</h2>
+    </div>
+    {children}
+  </section>
+);
+
+const Field = ({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) => (
+  <label className={`block ${className}`}>
+    <div className="mb-1.5 text-xs font-medium text-[#6f6a61]">{label}</div>
+    {children}
+  </label>
+);
+
+const PrototypeMediaSection = ({
+  coverUrl,
+  images,
+  video,
+  tags,
+  onCoverChange,
+  onImagesChange,
+  onVideoChange,
+  onTagsChange
+}: {
+  coverUrl: string | null;
+  images: string[];
+  video: string | null;
+  tags: string;
+  onCoverChange: (url: string | null) => void;
+  onImagesChange: (urls: string[]) => void;
+  onVideoChange: (url: string | null) => void;
+  onTagsChange: (tags: string) => void;
+}) => {
+  const [notice, setNotice] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-5">
+      {notice ? <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</div> : null}
+      <ImageEditorUploader coverUrl={coverUrl} images={images} max={8} onCoverChange={onCoverChange} onImagesChange={onImagesChange} />
+
+      <div>
+        <div className="mb-2 text-xs font-medium text-[#6f6a61]">视频链接 / 视频上传（可选）</div>
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <Input value={video ?? ''} onChange={(event) => onVideoChange(event.target.value || null)} placeholder="粘贴视频链接或上传视频文件" />
+          <PrototypeVideoButton onUploaded={onVideoChange} onNotice={setNotice} />
+        </div>
+      </div>
+
+      <Field label="标签（最多选择5个）">
+        <Input value={tags} onChange={(event) => onTagsChange(event.target.value)} placeholder="请选择或搜索标签" />
+      </Field>
+    </div>
+  );
+};
+
+const PrototypeVideoButton = ({ onUploaded, onNotice }: { onUploaded: (url: string | null) => void; onNotice: (message: string | null) => void }) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    onNotice(null);
+    try {
+      const uploaded = await uploadMedia(file);
+      if (uploaded.type !== 'video') throw new Error('请上传视频文件');
+      onUploaded(uploaded.url);
+      onNotice('视频已上传');
+    } catch (err) {
+      onNotice(err instanceof Error ? err.message : '视频上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <>
+      <input ref={inputRef} type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => void handleFile(event)} />
+      <Button type="button" variant="ghost" disabled={uploading} onClick={() => inputRef.current?.click()}>{uploading ? '上传中...' : '上传视频'}</Button>
+    </>
+  );
+};
+
+const StepImageUpload = ({ value, onChange }: { value: string | null; onChange: (url: string | null) => void }) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const uploaded = await uploadMedia(file);
+      if (uploaded.type !== 'image') throw new Error('请上传图片文件');
+      onChange(uploaded.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const previewUrl = resolveAssetUrl(value);
+
+  return (
+    <div className="grid grid-cols-[32px_56px] items-center gap-2">
+      <span className="text-sm font-medium text-[#6f6a61]">配图</span>
+      <div>
+        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => void handleFile(event)} />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#d8cebe] bg-white text-lg text-[#6f8b62] transition hover:border-[#6f8b62]"
+          title={previewUrl ? '重新上传配图' : '上传配图'}
+        >
+          {previewUrl ? <img src={previewUrl} alt="步骤配图" className="absolute inset-0 h-full w-full object-cover" /> : null}
+          <span className={previewUrl ? 'relative rounded-full bg-white/85 px-1.5 text-xs' : ''}>{uploading ? '...' : '+'}</span>
+        </button>
+        {value ? <button type="button" onClick={() => onChange(null)} className="mt-1 block text-xs text-red-500">删除</button> : null}
+        {error ? <div className="mt-1 w-24 text-xs text-red-600">{error}</div> : null}
+      </div>
+    </div>
+  );
+};
+
+const IngredientRows = ({
+  items,
+  kind,
+  updateIngredient,
+  remove
+}: {
+  items: IngredientDraft[];
+  kind: 'ingredient' | 'seasoning';
+  updateIngredient: (index: number, patch: Partial<IngredientDraft>) => void;
+  remove: (index: number) => void;
+}) => {
+  const rows = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => (kind === 'seasoning' ? item.type === '调料' : item.type !== '调料'));
+  const visibleRows = rows.length ? rows : items.slice(0, kind === 'seasoning' ? 0 : 3).map((item, index) => ({ item, index }));
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[#e9e2d6] bg-white">
+      <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.3fr_52px] border-b border-[#e9e2d6] bg-[#f5f1ea] px-3 py-2 text-xs font-semibold text-[#6f6a61]">
+        <span>{kind === 'seasoning' ? '调料名称' : '食材名称'}</span>
+        <span>用量</span>
+        <span>单位</span>
+        <span>备注</span>
+        <span className="text-right">操作</span>
+      </div>
+      <div className="divide-y divide-[#f1ece4]">
+        {visibleRows.length ? visibleRows.map(({ item, index }) => (
+          <div key={item.id} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.3fr_52px] items-center gap-2 px-3 py-2">
+            <Input value={item.name} onChange={(event) => updateIngredient(index, { name: event.target.value, type: kind === 'seasoning' ? '调料' : item.type })} placeholder={kind === 'seasoning' ? '生抽' : '番茄'} />
+            <Input value={item.amount} onChange={(event) => updateIngredient(index, { amount: event.target.value })} placeholder="2" />
+            <Input value={item.unit} onChange={(event) => updateIngredient(index, { unit: event.target.value })} placeholder={kind === 'seasoning' ? '勺' : '个'} />
+            <Input value={item.note} onChange={(event) => updateIngredient(index, { note: event.target.value })} placeholder={kind === 'seasoning' ? '按口味调整' : '中等大小'} />
+            <button type="button" onClick={() => remove(index)} className="text-right text-sm text-red-500 hover:text-red-600">删除</button>
+          </div>
+        )) : (
+          <div className="px-3 py-8 text-center text-sm text-[#8c8c8c]">暂无{kind === 'seasoning' ? '调料' : '食材'}，点击下方按钮添加。</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const RecipePreview = ({ draft, categoryName }: { draft: Draft; categoryName?: string }) => {
+  const ingredients = draft.ingredients.filter((item) => item.name.trim()).slice(0, 6);
+  const steps = draft.steps.filter((step) => step.description.trim()).slice(0, 4);
+
+  return (
+    <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-[#2f2f2f]">内容预览</h2>
+        <button type="button" className="rounded-xl border border-[#e9e2d6] bg-white px-3 py-1.5 text-xs text-[#6f8b62]">刷新预览</button>
+      </div>
+      <div className="overflow-hidden rounded-[28px] border-[10px] border-[#232323] bg-white">
+        <div className="flex items-center justify-between px-4 py-3 text-xs font-semibold text-[#2f2f2f]">
+          <span>9:41</span>
+          <span>•••</span>
+        </div>
+        <div className="h-40 bg-[#f5f1ea]">
+          {draft.coverUrl ? <img src={draft.coverUrl} alt={draft.title || '菜谱封面'} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-[#8c8c8c]">封面预览</div>}
+        </div>
+        <div className="space-y-4 p-4">
+          <div>
+            <h3 className="text-xl font-semibold text-[#2f2f2f]">{draft.title || '番茄炒蛋'}</h3>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {[categoryName || '家常菜', draft.scene || '下饭菜', draft.difficulty || '简单'].map((tag) => <span key={tag} className="rounded-full bg-[#edf5ea] px-2.5 py-1 text-[#6f8b62]">{tag}</span>)}
+            </div>
+          </div>
+          <div className="flex gap-3 text-xs text-[#6f6a61]">
+            <span>{draft.cookTime ?? 15}分钟</span>
+            <span>{draft.calories ?? 320} kcal</span>
+            <span>{draft.servings ?? 2}人份</span>
+          </div>
+          <p className="text-sm leading-6 text-[#6f6a61]">{draft.description || '经典家常菜，酸甜开胃，营养丰富，做法简单。'}</p>
+          <div>
+            <h4 className="mb-2 text-sm font-semibold text-[#2f2f2f]">食材</h4>
+            <div className="space-y-1 text-sm text-[#6f6a61]">
+              {(ingredients.length ? ingredients : [{ name: '番茄', amount: '2', unit: '个' }, { name: '鸡蛋', amount: '3', unit: '个' }]).map((item, index) => (
+                <div key={`${item.name}-${index}`} className="flex justify-between"><span>{item.name}</span><span>{item.amount} {item.unit}</span></div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h4 className="mb-2 text-sm font-semibold text-[#2f2f2f]">制作步骤</h4>
+            <div className="space-y-2 text-sm text-[#6f6a61]">
+              {(steps.length ? steps : [{ description: '番茄切块，鸡蛋打散备用。' }, { description: '热锅倒油，倒入蛋液炒至凝固。' }]).map((step, index) => (
+                <div key={`${step.description}-${index}`} className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#6f8b62] text-xs text-white">{index + 1}</span><span className="line-clamp-2">{step.description}</span></div>
+              ))}
+            </div>
+          </div>
+          <button type="button" className="h-11 w-full rounded-xl bg-[#6f8b62] text-sm font-semibold text-white">开始烹饪</button>
+        </div>
+      </div>
+    </div>
   );
 };

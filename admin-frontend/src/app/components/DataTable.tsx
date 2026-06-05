@@ -30,14 +30,25 @@ export const DataTable = <T,>({
 }: Props<T>) => (
   <div className="overflow-hidden rounded-3xl border border-[#e9e2d6] bg-[#fffdfc]">
     <div className="overflow-x-auto">
-      <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+      <table className="w-full min-w-max border-separate border-spacing-0 text-center text-sm">
         <thead className="text-xs text-[#8c8c8c]">
           <tr>
-            {columns.map((column) => (
-              <th key={column.key} className={['border-b border-[#e9e2d6] px-4 py-3 font-medium', column.widthClassName ?? ''].join(' ')}>
-                {column.title}
-              </th>
-            ))}
+            {columns.map((column) => {
+              const isActionColumn = column.key === 'actions' || column.title === '操作';
+
+              return (
+                <th
+                  key={column.key}
+                  className={[
+                    'whitespace-nowrap border-b border-[#e9e2d6] px-4 py-3 font-medium',
+                    isActionColumn ? 'sticky right-0 z-20 bg-[#fffdfc] shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.45)]' : '',
+                    column.widthClassName ?? ''
+                  ].join(' ')}
+                >
+                  {column.title}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -56,11 +67,21 @@ export const DataTable = <T,>({
           ) : data.length ? (
             data.map((item) => (
               <tr key={rowKey(item)} className="hover:bg-[#f5f1ea]/60">
-                {columns.map((column) => (
-                  <td key={column.key} className="border-b border-[#f0eadf] px-4 py-4 align-middle last:border-b">
-                    {column.render(item)}
-                  </td>
-                ))}
+                {columns.map((column) => {
+                  const isActionColumn = column.key === 'actions' || column.title === '操作';
+
+                  return (
+                    <td
+                      key={column.key}
+                      className={[
+                        'whitespace-nowrap border-b border-[#f0eadf] px-4 py-4 align-middle last:border-b',
+                        isActionColumn ? 'sticky right-0 z-10 bg-[#fffdfc] shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.45)]' : ''
+                      ].join(' ')}
+                    >
+                      {column.render(item)}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           ) : (

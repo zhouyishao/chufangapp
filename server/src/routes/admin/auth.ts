@@ -23,7 +23,11 @@ adminAuthRouter.post('/login', async (req, res) => {
   const { username, password } = parsed.data;
 
   const admin = await prisma.admin.findFirst({
-    where: { username, deletedAt: null, status: 'ACTIVE' }
+    where: {
+      OR: [{ username }, { nickname: username }],
+      deletedAt: null,
+      status: 'ACTIVE'
+    }
   });
   if (!admin) throw new HttpError('用户名或密码错误', 400, 400);
 
@@ -54,4 +58,3 @@ adminAuthRouter.get('/profile', requireAdminAuth, async (req, res) => {
 
   res.json(ok(admin));
 });
-

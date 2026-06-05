@@ -40,7 +40,7 @@ export const resolveAssetUrl = (url: string | null | undefined, fallback = DEFAU
   if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:') || value.startsWith('blob:')) {
     return value;
   }
-  if (value.startsWith('/uploads/')) {
+  if (value.startsWith('/uploads/') || value.startsWith('/static/')) {
     return `${API_ORIGIN}${value}`;
   }
   return value;
@@ -72,6 +72,14 @@ const request = async <T>(path: string, options: RequestOptions = {}) => {
 };
 
 export type ApiHome = {
+  banners: {
+    id: number;
+    title: string;
+    image: string;
+    targetType: string;
+    targetUrl: string | null;
+    recipeId: number | null;
+  }[];
   recommendRecipes: {
     id: number;
     title: string;
@@ -98,6 +106,14 @@ export type ApiHome = {
 };
 
 type ApiMobileHome = {
+  banners: {
+    id: number;
+    title: string;
+    image: string;
+    targetType: string;
+    targetUrl: string | null;
+    recipeId: number | null;
+  }[];
   recommendations: {
     id: number;
     title: string;
@@ -122,6 +138,36 @@ type ApiMobileHome = {
   }[];
   categories: { id: number; type: 'RECIPE' | 'INGREDIENT'; name: string }[];
   channels?: { id: number; title: string; code: string; status: string; sort: number; items: { id: number; title: string; imageUrl: string | null }[] }[];
+};
+
+export type ApiHomeTopNav = {
+  id: string;
+  code?: string | null;
+  name: string;
+  navType: string;
+  isDefault: boolean;
+  sortOrder: number;
+  style?: {
+    activeStyle?: string;
+    textColor?: string;
+    activeTextColor?: string;
+  } | null;
+};
+
+export type ApiHomeTopNavContent = {
+  navId: string;
+  navName: string;
+  moreButtonText: string;
+  items: {
+    id: string;
+    code?: string | null;
+    type: 'recipe';
+    title: string;
+    coverUrl: string | null;
+    duration: string | null;
+    difficulty: string | null;
+    calorie: string | null;
+  }[];
 };
 
 export const getHome = async () => {
@@ -150,7 +196,17 @@ export const getHome = async () => {
     updatedAt: ''
   }));
 
+  const banners = (data.banners ?? []).map((banner) => ({
+    id: banner.id,
+    title: banner.title,
+    image: resolveAssetUrl(banner.image),
+    targetType: banner.targetType ?? 'NONE',
+    targetUrl: banner.targetUrl ?? null,
+    recipeId: banner.recipeId ?? null
+  }));
+
   return {
+    banners,
     recommendRecipes,
     recommendIngredients,
     recipeCategories: data.categories.filter((item) => item.type === 'RECIPE') as ApiHome['recipeCategories'],
@@ -158,8 +214,26 @@ export const getHome = async () => {
   } satisfies ApiHome;
 };
 
+export const getHomeTopNavs = async () => {
+  const data = await request<ApiHomeTopNav[]>('/app/home/top-navs');
+  return data;
+};
+
+export const getHomeTopNavContents = async (navId: string, params: { page?: number; pageSize?: number } = {}) => {
+  const qs = new URLSearchParams({
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 10)
+  });
+  const data = await request<ApiHomeTopNavContent>(`/app/home/top-navs/${navId}/contents?${qs.toString()}`);
+  return {
+    ...data,
+    items: data.items.map((item) => ({ ...item, coverUrl: resolveAssetUrl(item.coverUrl) }))
+  };
+};
+
 export type ApiRecipeListItem = {
-  id: number;
+  id: string;
+  code?: string;
   title: string;
   subtitle: string | null;
   cover: string | null;
@@ -174,8 +248,8 @@ export type ApiRecipeListItem = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
-  categoryId?: number | null;
-  category?: { id: number; name: string; type: string } | null;
+  categoryId?: string | null;
+  category?: { id: string; name: string; type: string } | null;
   cuisineId?: number | null;
   cuisine?: { id: number; name: string } | null;
 };
@@ -187,6 +261,20 @@ export type ApiRecipeDetail = ApiRecipeListItem & {
   tips: string | null;
   steps: { id: number; sortIndex: number; title: string | null; description: string; image: string | null }[];
   ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null }[];
+  beverages?: {
+    recommendReason: string | null;
+    sortOrder: number;
+    beverage: {
+      id: string;
+      code?: string;
+      name: string;
+      coverImage: string | null;
+      beverageType: string | null;
+      isAlcoholic: boolean;
+      alcoholDegree: number | null;
+      description: string | null;
+    };
+  }[];
 };
 
 export const listRecipes = async (params: { page: number; pageSize: number; q?: string }) => {
@@ -196,11 +284,15 @@ export const listRecipes = async (params: { page: number; pageSize: number; q?: 
   return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) })) };
 };
 
-export const getRecipe = async (id: number) => {
+export const getRecipe = async (id: string) => {
   const data = await request<ApiRecipeDetail>(`/recipes/${id}`);
   return {
     ...data,
     cover: resolveAssetUrl(data.cover),
+    beverages: (data.beverages ?? []).map((entry) => ({
+      ...entry,
+      beverage: { ...entry.beverage, coverImage: resolveAssetUrl(entry.beverage.coverImage) }
+    })),
     steps: (data.steps ?? []).map((step) => ({
       ...step,
       image: step.image ? resolveAssetUrl(step.image) : null

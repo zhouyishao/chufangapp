@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Sprout } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { adminNavigation, findNavigationTrail } from '../navigation';
@@ -32,13 +33,13 @@ export const Sidebar = () => {
   };
 
   return (
-    <aside className="sticky top-0 z-10 flex h-screen w-72 shrink-0 flex-col border-r border-[#e9e2d6] bg-[#fffdfc]">
-      <div className="px-6 pb-4 pt-6">
-        <div className="text-lg font-bold leading-6 text-[#2f2f2f]">家里有菜 Admin</div>
-        <div className="mt-1 text-xs text-[#8c8c8c]">运营型生活方式 CMS</div>
-        <div className="mt-5 flex items-center justify-between rounded-2xl border border-[#e9e2d6] bg-[#f5f1ea] px-4 py-2 text-sm text-[#8c8c8c]">
-          <span>搜索 / Command K</span>
-          <span className="font-medium text-[#7a8b6f]">⌘ K</span>
+    <aside className="sticky top-0 z-10 flex h-screen w-[286px] shrink-0 flex-col border-r border-[#e7dfd1] bg-[#fffdf8]">
+      <div className="border-b border-[#eee7dc] px-6 py-6">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3ea] text-[#6f8663] shadow-[inset_0_0_0_1px_rgba(122,139,111,0.16)]">
+            <Sprout className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 whitespace-nowrap text-xl font-semibold leading-none tracking-tight text-[#2f2f2f]">家庭食谱 App 后台</div>
         </div>
       </div>
 
@@ -115,9 +116,20 @@ export const Sidebar = () => {
         })}
       </nav>
 
-      <div className="border-t border-[#e9e2d6] px-6 py-4 text-xs text-[#8c8c8c]">
-        <div className="font-medium text-[#7a8b6f]">核心目录 · 子页不进左栏</div>
-        <div className="mt-1">详情/新增/编辑/弹窗/预览走操作列</div>
+      <div className="px-5 pb-5 pt-4">
+        <div className="relative h-[176px] overflow-hidden rounded-[4px] border border-[#eee7dc] bg-[#f7f0e4]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,253,248,0.9),rgba(247,240,228,0.18)_56%,rgba(235,226,211,0.55))]" />
+          <div className="absolute bottom-5 left-1/2 h-7 w-28 -translate-x-1/2 rounded-[50%] bg-[#a59780]/35 blur-[1px]" />
+          <div className="absolute bottom-7 left-[92px] h-11 w-16 rounded-b-[28px] rounded-t-[8px] border border-[#cfc1ac] bg-[#b9aa92]/55" />
+          <div className="absolute bottom-[72px] left-[123px] h-[72px] w-px -rotate-[10deg] bg-[#9aa17e]" />
+          <div className="absolute bottom-[94px] left-[104px] h-[54px] w-px rotate-[24deg] bg-[#9aa17e]" />
+          <div className="absolute bottom-[86px] left-[142px] h-[62px] w-px -rotate-[32deg] bg-[#9aa17e]" />
+          <span className="absolute bottom-[132px] left-[98px] h-6 w-3 rotate-[-42deg] rounded-full bg-[#8f9b78]/80" />
+          <span className="absolute bottom-[112px] left-[112px] h-7 w-4 rotate-[36deg] rounded-full bg-[#a2ad88]/80" />
+          <span className="absolute bottom-[139px] left-[132px] h-6 w-3 rotate-[42deg] rounded-full bg-[#8f9b78]/85" />
+          <span className="absolute bottom-[103px] left-[146px] h-7 w-4 rotate-[-28deg] rounded-full bg-[#a2ad88]/75" />
+          <span className="absolute bottom-[82px] left-[130px] h-5 w-3 rotate-[28deg] rounded-full bg-[#9aa17e]/70" />
+        </div>
       </div>
     </aside>
   );

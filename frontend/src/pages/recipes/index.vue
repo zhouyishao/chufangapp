@@ -140,14 +140,17 @@
       </view>
     </view>
 
+    <home-tab-bar :tabs="tabs" />
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { addBasketItem, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
 import { listRecipes } from '../../services/public-api';
+import type { HomeTab } from '../../types/home';
 
 interface Recipe {
   id: string;
@@ -187,6 +190,12 @@ const servingsFilter = ref('all');
 const activeFilterDropdown = ref<FilterType | ''>('');
 const hasMore = ref(true);
 const basketItemIds = ref<string[]>([]);
+const tabs = ref<HomeTab[]>([
+  { id: 'home', label: '首页', active: false },
+  { id: 'ingredients', label: '食材', active: true },
+  { id: 'basket', label: '菜篮子', active: false },
+  { id: 'mine', label: '我的', active: false }
+]);
 
 const timeOptions: FilterOption[] = [
   { label: '全部耗时', value: 'all' },
@@ -226,9 +235,10 @@ const remoteError = ref<string | null>(null);
 const remotePage = ref(1);
 const remotePageSize = ref(10);
 const remoteTotal = ref(0);
+const hasRequestedRemote = ref(false);
 
 const mapRemoteRecipe = (item: {
-  id: number;
+  id: string;
   title: string;
   cover: string | null;
   description: string | null;
@@ -237,7 +247,7 @@ const mapRemoteRecipe = (item: {
   servings: number | null;
   taste?: string | null;
   scene?: string | null;
-  category?: { id: number; name: string; type: string } | null;
+  category?: { id: string; name: string; type: string } | null;
   cuisine?: { id: number; name: string } | null;
 }) => {
   const duration = item.cookTime ? `${item.cookTime}分钟` : '—';
@@ -263,16 +273,19 @@ const mapRemoteRecipe = (item: {
 
 const loadRemoteRecipes = async (mode: 'reset' | 'append') => {
   remoteLoading.value = true;
+  hasRequestedRemote.value = true;
   remoteError.value = null;
   try {
+    const page = mode === 'reset' ? 1 : remotePage.value;
     console.log('[recipes page] request /api/recipes');
-    const data = await listRecipes({ page: remotePage.value, pageSize: remotePageSize.value });
+    const data = await listRecipes({ page, pageSize: 10 });
     console.log('[recipes page] raw response', data);
     const next = data.list.map(mapRemoteRecipe);
     recipes.value = mode === 'append' ? [...recipes.value, ...next] : next;
     console.log('[recipes page] final recipes', recipes.value);
     remoteTotal.value = data.total;
-    hasMore.value = remotePage.value * remotePageSize.value < data.total;
+    remotePage.value = page;
+    hasMore.value = page * remotePageSize.value < data.total;
   } catch (err) {
     remoteError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
@@ -281,6 +294,12 @@ const loadRemoteRecipes = async (mode: 'reset' | 'append') => {
 };
 
 const handleRetryRemote = () => {
+  if (remoteLoading.value) return;
+  remotePage.value = 1;
+  void loadRemoteRecipes('reset');
+};
+
+const loadFirstPageRecipes = () => {
   if (remoteLoading.value) return;
   remotePage.value = 1;
   void loadRemoteRecipes('reset');
@@ -530,12 +549,14 @@ const loadMore = () => {
 
 onShow(() => {
   syncBasketState();
-  remotePage.value = 1;
-  void loadRemoteRecipes('reset');
+  loadFirstPageRecipes();
 });
 
 onMounted(() => {
   console.log('[recipes page] mounted');
+  if (!hasRequestedRemote.value) {
+    loadFirstPageRecipes();
+  }
 });
 
 </script>
@@ -543,7 +564,7 @@ onMounted(() => {
 <style scoped lang="scss">
 .page {
   min-height: 100vh;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: calc(190rpx + env(safe-area-inset-bottom, 0));
   background: var(--app-bg);
 }
 

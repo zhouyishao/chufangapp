@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   createRecipe,
   deleteRecipe,
-  getRecipe,
   listCategories,
   listRecipes,
   setRecipeAudit,
@@ -30,7 +29,7 @@ type Draft = {
   subtitle: string | null;
   coverUrl: string | null;
   description: string | null;
-  categoryId: number | null;
+  categoryId: string | null;
   cookTime: number | null;
   servings: number | null;
   difficulty: string | null;
@@ -96,7 +95,7 @@ export const RecipesPage = () => {
   const [editing, setEditing] = useState<Recipe | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
 
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<Recipe | null>(null);
   const [publishing, setPublishing] = useState<{ item: Recipe; next: boolean } | null>(null);
   const [batchDeleting, setBatchDeleting] = useState(false);
@@ -138,42 +137,11 @@ export const RecipesPage = () => {
   }, [page, pageSize, q, statusFilter, auditFilter, publishFilter, recommendFilter]);
 
   const openCreate = () => {
-    setEditing(null);
-    setDraft(emptyDraft);
-    setDrawerOpen(true);
+    navigate('/content/recipes/create');
   };
 
   const openEdit = async (item: Recipe) => {
-    setEditing(item);
-    setLoading(true);
-    setError(null);
-    try {
-      const full = await getRecipe(item.id);
-      setDraft({
-        title: full.title,
-        subtitle: full.subtitle,
-        coverUrl: full.cover,
-        description: full.description,
-        categoryId: full.categoryId,
-        cookTime: full.cookTime,
-        servings: full.servings,
-        difficulty: full.difficulty,
-        tips: full.tips,
-        sort: full.sort,
-        status: full.status,
-        auditStatus: full.auditStatus,
-        isDraft: full.isDraft,
-        isPublish: full.isPublish,
-        isRecommend: full.isRecommend,
-        ingredientsText: (full.ingredients ?? []).map((i) => `${i.name}${i.amount ? ` ${i.amount}` : ''}`).join('\n'),
-        stepsText: (full.steps ?? []).map((s) => s.description).join('\n')
-      });
-      setDrawerOpen(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
-    } finally {
-      setLoading(false);
-    }
+    navigate(`/content/recipes/${item.id}/edit`);
   };
 
   const toPayload = (d: Draft) => {
@@ -250,7 +218,7 @@ export const RecipesPage = () => {
     }
   };
 
-  const toggleSelected = (id: number) => {
+  const toggleSelected = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
   };
 
@@ -335,48 +303,31 @@ export const RecipesPage = () => {
       render: (item) => <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelected(item.id)} />
     },
     {
-      key: 'cover',
-      title: '封面',
-      render: (item) => <ImagePreview src={item.cover} alt={item.title} />
-    },
-    { key: 'id', title: 'ID', render: (item) => item.id },
-    {
-      key: 'title',
-      title: '标题',
+      key: 'recipe',
+      title: '菜谱',
       render: (item) => (
-        <div>
-          <div className="font-medium text-[#2f2f2f]">{item.title}</div>
-          <div className="mt-1 text-xs text-[#8c8c8c]">{item.subtitle ?? '未填写副标题'}</div>
-        </div>
+        <button type="button" className="flex min-w-[240px] items-center gap-3 text-left" onClick={() => navigate(`/content/recipes/${item.id}`)}>
+          <ImagePreview src={item.cover} alt={item.title} />
+          <div className="min-w-0">
+            <div className="font-medium text-[#2f2f2f]">{item.title}</div>
+            <div className="mt-1 text-xs text-[#8c8c8c]">{item.subtitle ?? '未填写副标题'}</div>
+          </div>
+        </button>
       )
     },
     { key: 'category', title: '分类', render: (item) => item.category?.name ?? categories.find((category) => category.id === item.categoryId)?.name ?? '-' },
-    { key: 'tags', title: '标签', render: (item) => [item.taste, item.scene].filter(Boolean).join(' / ') || '-' },
-    { key: 'cuisine', title: '菜系', render: (item) => item.cuisine?.name ?? '-' },
+    { key: 'mainIngredients', title: '主要食材', render: (item) => item.ingredients?.slice(0, 3).map((ingredient) => ingredient.name).filter(Boolean).join('、') || '-' },
     { key: 'difficulty', title: '难度', render: (item) => item.difficulty ?? '-' },
     { key: 'cookTime', title: '制作时间', render: (item) => (item.cookTime ? `${item.cookTime} 分钟` : '-') },
     { key: 'status', title: '状态', render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={item.status === 'ACTIVE' ? 'green' : 'gray'} /> },
-    {
-      key: 'auditStatus',
-      title: '审核',
-      render: (item) => {
-        const labels: Record<Recipe['auditStatus'], { label: string; tone: 'green' | 'orange' | 'red' | 'gray' }> = {
-          DRAFT: { label: '草稿', tone: 'gray' },
-          PENDING: { label: '待审核', tone: 'orange' },
-          APPROVED: { label: '已通过', tone: 'green' },
-          REJECTED: { label: '已驳回', tone: 'red' }
-        };
-        return <StatusTag label={labels[item.auditStatus].label} tone={labels[item.auditStatus].tone} />;
-      }
-    },
-    { key: 'recommend', title: '推荐', render: (item) => <StatusTag label={item.isRecommend ? '已推荐' : '未推荐'} tone={item.isRecommend ? 'green' : 'gray'} /> },
+    { key: 'viewCount', title: '浏览量', render: (item) => Number(item.viewCount ?? 0).toLocaleString('zh-CN') },
+    { key: 'favoriteCount', title: '收藏量', render: (item) => Number(item.favoriteCount ?? 0).toLocaleString('zh-CN') },
     { key: 'updatedAt', title: '更新时间', render: (item) => new Date(item.updatedAt).toLocaleString('zh-CN', { hour12: false }) },
     {
       key: 'actions',
       title: '操作',
       render: (item) => (
         <div className="flex min-w-[260px] flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => navigate(`/content/recipes/${item.id}`)}>查看</Button>
           <Button variant="ghost" onClick={() => navigate(`/content/recipes/${item.id}/edit`)}>编辑</Button>
           <Button variant="ghost" onClick={() => setPublishing({ item, next: !item.isPublish })}>{item.isPublish ? '下架' : '上架'}</Button>
           <Button variant="danger" onClick={() => setDeleting(item)}>删除</Button>
@@ -505,7 +456,7 @@ export const RecipesPage = () => {
               <div className="mb-1 text-xs text-zinc-600">分类</div>
               <select
                 value={draft.categoryId ?? ''}
-                onChange={(e) => setDraft({ ...draft, categoryId: e.target.value ? Number(e.target.value) : null })}
+                onChange={(e) => setDraft({ ...draft, categoryId: e.target.value || null })}
                 className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200"
               >
                 <option value="">未分类</option>

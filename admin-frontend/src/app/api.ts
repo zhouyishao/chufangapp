@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   Ingredient,
   IngredientCategory,
+  AdminUserListItem,
   AdminResourceItem,
   LoginResult,
   PageResult,
@@ -36,7 +37,7 @@ export const resolveAssetUrl = (input?: string | null): string => {
   ) {
     return value;
   }
-  if (value.startsWith('/uploads/')) {
+  if (value.startsWith('/uploads/') || value.startsWith('/static/')) {
     return `${API_ORIGIN}${value}`;
   }
   try {
@@ -91,7 +92,17 @@ const request = async <T>(
   }
 
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  const payload = (await response.json()) as ApiResponse<T>;
+  const rawPayload = await response.text();
+  let payload: ApiResponse<T>;
+  try {
+    payload = JSON.parse(rawPayload) as ApiResponse<T>;
+  } catch {
+    const preview = rawPayload.trim().slice(0, 80);
+    throw new ApiError(
+      `接口未返回 JSON，请确认后端已重启并挂载 ${API_BASE}${path}${preview ? `（返回：${preview}）` : ''}`,
+      response.status || 502
+    );
+  }
 
   if (payload.code !== 0) {
     if (payload.code === 401) {
@@ -155,6 +166,33 @@ export const login = async (username: string, password: string) => {
   });
 };
 
+export const listUsers = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: AdminUserListItem['status'];
+  registerSource?: AdminUserListItem['registerSource'];
+  familyCount?: 'NONE' | 'ONE' | 'MULTIPLE';
+  startDate?: string;
+  endDate?: string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'registerSource', params.registerSource);
+  setParam(qs, 'familyCount', params.familyCount);
+  setParam(qs, 'startDate', params.startDate);
+  setParam(qs, 'endDate', params.endDate);
+  return request<PageResult<AdminUserListItem>>(`/users?${qs.toString()}`);
+};
+
+export const setUserStatus = async (id: string | number, status: AdminUserListItem['status']) => {
+  return request<AdminUserListItem>(`/users/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+};
+
 export const listCategories = async (params: {
   page?: number;
   pageSize?: number;
@@ -182,8 +220,40 @@ export const createCategory = async (payload: {
   });
 };
 
+const defaultIngredientCategories = [
+  { name: '蔬菜', sort: 100 },
+  { name: '水果', sort: 90 },
+  { name: '生禽', sort: 80 },
+  { name: '水产', sort: 70 },
+  { name: '调料', sort: 60 },
+  { name: '酒水饮品', sort: 50 }
+];
+
+export const ensureDefaultIngredientCategories = async () => {
+  const current = await listCategories({ page: 1, pageSize: 100, type: 'INGREDIENT' });
+  const currentNames = new Set(current.list.map((item) => item.name));
+  const missing = defaultIngredientCategories.filter((item) => !currentNames.has(item.name));
+
+  if (missing.length > 0) {
+    await Promise.all(
+      missing.map((item) =>
+        createCategory({
+          name: item.name,
+          type: 'INGREDIENT',
+          sort: item.sort,
+          status: 'ACTIVE',
+          isPublish: true
+        })
+      )
+    );
+    return listCategories({ page: 1, pageSize: 100, type: 'INGREDIENT' });
+  }
+
+  return current;
+};
+
 export const updateCategory = async (
-  id: number,
+  id: string,
   payload: {
     name: string;
     type: IngredientCategory['type'];
@@ -198,25 +268,25 @@ export const updateCategory = async (
   });
 };
 
-export const deleteCategory = async (id: number) => {
+export const deleteCategory = async (id: string) => {
   return request<IngredientCategory>(`/categories/${id}`, { method: 'DELETE' });
 };
 
-export const setCategoryPublish = async (id: number, isPublish: boolean) => {
+export const setCategoryPublish = async (id: string, isPublish: boolean) => {
   return request<IngredientCategory>(`/categories/${id}/publish`, {
     method: 'PATCH',
     body: JSON.stringify({ isPublish })
   });
 };
 
-export const setCategoryStatus = async (id: number, status: IngredientCategory['status']) => {
+export const setCategoryStatus = async (id: string, status: IngredientCategory['status']) => {
   return request<IngredientCategory>(`/categories/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status })
   });
 };
 
-export const getCategory = async (id: number) => {
+export const getCategory = async (id: string) => {
   return request<IngredientCategory>(`/categories/${id}`);
 };
 
@@ -289,15 +359,15 @@ export const createChannel = async (payload: { name: string; code: string; posit
   return request<ChannelItem>('/channels', { method: 'POST', body: JSON.stringify(payload) });
 };
 
-export const updateChannel = async (id: number, payload: { name: string; code: string; position: string | null; sort: number; status: ChannelItem['status']; isPublish: boolean }) => {
+export const updateChannel = async (id: string, payload: { name: string; code: string; position: string | null; sort: number; status: ChannelItem['status']; isPublish: boolean }) => {
   return request<ChannelItem>(`/channels/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 };
 
-export const deleteChannel = async (id: number) => {
+export const deleteChannel = async (id: string) => {
   return request<ChannelItem>(`/channels/${id}`, { method: 'DELETE' });
 };
 
-export const setChannelStatus = async (id: number, status: ChannelItem['status']) => {
+export const setChannelStatus = async (id: string, status: ChannelItem['status']) => {
   return request<ChannelItem>(`/channels/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 };
 
@@ -308,21 +378,21 @@ export const listIngredients = async (params: {
   status?: Ingredient['status'];
   isPublish?: boolean;
   isRecommend?: boolean;
-  categoryId?: number;
+  categoryId?: string;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   if (typeof params.isPublish === 'boolean') qs.set('isPublish', String(params.isPublish));
   if (typeof params.isRecommend === 'boolean') qs.set('isRecommend', String(params.isRecommend));
-  if (typeof params.categoryId === 'number' && Number.isFinite(params.categoryId)) qs.set('categoryId', String(params.categoryId));
+  setParam(qs, 'categoryId', params.categoryId);
   return request<PageResult<Ingredient>>(`/ingredients?${qs.toString()}`);
 };
 
 type IngredientWritePayload = {
   name: string;
   coverUrl: string | null;
-  categoryId: number | null;
+  categoryId: string | null;
   seasonMonth: string | null;
   nutrition: string | null;
   selectionTips: string | null;
@@ -348,36 +418,36 @@ export const createIngredient = async (payload: IngredientWritePayload) => {
   return request<Ingredient>('/ingredients', { method: 'POST', body: JSON.stringify(toIngredientRequestBody(payload)) });
 };
 
-export const updateIngredient = async (id: number, payload: IngredientWritePayload) => {
+export const updateIngredient = async (id: string, payload: IngredientWritePayload) => {
   return request<Ingredient>(`/ingredients/${id}`, { method: 'PUT', body: JSON.stringify(toIngredientRequestBody(payload)) });
 };
 
-export const deleteIngredient = async (id: number) => {
+export const deleteIngredient = async (id: string) => {
   return request<Ingredient>(`/ingredients/${id}`, { method: 'DELETE' });
 };
 
-export const setIngredientPublish = async (id: number, isPublish: boolean) => {
+export const setIngredientPublish = async (id: string, isPublish: boolean) => {
   return request<Ingredient>(`/ingredients/${id}/publish`, {
     method: 'PATCH',
     body: JSON.stringify({ isPublish })
   });
 };
 
-export const setIngredientRecommend = async (id: number, isRecommend: boolean) => {
+export const setIngredientRecommend = async (id: string, isRecommend: boolean) => {
   return request<Ingredient>(`/ingredients/${id}/recommend`, {
     method: 'PATCH',
     body: JSON.stringify({ isRecommend })
   });
 };
 
-export const setIngredientStatus = async (id: number, status: Ingredient['status']) => {
+export const setIngredientStatus = async (id: string, status: Ingredient['status']) => {
   return request<Ingredient>(`/ingredients/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status })
   });
 };
 
-export const getIngredient = async (id: number) => {
+export const getIngredient = async (id: string) => {
   return request<Ingredient>(`/ingredients/${id}`);
 };
 
@@ -389,7 +459,7 @@ export const listRecipes = async (params: {
   isPublish?: boolean;
   isRecommend?: boolean;
   auditStatus?: Recipe['auditStatus'];
-  categoryId?: number;
+  categoryId?: string;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
@@ -397,11 +467,11 @@ export const listRecipes = async (params: {
   if (typeof params.isPublish === 'boolean') qs.set('isPublish', String(params.isPublish));
   if (typeof params.isRecommend === 'boolean') qs.set('isRecommend', String(params.isRecommend));
   setParam(qs, 'auditStatus', params.auditStatus);
-  if (typeof params.categoryId === 'number' && Number.isFinite(params.categoryId)) qs.set('categoryId', String(params.categoryId));
+  setParam(qs, 'categoryId', params.categoryId);
   return request<PageResult<Recipe>>(`/recipes?${qs.toString()}`);
 };
 
-export const getRecipe = async (id: number) => {
+export const getRecipe = async (id: string) => {
   return request<Recipe>(`/recipes/${id}`);
 };
 
@@ -412,7 +482,7 @@ type RecipeWritePayload = {
   images?: string[];
   video?: string | null;
   description: string | null;
-  categoryId: number | null;
+  categoryId: string | null;
   cookTime: number | null;
   servings: number | null;
   calories: number | null;
@@ -430,7 +500,7 @@ type RecipeWritePayload = {
   steps: { sortIndex: number; title: string | null; description: string; image: string | null; video?: string | null; duration?: number | null }[];
   ingredients: {
     sortIndex: number;
-    ingredientId: number | null;
+    ingredientId: string | number | null;
     name: string;
     amount: string | null;
     unit?: string | null;
@@ -448,39 +518,39 @@ export const createRecipe = async (payload: RecipeWritePayload) => {
   return request<Recipe>('/recipes', { method: 'POST', body: JSON.stringify(toRecipeRequestBody(payload)) });
 };
 
-export const updateRecipe = async (id: number, payload: RecipeWritePayload) => {
+export const updateRecipe = async (id: string, payload: RecipeWritePayload) => {
   return request<Recipe>(`/recipes/${id}`, { method: 'PUT', body: JSON.stringify(toRecipeRequestBody(payload)) });
 };
 
-export const deleteRecipe = async (id: number) => {
+export const deleteRecipe = async (id: string) => {
   return request<Recipe>(`/recipes/${id}`, { method: 'DELETE' });
 };
 
-export const setRecipePublish = async (id: number, isPublish: boolean) => {
+export const setRecipePublish = async (id: string, isPublish: boolean) => {
   return isPublish ? publishRecipe(id) : offlineRecipe(id);
 };
 
-export const publishRecipe = async (id: number) => request<Recipe>(`/recipes/${id}/publish`, { method: 'PATCH', body: JSON.stringify({ isPublish: true }) });
+export const publishRecipe = async (id: string) => request<Recipe>(`/recipes/${id}/publish`, { method: 'PATCH', body: JSON.stringify({ isPublish: true }) });
 
-export const offlineRecipe = async (id: number) => request<Recipe>(`/recipes/${id}/offline`, { method: 'PATCH' });
+export const offlineRecipe = async (id: string) => request<Recipe>(`/recipes/${id}/offline`, { method: 'PATCH' });
 
-export const submitRecipeAudit = async (id: number) => request<Recipe>(`/recipes/${id}/submit-audit`, { method: 'PATCH' });
+export const submitRecipeAudit = async (id: string) => request<Recipe>(`/recipes/${id}/submit-audit`, { method: 'PATCH' });
 
-export const setRecipeRecommend = async (id: number, isRecommend: boolean) => {
+export const setRecipeRecommend = async (id: string, isRecommend: boolean) => {
   return request<Recipe>(`/recipes/${id}/recommend`, {
     method: 'PATCH',
     body: JSON.stringify({ isRecommend })
   });
 };
 
-export const setRecipeStatus = async (id: number, status: Recipe['status']) => {
+export const setRecipeStatus = async (id: string, status: Recipe['status']) => {
   return request<Recipe>(`/recipes/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status })
   });
 };
 
-export const setRecipeAudit = async (id: number, auditStatus: Recipe['auditStatus'], rejectReason?: string) => {
+export const setRecipeAudit = async (id: string, auditStatus: Recipe['auditStatus'], rejectReason?: string) => {
   return request<Recipe>(`/recipes/${id}/audit`, {
     method: 'PATCH',
     body: JSON.stringify({ auditStatus, rejectReason })
@@ -515,7 +585,7 @@ export const createAdminResource = async <T extends AdminResourceItem>(
 
 export const updateAdminResource = async <T extends AdminResourceItem>(
   resource: string,
-  id: number,
+  id: string,
   payload: Record<string, unknown>
 ) => {
   return request<T>(`/${resource}/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -537,7 +607,7 @@ export const listAudits = async (params: {
   return request<PageResult<AuditItem>>(`/audits?${qs.toString()}`);
 };
 
-export const approveAudit = async (bizId: number, type: string) => {
+export const approveAudit = async (bizId: string, type: string) => {
   if (type === 'RECIPE') {
     return request<Recipe>(`/recipes/${bizId}/audit`, {
       method: 'PATCH',
@@ -547,7 +617,7 @@ export const approveAudit = async (bizId: number, type: string) => {
   throw new ApiError('暂不支持此类型的审核操作');
 };
 
-export const rejectAudit = async (bizId: number, type: string, rejectReason: string) => {
+export const rejectAudit = async (bizId: string, type: string, rejectReason: string) => {
   if (type === 'RECIPE') {
     return request<Recipe>(`/recipes/${bizId}/audit`, {
       method: 'PATCH',
@@ -557,6 +627,339 @@ export const rejectAudit = async (bizId: number, type: string, rejectReason: str
   throw new ApiError('暂不支持此类型的审核操作');
 };
 
-export const deleteAdminResource = async <T extends AdminResourceItem>(resource: string, id: number) => {
+export const deleteAdminResource = async <T extends AdminResourceItem>(resource: string, id: string) => {
   return request<T>(`/${resource}/${id}`, { method: 'DELETE' });
 };
+
+export type Beverage = {
+  id: string;
+  legacyId?: number;
+  code?: string;
+  name: string;
+  coverImage: string | null;
+  categoryId: string | null;
+  category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;
+  beverageType: string | null;
+  isAlcoholic: boolean;
+  alcoholDegree: number | null;
+  description: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  sort: number;
+  sortOrder?: number;
+  isPublish: boolean;
+  isRecommend: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BeverageWritePayload = {
+  name: string;
+  coverImage: string | null;
+  categoryId: string | null;
+  beverageType: string | null;
+  isAlcoholic: boolean;
+  alcoholDegree: number | null;
+  description: string | null;
+  status: Beverage['status'];
+  sort: number;
+  sortOrder?: number;
+  isPublish: boolean;
+  isRecommend: boolean;
+};
+
+export const listBeverages = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: Beverage['status'];
+  isPublish?: boolean;
+  isRecommend?: boolean;
+  categoryId?: string;
+  isAlcoholic?: boolean;
+  beverageType?: string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'categoryId', params.categoryId);
+  setParam(qs, 'beverageType', params.beverageType);
+  if (typeof params.isPublish === 'boolean') qs.set('isPublish', String(params.isPublish));
+  if (typeof params.isRecommend === 'boolean') qs.set('isRecommend', String(params.isRecommend));
+  if (typeof params.isAlcoholic === 'boolean') qs.set('isAlcoholic', String(params.isAlcoholic));
+  return request<PageResult<Beverage>>(`/beverages?${qs.toString()}`);
+};
+
+export const getBeverage = async (id: string) => request<Beverage>(`/beverages/${id}`);
+export const createBeverage = async (payload: BeverageWritePayload) => request<Beverage>('/beverages', { method: 'POST', body: JSON.stringify(payload) });
+export const updateBeverage = async (id: string, payload: BeverageWritePayload) => request<Beverage>(`/beverages/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const deleteBeverage = async (id: string) => request<Beverage>(`/beverages/${id}`, { method: 'DELETE' });
+export const enableBeverage = async (id: string) => request<Beverage>(`/beverages/${id}/enable`, { method: 'POST' });
+export const disableBeverage = async (id: string) => request<Beverage>(`/beverages/${id}/disable`, { method: 'POST' });
+export type HomeTopNavStatus = 'draft' | 'online' | 'offline';
+export type HomeTopNavType = 'system_recommend' | 'recipe_category' | 'recipe_tag' | 'topic' | 'recommend_pool';
+
+export type HomeTopNavRelation = {
+  relationType: string;
+  relationId: string;
+  relationName?: string | null;
+};
+
+export type HomeTopNavStyle = {
+  navStyle: string;
+  activeStyle: string;
+  layoutMode: string;
+  textColor: string;
+  activeTextColor: string;
+  showDivider: boolean;
+  tabGap: string;
+  reserveSpace: boolean;
+};
+
+export type HomeTopNavContentRule = {
+  sourceType: string;
+  difficultyFilter?: string | null;
+  durationFilter?: string | null;
+  cookingMethodFilter?: string | null;
+  displayCount: number;
+  sortRule: string;
+  moreButtonText: string;
+  jumpRule: string;
+  recommendStartAt?: string | null;
+  recommendEndAt?: string | null;
+};
+
+export type HomeTopNav = {
+  id: string;
+  code?: string | null;
+  name: string;
+  alias?: string | null;
+  navType: HomeTopNavType;
+  navTypeText?: string;
+  displayPosition: string;
+  iconUrl?: string | null;
+  sortOrder: number;
+  status: HomeTopNavStatus;
+  statusText?: string;
+  isDefault: boolean;
+  isFixed: boolean;
+  showMoreEntry: boolean;
+  description?: string | null;
+  remark?: string | null;
+  relationName?: string | null;
+  relations: HomeTopNavRelation[];
+  contentRule: HomeTopNavContentRule | null;
+  style: HomeTopNavStyle | null;
+  updatedAt: string;
+};
+
+export type HomeTopNavPayload = {
+  name: string;
+  alias?: string | null;
+  navType: HomeTopNavType;
+  displayPosition: string;
+  iconUrl?: string | null;
+  sortOrder: number;
+  status: HomeTopNavStatus;
+  isDefault: boolean;
+  isFixed: boolean;
+  showMoreEntry: boolean;
+  description?: string | null;
+  remark?: string | null;
+  relations: HomeTopNavRelation[];
+  contentRule: HomeTopNavContentRule;
+  style: HomeTopNavStyle;
+};
+
+export type HomeTopNavSummary = {
+  totalCount: number;
+  onlineCount: number;
+  defaultCount: number;
+  availableRelationCount: number;
+};
+
+export type ContentSelectorItem = {
+  id: string;
+  code?: string | null;
+  name: string;
+  type: string;
+  status: string;
+};
+
+export const getHomeTopNavSummary = async () => request<HomeTopNavSummary>('/home/top-navs/summary');
+
+export const listHomeTopNavs = async (params: { page?: number; pageSize?: number; keyword?: string; status?: HomeTopNavStatus } = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'keyword', params.keyword?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<HomeTopNav>>(`/home/top-navs?${qs.toString()}`);
+};
+
+export const getHomeTopNav = async (id: string) => request<HomeTopNav>(`/home/top-navs/${id}`);
+
+export const createHomeTopNav = async (payload: HomeTopNavPayload) => request<HomeTopNav>('/home/top-navs', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateHomeTopNav = async (id: string, payload: HomeTopNavPayload) => request<HomeTopNav>(`/home/top-navs/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+
+export const deleteHomeTopNav = async (id: string) => request<boolean>(`/home/top-navs/${id}`, { method: 'DELETE' });
+
+export const updateHomeTopNavStatus = async (id: string, status: HomeTopNavStatus) => request<HomeTopNav>(`/home/top-navs/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+
+export const setHomeTopNavDefault = async (id: string, isDefault: boolean) => request<HomeTopNav>(`/home/top-navs/${id}/default`, { method: 'PATCH', body: JSON.stringify({ isDefault }) });
+
+export const reorderHomeTopNavs = async (items: { id: string; sortOrder: number }[]) => request<boolean>('/home/top-navs/reorder', { method: 'PATCH', body: JSON.stringify({ items }) });
+
+export const listContentSelector = async (params: { type: string; keyword?: string; page?: number; pageSize?: number }) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'type', params.type);
+  setParam(qs, 'keyword', params.keyword?.trim());
+  return request<PageResult<ContentSelectorItem>>(`/content-selector?${qs.toString()}`);
+};
+
+export type FamilyUserSummary = {
+  id: string;
+  legacyId: number;
+  code?: string | null;
+  nickname?: string | null;
+  phone?: string | null;
+  avatar?: string | null;
+  gender?: string | null;
+  createdAt?: string;
+};
+
+export type FamilyStatus = 'ACTIVE' | 'DISABLED';
+export type FamilyMemberRole = 'CREATOR' | 'ADMIN' | 'MEMBER';
+export type FamilyJoinMethod = 'SCAN_QR' | 'MANUAL_INVITE' | 'INVITE_LINK' | 'ADMIN_CREATE';
+export type FamilyMemberStatus = 'ACTIVE' | 'LEFT' | 'REMOVED';
+export type FamilyInviteMethod = 'QR_CODE' | 'LINK';
+export type FamilyInviteStatus = 'JOINED' | 'PENDING' | 'EXPIRED' | 'REVOKED';
+
+export type FamilySummary = {
+  id: string;
+  legacyId: number;
+  code?: string | null;
+  name: string;
+  avatar?: string | null;
+  city?: string | null;
+  district?: string | null;
+  memberLimit: number;
+  memberCount: number;
+  inviteCount: number;
+  activeAt?: string | null;
+  createdAt: string;
+  status: FamilyStatus;
+  owner?: FamilyUserSummary | null;
+};
+
+export type FamilyMember = {
+  id: number;
+  role: FamilyMemberRole;
+  joinMethod: FamilyJoinMethod;
+  joinedAt: string;
+  leftAt?: string | null;
+  memberStatus: FamilyMemberStatus;
+  user: FamilyUserSummary | null;
+  family: FamilySummary;
+};
+
+export type FamilyInvite = {
+  id: string;
+  legacyId: number;
+  code?: string | null;
+  inviteName: string;
+  inviteMethod: FamilyInviteMethod;
+  inviteType: string;
+  token?: string | null;
+  url?: string | null;
+  inviteStatus: FamilyInviteStatus;
+  joinedAt?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  family: FamilySummary;
+  inviter?: FamilyUserSummary | null;
+  invitee?: FamilyUserSummary | null;
+};
+
+export type FamilyDetail = FamilySummary & {
+  members: FamilyMember[];
+  invites: FamilyInvite[];
+};
+
+export type FamilyOverview = {
+  familyTotal: number;
+  activeFamilies: number;
+  memberTotal: number;
+  todayFamilies: number;
+  todayMembers: number;
+  abnormalMembers: number;
+};
+
+export const getFamilyOverview = async () => request<FamilyOverview>('/families/overview');
+
+export const listFamilies = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: FamilyStatus;
+  city?: string;
+  minMembers?: number | string;
+  maxMembers?: number | string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'city', params.city);
+  setParam(qs, 'minMembers', params.minMembers);
+  setParam(qs, 'maxMembers', params.maxMembers);
+  return request<PageResult<FamilySummary>>(`/families?${qs.toString()}`);
+};
+
+export const getFamilyDetail = async (id: number | string) => request<FamilyDetail>(`/families/${id}`);
+
+export const createFamily = async (payload: { name: string; ownerId?: number; city?: string; district?: string; memberLimit?: number }) =>
+  request<FamilySummary>('/families', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateFamilyStatus = async (id: number, status: FamilyStatus) =>
+  request<FamilySummary>(`/families/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+
+export const listFamilyMembers = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  familyId?: number | string;
+  role?: FamilyMemberRole;
+  joinMethod?: FamilyJoinMethod;
+  memberStatus?: FamilyMemberStatus;
+  city?: string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'familyId', params.familyId);
+  setParam(qs, 'role', params.role);
+  setParam(qs, 'joinMethod', params.joinMethod);
+  setParam(qs, 'memberStatus', params.memberStatus);
+  setParam(qs, 'city', params.city);
+  return request<PageResult<FamilyMember>>(`/families/members?${qs.toString()}`);
+};
+
+export const removeFamilyMember = async (id: number) => request<FamilyMember>(`/families/members/${id}/remove`, { method: 'PATCH' });
+
+export const listFamilyInvites = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  familyId?: number | string;
+  inviteMethod?: FamilyInviteMethod;
+  inviteStatus?: FamilyInviteStatus;
+  inviterId?: number | string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'familyId', params.familyId);
+  setParam(qs, 'inviteMethod', params.inviteMethod);
+  setParam(qs, 'inviteStatus', params.inviteStatus);
+  setParam(qs, 'inviterId', params.inviterId);
+  return request<PageResult<FamilyInvite>>(`/families/invites?${qs.toString()}`);
+};
+
+export const createFamilyInvite = async (payload: { familyId: number; inviterId?: number; inviteMethod?: FamilyInviteMethod; inviteName?: string }) =>
+  request<FamilyInvite>('/families/invites', { method: 'POST', body: JSON.stringify(payload) });

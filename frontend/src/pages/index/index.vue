@@ -1,5 +1,26 @@
 <template>
   <view class="app-page home-page">
+    <view v-if="remoteBanners.length" class="banner-stage">
+      <swiper
+        class="banner-swiper"
+        :indicator-dots="remoteBanners.length > 1"
+        indicator-color="rgba(255,255,255,0.5)"
+        indicator-active-color="#fff"
+        :autoplay="true"
+        :interval="4000"
+        :circular="remoteBanners.length > 1"
+      >
+        <swiper-item v-for="banner in remoteBanners" :key="banner.id">
+          <image
+            class="banner-image"
+            :src="banner.image"
+            mode="aspectFill"
+            @click="goToBannerTarget(banner)"
+          />
+        </swiper-item>
+      </swiper>
+    </view>
+
     <view class="recommend-stage">
       <hero-recipe-card
         :recipes="currentHeroRecipes"
@@ -15,14 +36,6 @@
         @search="handleSearch"
         @category-change="handleCategoryChange"
       />
-    </view>
-
-    <view v-if="isRecommendCategory" class="all-recipes-entry glass-card" @click="goToRecipesPage">
-      <view>
-        <text class="all-recipes-entry__title">全部菜谱</text>
-        <text class="all-recipes-entry__subtitle">查看后台已发布的全部菜谱</text>
-      </view>
-      <text class="all-recipes-entry__action">进入</text>
     </view>
 
     <view
@@ -156,7 +169,7 @@ import {
   homeTabs,
   quickActions
 } from '../../constants/home';
-import { getHome } from '../../services/public-api';
+import { getHome, getHomeTopNavContents, getHomeTopNavs } from '../../services/public-api';
 import type { RecipeCard } from '../../types/home';
 import type { Ingredient } from '../../types/ingredient';
 
@@ -196,24 +209,36 @@ const homeError = ref<string | null>(null);
 const remoteRecipes = ref<RecipeCard[] | null>(null);
 const remoteSeasonalIngredients = ref<Ingredient[] | null>(null);
 const remoteHomeCategories = ref<{ id: string; label: string }[]>([]);
+const remoteBanners = ref<{ id: number; title: string; image: string; targetType: string; targetUrl: string | null; recipeId: number | null }[]>([]);
+const remoteTopNavs = ref<{ id: string; label: string }[]>([]);
+const remoteTopNavRecipes = ref<Record<string, RecipeCard[]>>({});
+const remoteTopNavMeta = ref<Record<string, { label: string; moreButtonText?: string }>>({});
 
 const currentRecipes = computed(() => {
   if (activeCategoryId.value === 'recommend' && remoteRecipes.value) return remoteRecipes.value;
+  if (remoteTopNavRecipes.value[activeCategoryId.value]) return remoteTopNavRecipes.value[activeCategoryId.value];
   return homeCategoryRecipes[activeCategoryId.value] ?? featuredRecipes;
 });
 const currentHeroRecipes = computed(() => {
   const recipes = currentRecipes.value.length > 0 ? currentRecipes.value : featuredRecipes;
   return recipes.slice(0, 6);
 });
-const currentMenuTitle = computed(() => categoryMeta[activeCategoryId.value]?.title ?? '家常菜单');
-const currentMenuSubtitle = computed(() => categoryMeta[activeCategoryId.value]?.subtitle ?? '做法清楚、节奏轻松，适合日常反复使用');
+const currentMenuTitle = computed(() => remoteTopNavMeta.value[activeCategoryId.value]?.label ?? categoryMeta[activeCategoryId.value]?.title ?? '家常菜单');
+const currentMenuSubtitle = computed(() => (
+  remoteTopNavMeta.value[activeCategoryId.value]
+    ? '后台配置的首页顶部导航内容'
+    : categoryMeta[activeCategoryId.value]?.subtitle ?? '做法清楚、节奏轻松，适合日常反复使用'
+));
 const seasonalIngredients = computed(() => {
   if (remoteSeasonalIngredients.value) return remoteSeasonalIngredients.value;
   const monthlyIngredients = ingredientCatalog.filter((ingredient) => ingredient.month === currentMonth);
   return monthlyIngredients.length > 0 ? monthlyIngredients : ingredientCatalog.slice(0, 8);
 });
 const isRecommendCategory = computed(() => activeCategoryId.value === 'recommend');
-const homeHeaderCategories = computed(() => [{ id: 'recommend', label: '推荐' }, ...remoteHomeCategories.value]);
+const homeHeaderCategories = computed(() => {
+  if (remoteTopNavs.value.length > 0) return remoteTopNavs.value;
+  return [{ id: 'recommend', label: '推荐' }, ...remoteHomeCategories.value];
+});
 
 const handleSearch = async (keyword: string) => {
   const message = keyword ? `搜索：${keyword}` : '请输入想找的食材或菜谱';
@@ -225,6 +250,18 @@ const handleSearch = async (keyword: string) => {
 
 const handleCategoryChange = (categoryId: string) => {
   activeCategoryId.value = categoryId;
+  if (categoryId !== 'recommend' && remoteTopNavMeta.value[categoryId] && !remoteTopNavRecipes.value[categoryId]) {
+    void loadTopNavContents(categoryId);
+  }
+};
+
+const goToBannerTarget = (banner: { recipeId: number | null; targetUrl: string | null }) => {
+  if (banner.recipeId) {
+    uni.navigateTo({ url: `/pages/recipe-detail/index?id=${banner.recipeId}` });
+  } else if (banner.targetUrl) {
+    // External URL - show toast for now
+    uni.showToast({ title: banner.targetUrl, icon: 'none' });
+  }
 };
 
 const goToRecipesPage = () => {
@@ -256,7 +293,7 @@ onPageScroll((event) => {
 });
 
 const mapRecipeCard = (item: {
-  id: number;
+  id: number | string;
   title: string;
   cover: string | null;
   description: string | null;
@@ -274,6 +311,28 @@ const mapRecipeCard = (item: {
       item.cover ??
       'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
     summary: item.description ?? ''
+  } satisfies RecipeCard;
+};
+
+const mapTopNavRecipeCard = (item: {
+  id: string;
+  title: string;
+  coverUrl: string | null;
+  duration: string | null;
+  difficulty: string | null;
+  calorie: string | null;
+}) => {
+  return {
+    id: item.id,
+    name: item.title,
+    duration: item.duration ?? '—',
+    difficulty: item.difficulty ?? '—',
+    calories: item.calorie ?? '',
+    tag: '导航内容',
+    image:
+      item.coverUrl ??
+      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
+    summary: ''
   } satisfies RecipeCard;
 };
 
@@ -300,14 +359,44 @@ const loadHome = async () => {
   homeLoading.value = true;
   homeError.value = null;
   try {
-    const data = await getHome();
+    const [data, topNavs] = await Promise.all([getHome(), getHomeTopNavs()]);
     remoteRecipes.value = data.recommendRecipes.map(mapRecipeCard);
     remoteSeasonalIngredients.value = data.recommendIngredients.map(mapIngredientCard);
     remoteHomeCategories.value = data.recipeCategories.map((category) => ({ id: `category_${category.id}`, label: category.name }));
+    remoteBanners.value = data.banners;
+    remoteTopNavs.value = topNavs.map((item) => ({ id: item.isDefault ? 'recommend' : item.id, label: item.name }));
+    remoteTopNavMeta.value = topNavs.reduce<Record<string, { label: string }>>((memo, item) => {
+      memo[item.isDefault ? 'recommend' : item.id] = { label: item.name };
+      return memo;
+    }, {});
+    const defaultNav = topNavs.find((item) => item.isDefault) ?? topNavs[0];
+    if (defaultNav) activeCategoryId.value = defaultNav.isDefault ? 'recommend' : defaultNav.id;
+    if (defaultNav) void loadTopNavContents(defaultNav.id, defaultNav.isDefault);
   } catch (err) {
     homeError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
     homeLoading.value = false;
+  }
+};
+
+const loadTopNavContents = async (navId: string, isDefault = false) => {
+  try {
+    const data = await getHomeTopNavContents(navId, { page: 1, pageSize: 10 });
+    const recipes = data.items.map(mapTopNavRecipeCard);
+    const meta = { label: data.navName, moreButtonText: data.moreButtonText };
+    const update: Record<string, RecipeCard[]> = { [navId]: recipes };
+    const metaUpdate: Record<string, { label: string; moreButtonText?: string }> = { [navId]: meta };
+    if (isDefault) {
+      update.recommend = recipes;
+      metaUpdate.recommend = meta;
+    }
+    remoteTopNavRecipes.value = { ...remoteTopNavRecipes.value, ...update };
+    remoteTopNavMeta.value = { ...remoteTopNavMeta.value, ...metaUpdate };
+  } catch (err) {
+    uni.showToast({
+      title: err instanceof Error ? err.message : '导航内容加载失败',
+      icon: 'none'
+    });
   }
 };
 
@@ -320,47 +409,26 @@ void loadHome();
   padding-top: 0;
 }
 
+.banner-stage {
+  margin: 0 -32rpx;
+}
+
+.banner-swiper {
+  height: 360rpx;
+  border-radius: 0 0 48rpx 48rpx;
+  overflow: hidden;
+}
+
+.banner-image {
+  width: 100%;
+  height: 100%;
+}
+
 .recommend-stage {
   position: relative;
   margin: 0 -32rpx;
   padding: 0;
   background: transparent;
-}
-
-.all-recipes-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
-  margin-top: 28rpx;
-  padding: 28rpx 30rpx;
-}
-
-.all-recipes-entry__title,
-.all-recipes-entry__subtitle,
-.all-recipes-entry__action {
-  display: block;
-}
-
-.all-recipes-entry__title {
-  color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 600;
-}
-
-.all-recipes-entry__subtitle {
-  margin-top: 8rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-}
-
-.all-recipes-entry__action {
-  flex: 0 0 auto;
-  border-radius: 999rpx;
-  background: var(--app-primary);
-  color: #fffdfc;
-  padding: 14rpx 24rpx;
-  font-size: 24rpx;
 }
 
 .seasonal-scroll {

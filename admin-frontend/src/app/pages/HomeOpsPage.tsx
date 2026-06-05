@@ -16,15 +16,15 @@ const moduleCards = [
 ];
 
 const mockBanners: AdminResourceItem[] = [
-  { id: 1, title: '春季时令菜', image: null, targetType: 'RECIPE', sort: 1, isPublish: true },
-  { id: 2, title: '今日吃什么', image: null, targetType: 'MENU', sort: 2, isPublish: true },
-  { id: 3, title: '厨房新手指南', image: null, targetType: 'URL', sort: 3, isPublish: false }
+  { id: 'banner_mock_001', title: '春季时令菜', image: null, targetType: 'RECIPE', sort: 1, isPublish: true },
+  { id: 'banner_mock_002', title: '今日吃什么', image: null, targetType: 'MENU', sort: 2, isPublish: true },
+  { id: 'banner_mock_003', title: '厨房新手指南', image: null, targetType: 'URL', sort: 3, isPublish: false }
 ];
 
 const mockRecommendations: AdminResourceItem[] = [
-  { id: 11, title: '番茄炒蛋', targetType: 'RECIPE', sort: 90, isPublish: true },
-  { id: 12, title: '春笋', targetType: 'INGREDIENT', sort: 72, isPublish: true },
-  { id: 13, title: '柠檬薄荷气泡饮', targetType: 'MENU', sort: 66, isPublish: true }
+  { id: 'recommend_mock_011', title: '番茄炒蛋', targetType: 'RECIPE', sort: 90, isPublish: true },
+  { id: 'recommend_mock_012', title: '春笋', targetType: 'INGREDIENT', sort: 72, isPublish: true },
+  { id: 'recommend_mock_013', title: '柠檬薄荷气泡饮', targetType: 'MENU', sort: 66, isPublish: true }
 ];
 
 export const HomeOpsPage = () => {

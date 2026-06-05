@@ -149,6 +149,20 @@
         </view>
       </view>
 
+      <view v-if="recipe.beverages.length" class="beverages-section glass-card">
+        <text class="section-title">推荐搭配饮品</text>
+        <view class="beverage-list">
+          <view v-for="item in recipe.beverages" :key="item.id" class="beverage-item">
+            <image v-if="item.coverImage" class="beverage-cover" :src="item.coverImage" mode="aspectFill" />
+            <view class="beverage-info">
+              <text class="beverage-name">{{ item.name }}</text>
+              <text class="beverage-meta">{{ item.beverageType || '饮品' }} · {{ item.isAlcoholic ? `含酒精 ${item.alcoholDegree || 0}%` : '无酒精' }}</text>
+              <text v-if="item.recommendReason" class="beverage-reason">{{ item.recommendReason }}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
       <view class="bottom-actions">
         <nut-button type="default" size="large" @click="collectRecipe">
           收藏
@@ -220,6 +234,15 @@ interface Recipe {
   ingredients: Ingredient[];
   steps: Step[];
   tips: string[];
+  beverages: {
+    id: string;
+    name: string;
+    coverImage: string | null;
+    beverageType: string | null;
+    isAlcoholic: boolean;
+    alcoholDegree: number | null;
+    recommendReason: string | null;
+  }[];
 }
 
 interface IngredientGuide {
@@ -274,14 +297,15 @@ const recipe = ref<Recipe>({
     '虾仁不要炒太久，变色即可，避免肉质变老',
     '全程大火快炒，保持食材的鲜味',
     '可根据个人口味加入少许白胡椒粉提味'
-  ]
+  ],
+  beverages: []
 });
 
 const remoteLoading = ref(false);
 const remoteError = ref<string | null>(null);
-const currentRecipeId = ref<number | null>(null);
+const currentRecipeId = ref<string | null>(null);
 
-const loadRemoteRecipe = async (id: number) => {
+const loadRemoteRecipe = async (id: string) => {
   remoteLoading.value = true;
   remoteError.value = null;
   try {
@@ -300,7 +324,16 @@ const loadRemoteRecipe = async (id: number) => {
       calories: data.calories ? `约${data.calories}kcal` : '—',
       ingredients: (data.ingredients ?? []).map((i) => ({ name: i.name, amount: i.amount ?? '' })),
       steps: (data.steps ?? []).map((s) => ({ text: s.description, image: s.image ?? undefined })),
-      tips: data.tips ? data.tips.split('\n').map((t) => t.trim()).filter(Boolean) : []
+      tips: data.tips ? data.tips.split('\n').map((t) => t.trim()).filter(Boolean) : [],
+      beverages: (data.beverages ?? []).map((entry) => ({
+        id: entry.beverage.id,
+        name: entry.beverage.name,
+        coverImage: entry.beverage.coverImage,
+        beverageType: entry.beverage.beverageType,
+        isAlcoholic: entry.beverage.isAlcoholic,
+        alcoholDegree: entry.beverage.alcoholDegree,
+        recommendReason: entry.recommendReason
+      }))
     };
   } catch (err) {
     remoteError.value = err instanceof Error ? err.message : '加载失败';
@@ -310,8 +343,8 @@ const loadRemoteRecipe = async (id: number) => {
 };
 
 onLoad((query?: Record<string, string | undefined>) => {
-  const id = Number.parseInt(query?.id ?? '', 10);
-  if (Number.isFinite(id)) {
+  const id = query?.id?.trim();
+  if (id) {
     currentRecipeId.value = id;
     void loadRemoteRecipe(id);
   }
@@ -413,7 +446,7 @@ onPageScroll((event) => {
 
 const goBack = () => {
   if (getCurrentPages().length <= 1) {
-    uni.reLaunch({ url: '/pages/recipes/index' });
+    uni.reLaunch({ url: '/pages/ingredients/index?tab=recipes' });
     return;
   }
 
@@ -742,9 +775,51 @@ onShow(() => {
 
 .ingredients-section,
 .steps-section,
-.tips-section {
+.tips-section,
+.beverages-section {
   padding: 32rpx;
   margin-bottom: 20rpx;
+}
+
+.beverage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.beverage-item {
+  display: flex;
+  gap: 18rpx;
+  padding: 18rpx;
+  border-radius: 24rpx;
+  background: rgba(245, 241, 234, 0.72);
+}
+
+.beverage-cover {
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 22rpx;
+  background: #e9e2d6;
+}
+
+.beverage-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.beverage-name {
+  color: var(--app-text);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.beverage-meta,
+.beverage-reason {
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.45;
 }
 
 .section-title {

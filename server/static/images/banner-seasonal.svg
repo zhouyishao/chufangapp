@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600">
+  <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7a8b6f"/><stop offset="100%" style="stop-color:#c27b48"/></linearGradient></defs>
+  <rect width="1200" height="600" fill="url(#g)"/>
+  <text x="600" y="280" text-anchor="middle" fill="white" font-size="52" font-family="sans-serif" font-weight="bold">初夏家常菜</text>
+  <text x="600" y="350" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="28" font-family="sans-serif">时令食材 · 健康美味</text>
+</svg>

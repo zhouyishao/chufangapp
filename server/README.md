@@ -55,6 +55,7 @@ npm run dev
 
 - Health: `GET http://localhost:3002/health`
 - Swagger UI: `GET http://localhost:3002/docs`
+- CORS: in `APP_ENV=dev`, local admin origins such as `http://localhost:5176` and `http://127.0.0.1:5176` are allowed automatically. In production, set `CORS_ORIGIN` to the real admin frontend domain, or multiple comma-separated domains.
 
 ## Default admin account (seed)
 

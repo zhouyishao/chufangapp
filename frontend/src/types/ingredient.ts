@@ -6,4 +6,5 @@ export interface Ingredient {
   tags: string[];
   category: string;
   month?: number;
+  months?: number[];
 }

@@ -27,4 +27,3 @@ export const Button = ({ variant = 'primary', className, ...props }: Props) => {
     />
   );
 };
-

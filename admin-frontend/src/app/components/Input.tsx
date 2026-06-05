@@ -12,4 +12,3 @@ export const Input = (props: InputHTMLAttributes<HTMLInputElement>) => {
     />
   );
 };
-

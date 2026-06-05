@@ -31,4 +31,3 @@ export const Drawer = ({ title, open, onClose, widthClassName, children }: Props
     </div>
   );
 };
-

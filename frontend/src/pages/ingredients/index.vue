@@ -22,11 +22,11 @@
       </scroll-view>
     </view>
 
-    <view v-if="remoteLoading || remoteError" class="remote-banner glass-card">
-      <text v-if="remoteLoading" class="remote-banner__text">正在加载食材...</text>
+    <view v-if="activeLoading || activeError" class="remote-banner glass-card">
+      <text v-if="activeLoading" class="remote-banner__text">{{ isRecipeMode ? '正在加载菜谱...' : '正在加载食材...' }}</text>
       <view v-else class="remote-banner__row">
-        <text class="remote-banner__error">加载失败：{{ remoteError }}</text>
-        <button class="remote-banner__retry" @tap="loadRemoteIngredients">重试</button>
+        <text class="remote-banner__error">加载失败：{{ activeError }}</text>
+        <button class="remote-banner__retry" @tap="retryActiveLoad">重试</button>
       </view>
     </view>
 
@@ -128,6 +128,10 @@
               </view>
             </view>
           </view>
+          <view v-if="!recipeLoading && !recipeError && displayRecipes.length === 0" class="empty-state">
+            <text class="empty-state__title">暂无菜谱</text>
+            <text class="empty-state__desc">后台已发布菜谱会显示在这里。</text>
+          </view>
         </view>
       </scroll-view>
     </view>
@@ -137,8 +141,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { ref, computed, onMounted } from 'vue';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { ingredientCatalog } from '../../constants/ingredients';
 import {
@@ -150,7 +154,7 @@ import {
 } from '../../services/basket';
 import type { HomeTab } from '../../types/home';
 import type { Ingredient } from '../../types/ingredient';
-import { listIngredients } from '../../services/public-api';
+import { listIngredients, listRecipes } from '../../services/public-api';
 
 interface Tab {
   id: string;
@@ -166,12 +170,12 @@ interface Recipe {
   difficulty: string;
   people: string;
   calories: string;
-  categories: string[];
+  category: string;
   tags: string[];
 }
 
-const activeTopTab = ref('');
-const activeMonth = ref('recommend');
+const activeTopTab = ref('recipes');
+const activeIngredientFilter = ref('recommend');
 const activeRecipeCategory = ref('all');
 const currentMonth = new Date().getMonth() + 1;
 
@@ -179,12 +183,12 @@ const topTabs = ref<Tab[]>([
   { id: 'recipes', label: '菜谱' },
   { id: 'vegetables', label: '蔬菜' },
   { id: 'fruits', label: '水果' },
-  { id: 'meat', label: '生擒' },
+  { id: 'meat', label: '生禽' },
   { id: 'seafood', label: '水产' },
   { id: 'seasoning', label: '调料' }
 ]);
 
-const months = ref<Tab[]>([
+const ingredientSideItems = ref<Tab[]>([
   { id: 'recommend', label: '推荐' },
   { id: 'month-1', label: '1月' },
   { id: 'month-2', label: '2月' },
@@ -200,19 +204,25 @@ const months = ref<Tab[]>([
   { id: 'month-12', label: '12月' }
 ]);
 
-const recipeCategories = ref<Tab[]>([
-  { id: 'all', label: '全部' },
-  { id: 'home', label: '家常菜' },
-  { id: 'quick', label: '快手菜' },
-  { id: 'soup', label: '汤类' },
-  { id: 'breakfast', label: '早餐' },
-  { id: 'light', label: '减脂' }
+const recipeSideItems = ref<Tab[]>([
+  { id: 'all', label: '推荐' },
+  { id: '家常菜', label: '家常菜' },
+  { id: '快手菜', label: '快手菜' },
+  { id: '早餐', label: '早餐' },
+  { id: '晚餐', label: '晚餐' },
+  { id: '减脂餐', label: '减脂餐' },
+  { id: '下饭菜', label: '下饭菜' }
 ]);
 
 const allIngredients = ref<Ingredient[]>(ingredientCatalog);
+const recipes = ref<Recipe[]>([]);
 
 const remoteLoading = ref(false);
 const remoteError = ref<string | null>(null);
+const hasRequestedIngredients = ref(false);
+const recipeLoading = ref(false);
+const recipeError = ref<string | null>(null);
+const hasRequestedRecipes = ref(false);
 
 const mapRemoteIngredient = (item: {
   id: number;
@@ -221,11 +231,15 @@ const mapRemoteIngredient = (item: {
   seasonMonth: string | null;
   currentPrice: number | null;
   priceUnit: string | null;
+  category?: { id: number; name: string; type: 'INGREDIENT' } | null;
 }) => {
-  const month = (() => {
+  const months = (() => {
     if (!item.seasonMonth) return undefined;
-    const first = Number.parseInt(item.seasonMonth.split(',')[0]?.trim() ?? '', 10);
-    return Number.isFinite(first) ? first : undefined;
+    const parsed = item.seasonMonth
+      .split(/[,，/\s]+/)
+      .map((value) => Number.parseInt(value.trim(), 10))
+      .filter((value) => Number.isInteger(value) && value >= 1 && value <= 12);
+    return parsed.length > 0 ? parsed : undefined;
   })();
   const priceText =
     item.currentPrice !== null && item.currentPrice !== undefined
@@ -239,13 +253,34 @@ const mapRemoteIngredient = (item: {
       item.cover ??
       'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
     tags: ['推荐'],
-    category: 'recommend',
-    month
+    category: normalizeIngredientCategory(item.category?.name),
+    month: months?.[0],
+    months
   } satisfies Ingredient;
+};
+
+const normalizeIngredientCategory = (name?: string | null) => {
+  const categoryMap: Record<string, string> = {
+    蔬菜: 'vegetables',
+    水果: 'fruits',
+    时令水果: 'fruits',
+    生禽: 'meat',
+    肉禽蛋: 'meat',
+    肉类: 'meat',
+    水产: 'seafood',
+    海鲜: 'seafood',
+    水产海鲜: 'seafood',
+    调料: 'seasoning',
+    调味: 'seasoning',
+    基础调料: 'seasoning',
+    应季食材: 'vegetables'
+  };
+  return name ? categoryMap[name] ?? 'all' : 'all';
 };
 
 const loadRemoteIngredients = async () => {
   remoteLoading.value = true;
+  hasRequestedIngredients.value = true;
   remoteError.value = null;
   try {
     const data = await listIngredients({ page: 1, pageSize: 50 });
@@ -257,56 +292,51 @@ const loadRemoteIngredients = async () => {
   }
 };
 
-const recipes = ref<Recipe[]>([
-  {
-    id: 'recipe-1',
-    name: '芦笋虾仁',
-    summary: '清爽快手，适合工作日晚餐',
-    image: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=80',
-    duration: '15 分钟',
-    difficulty: '简单',
-    people: '2-3 人',
-    calories: '约260kcal',
-    categories: ['quick', 'light'],
-    tags: ['快手', '清淡']
-  },
-  {
-    id: 'recipe-2',
-    name: '番茄牛腩',
-    summary: '番茄酸香，适合全家分食',
-    image: 'https://images.unsplash.com/photo-1604909052743-94e838986d24?auto=format&fit=crop&w=1200&q=80',
-    duration: '60 分钟',
-    difficulty: '中等',
-    people: '3-4 人',
-    calories: '约520kcal',
-    categories: ['home'],
-    tags: ['家常', '下饭']
-  },
-  {
-    id: 'recipe-3',
-    name: '菌菇豆腐汤',
-    summary: '口味干净，步骤轻松',
-    image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=1200&q=80',
-    duration: '25 分钟',
-    difficulty: '简单',
-    people: '2-3 人',
-    calories: '约180kcal',
-    categories: ['soup', 'light'],
-    tags: ['汤类', '轻负担']
-  },
-  {
-    id: 'recipe-4',
-    name: '鸡蛋灌饼',
-    summary: '早餐经典，外酥里嫩',
-    image: 'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?auto=format&fit=crop&w=800&q=80',
-    duration: '20 分钟',
-    difficulty: '中等',
-    people: '1-2 人',
-    calories: '约380kcal',
-    categories: ['breakfast', 'quick'],
-    tags: ['早餐', '主食']
+const mapRemoteRecipe = (item: {
+  id: string;
+  title: string;
+  cover: string | null;
+  description: string | null;
+  cookTime: number | null;
+  difficulty: string | null;
+  servings: number | null;
+  taste?: string | null;
+  scene?: string | null;
+  category?: { id: string; name: string; type: string } | null;
+}) => {
+  const tags = [item.taste, item.scene].filter(Boolean) as string[];
+  return {
+    id: String(item.id),
+    name: item.title,
+    summary: item.description ?? '',
+    image:
+      item.cover ??
+      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
+    duration: item.cookTime ? `${item.cookTime}分钟` : '—',
+    difficulty: item.difficulty ?? '—',
+    people: item.servings ? `${item.servings}人` : '—',
+    calories: '—',
+    category: item.category?.name ?? '',
+    tags: tags.length > 0 ? tags : ['推荐']
+  } satisfies Recipe;
+};
+
+const loadRemoteRecipes = async () => {
+  recipeLoading.value = true;
+  hasRequestedRecipes.value = true;
+  recipeError.value = null;
+  try {
+    console.log('[ingredients recipes tab] request /api/recipes');
+    const data = await listRecipes({ page: 1, pageSize: 10 });
+    console.log('[ingredients recipes tab] raw response', data);
+    recipes.value = data.list.map(mapRemoteRecipe);
+    console.log('[ingredients recipes tab] final recipes', recipes.value);
+  } catch (err) {
+    recipeError.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    recipeLoading.value = false;
   }
-]);
+};
 
 const tabs = ref<HomeTab[]>([
   { id: 'home', label: '首页', active: false },
@@ -319,61 +349,79 @@ const basketIngredientIds = ref<string[]>([]);
 
 const isRecipeMode = computed(() => activeTopTab.value === 'recipes');
 
-const sideNavItems = computed(() => (isRecipeMode.value ? recipeCategories.value : months.value));
+const activeLoading = computed(() => (isRecipeMode.value ? recipeLoading.value : remoteLoading.value));
 
-const activeSideNav = computed(() => (isRecipeMode.value ? activeRecipeCategory.value : activeMonth.value));
+const activeError = computed(() => (isRecipeMode.value ? recipeError.value : remoteError.value));
+
+const sideNavItems = computed(() => (isRecipeMode.value ? recipeSideItems.value : ingredientSideItems.value));
+
+const activeSideNav = computed(() => (isRecipeMode.value ? activeRecipeCategory.value : activeIngredientFilter.value));
 
 const displayIngredients = computed(() => {
-  if (activeMonth.value === 'recommend') {
-    return allIngredients.value.filter(item => item.month === currentMonth);
+  let list = allIngredients.value;
+
+  if (activeTopTab.value !== 'recipes') {
+    list = list.filter(item => item.category === activeTopTab.value);
   }
 
-  if (activeMonth.value.startsWith('month-')) {
-    const month = parseInt(activeMonth.value.replace('month-', ''));
-    return allIngredients.value.filter(item => item.month === month);
+  if (activeIngredientFilter.value === 'recommend') {
+    const monthly = list.filter(item => hasIngredientMonth(item, currentMonth));
+    return monthly.length > 0 ? monthly : list;
   }
 
-  if (activeTopTab.value) {
-    return allIngredients.value.filter(item => item.category === activeTopTab.value);
+  if (activeIngredientFilter.value.startsWith('month-')) {
+    const month = parseInt(activeIngredientFilter.value.replace('month-', ''), 10);
+    return list.filter(item => hasIngredientMonth(item, month));
   }
 
-  return allIngredients.value;
+  return list;
 });
+
+const hasIngredientMonth = (item: Ingredient, month: number) => {
+  if (item.months?.length) {
+    return item.months.includes(month);
+  }
+
+  return item.month === month;
+};
 
 const displayRecipes = computed(() => {
   if (activeRecipeCategory.value === 'all') {
     return recipes.value;
   }
 
-  return recipes.value.filter(recipe => recipe.categories.includes(activeRecipeCategory.value));
+  return recipes.value.filter(recipe => recipe.category === activeRecipeCategory.value);
 });
 
 const selectTopTab = (tabId: string) => {
   activeTopTab.value = tabId;
-  activeMonth.value = '';
   if (tabId === 'recipes') {
     activeRecipeCategory.value = 'all';
+    if (recipes.value.length === 0) {
+      void loadRemoteRecipes();
+    }
+    return;
   }
-};
 
-const selectMonth = (monthId: string) => {
-  activeMonth.value = monthId;
-  activeTopTab.value = '';
-};
-
-const selectRecipeCategory = (categoryId: string) => {
-  activeRecipeCategory.value = categoryId;
-  activeTopTab.value = 'recipes';
-  activeMonth.value = '';
+  activeIngredientFilter.value = 'recommend';
 };
 
 const selectSideNav = (itemId: string) => {
   if (isRecipeMode.value) {
-    selectRecipeCategory(itemId);
+    activeRecipeCategory.value = itemId;
     return;
   }
 
-  selectMonth(itemId);
+  activeIngredientFilter.value = itemId;
+};
+
+const retryActiveLoad = () => {
+  if (isRecipeMode.value) {
+    void loadRemoteRecipes();
+    return;
+  }
+
+  void loadRemoteIngredients();
 };
 
 const handleSearch = () => {
@@ -438,6 +486,26 @@ const syncBasketIngredientIds = () => {
 onShow(() => {
   syncBasketIngredientIds();
   void loadRemoteIngredients();
+  if (isRecipeMode.value) {
+    void loadRemoteRecipes();
+  }
+});
+
+onLoad((query) => {
+  if (query?.tab === 'recipes') {
+    activeTopTab.value = 'recipes';
+    activeRecipeCategory.value = 'all';
+    void loadRemoteRecipes();
+  }
+});
+
+onMounted(() => {
+  if (!hasRequestedIngredients.value) {
+    void loadRemoteIngredients();
+  }
+  if (isRecipeMode.value && !hasRequestedRecipes.value) {
+    void loadRemoteRecipes();
+  }
 });
 </script>
 
@@ -798,4 +866,27 @@ onShow(() => {
   font-size: 20rpx;
   font-weight: 500;
 }
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  padding: 48rpx 24rpx;
+  border-radius: var(--app-radius-card);
+  background: #fffdfc;
+  text-align: center;
+}
+
+.empty-state__title {
+  color: var(--app-text);
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.empty-state__desc {
+  color: var(--app-text-secondary);
+  font-size: 23rpx;
+}
+
 </style>

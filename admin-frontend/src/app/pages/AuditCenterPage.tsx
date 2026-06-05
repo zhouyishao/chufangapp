@@ -149,7 +149,9 @@ export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
       key: 'title',
       title: '内容标题',
       render: (item) => (
-        <span className="font-medium text-[#2f2f2f]">{item.title}</span>
+        <button type="button" className="block text-left font-medium text-[#2f2f2f]" onClick={() => handleView(item)}>
+          {item.title}
+        </button>
       )
     },
     {
@@ -180,7 +182,6 @@ export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
       title: '操作',
       render: (item) => (
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => handleView(item)}>查看</Button>
           {item.auditStatus === 'PENDING' ? (
             <>
               <Button variant="ghost" onClick={() => setPassing(item)}>通过</Button>

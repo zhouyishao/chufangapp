@@ -21,8 +21,10 @@ export type LoginResult = {
 };
 
 export type IngredientCategory = {
-  id: number;
-  type: 'RECIPE' | 'INGREDIENT' | 'SEASONING' | 'FRUIT' | 'COCKTAIL';
+  id: string;
+  legacyId?: number;
+  code?: string;
+  type: 'RECIPE' | 'INGREDIENT' | 'SEASONING' | 'FRUIT' | 'COCKTAIL' | 'BEVERAGE';
   name: string;
   sort: number;
   status: 'ACTIVE' | 'DISABLED';
@@ -33,11 +35,13 @@ export type IngredientCategory = {
 };
 
 export type Ingredient = {
-  id: number;
+  id: string;
+  legacyId?: number;
+  code?: string;
   name: string;
   cover: string | null;
-  categoryId: number | null;
-  category?: { id: number; name: string; type: IngredientCategory['type'] } | null;
+  categoryId: string | null;
+  category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;
   seasonMonth: string | null;
   nutrition: string | null;
   selectionTips: string | null;
@@ -57,15 +61,17 @@ export type Ingredient = {
 };
 
 export type Recipe = {
-  id: number;
+  id: string;
+  legacyId?: number;
+  code?: string;
   title: string;
   subtitle: string | null;
   cover: string | null;
   images?: string[] | null;
   video?: string | null;
   description: string | null;
-  categoryId: number | null;
-  category?: { id: number; name: string; type: IngredientCategory['type'] } | null;
+  categoryId: string | null;
+  category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;
   cuisineId?: number | null;
   cuisine?: { id: number; name: string } | null;
   cookTime: number | null;
@@ -97,7 +103,7 @@ export type Recipe = {
   ingredients?: {
     id: number;
     sortIndex: number;
-    ingredientId: number | null;
+    ingredientId: string | number | null;
     name: string;
     amount: string | null;
     unit?: string | null;
@@ -110,7 +116,7 @@ export type Recipe = {
 
 export type AuditItem = {
   id: string;
-  bizId: number;
+  bizId: string;
   type: 'RECIPE' | 'INGREDIENT' | 'POST' | 'COMMENT' | 'REPORT';
   title: string;
   submitter: string;
@@ -127,7 +133,7 @@ export type TargetType = 'NONE' | 'URL' | 'RECIPE' | 'INGREDIENT' | 'CATEGORY' |
 export type PostStatus = 'DRAFT' | 'PUBLISHED' | 'HIDDEN';
 
 export type AdminResourceItem = {
-  id: number;
+  id: string;
   title?: string;
   name?: string;
   phone?: string | null;
@@ -138,4 +144,27 @@ export type AdminResourceItem = {
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
+};
+
+export type AdminUserListItem = {
+  id: string;
+  legacyId: number;
+  code: string;
+  phone: string | null;
+  openid: string | null;
+  nickname: string | null;
+  avatar: string | null;
+  gender: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  registerSource: 'WECHAT' | 'PHONE';
+  joinedFamilyCount: number;
+  createdFamilyCount: number;
+  familyCount: number;
+  favoriteCount: number;
+  recentViewCount: number;
+  recipeCount: number;
+  priceRecordCount: number;
+  lastActiveAt: string;
+  createdAt: string;
+  updatedAt: string;
 };
