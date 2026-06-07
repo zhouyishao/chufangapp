@@ -15,7 +15,12 @@ import { adminCommentsRouter } from './routes/admin/comments';
 import { adminContentSelectorRouter } from './routes/admin/content-selector';
 import { adminCuisinesRouter } from './routes/admin/cuisines';
 import { adminFamiliesRouter } from './routes/admin/families';
+// 旧首页轮播图接口已迁移至 /api/admin/home/top-navs/:navId/hero-banners
+// import { adminHomeHeroBannersRouter } from './routes/admin/home-hero-banners';
+// app.use('/api/admin/home-hero-banners', adminHomeHeroBannersRouter);
 import { adminHomeTopNavsRouter } from './routes/admin/home-top-navs';
+import { adminContentModulesRouter } from './routes/admin/content-modules';
+import { adminTopNavHeroBannersRouter } from './routes/admin/top-nav-hero-banners';
 import { adminIngredientsRouter } from './routes/admin/ingredients';
 import { adminMenusRouter } from './routes/admin/menus';
 import { adminPostsRouter } from './routes/admin/posts';
@@ -73,6 +78,8 @@ export const createApp = () => {
   app.use('/api/admin/cuisines', adminCuisinesRouter);
   app.use('/api/admin/menus', adminMenusRouter);
   app.use('/api/admin/banners', adminBannersRouter);
+  // 旧首页轮播图接口 /api/admin/home-hero-banners 已迁移至 /api/admin/home/top-navs/:navId/hero-banners
+  // app.use('/api/admin/home-hero-banners', adminHomeHeroBannersRouter);
   app.use('/api/admin/beverages', adminBeveragesRouter);
   app.use('/api/admin/families', adminFamiliesRouter);
   app.use('/api/admin/upload', adminUploadRouter);
@@ -84,6 +91,8 @@ export const createApp = () => {
   app.use('/api/admin/channels', adminChannelsRouter);
   app.use('/api/admin/content-selector', adminContentSelectorRouter);
   app.use('/api/admin/home/top-navs', adminHomeTopNavsRouter);
+  app.use('/api/admin/home/top-navs/:navId/hero-banners', adminTopNavHeroBannersRouter);
+  app.use('/api/admin/home/top-navs/:navId/modules', adminContentModulesRouter);
 
   app.use('/api/home', apiHomeRouter);
   app.use('/api/app/home', apiAppHomeRouter);

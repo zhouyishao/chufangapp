@@ -19,7 +19,7 @@ const defaultPayload: HomeTopNavPayload = {
   navType: 'system_recommend',
   displayPosition: 'home_top',
   iconUrl: null,
-  sortOrder: 0,
+  sortOrder: 1,
   status: 'online',
   isDefault: false,
   isFixed: true,
@@ -124,12 +124,16 @@ export const TopNavFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
   };
 
   const save = async (status: 'draft' | 'online') => {
-    if (!draft.name.trim()) return setError('请输入导航名称');
+    const name = draft.name.trim();
+    const sortOrder = Number(draft.sortOrder);
+    if (!name) return setError('请输入导航名称');
+    if (name.length < 2 || name.length > 8) return setError('导航名称需为 2-8 个字符');
+    if (!Number.isInteger(sortOrder) || sortOrder < 1 || sortOrder > 999) return setError('排序值需为 1-999 的整数');
     if (status === 'online' && draft.relations.length === 0) return setError('请先选择关联内容');
     setSaving(true);
     setError(null);
     try {
-      const payload = { ...draft, name: draft.name.trim(), status };
+      const payload = { ...draft, name, sortOrder, status };
       if (mode === 'edit' && id) await updateHomeTopNav(id, payload);
       else await createHomeTopNav(payload);
       navigate('/home-ops');
@@ -179,7 +183,7 @@ export const TopNavFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
             <div className="grid gap-x-8 gap-y-5 xl:grid-cols-2">
               <label className={formRow}>
                 <span className={fieldLabel}>导航名称 <span className="text-[#c27b48]">*</span></span>
-                <input className={fieldInput} placeholder="请输入导航名称" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+                <input className={fieldInput} maxLength={8} placeholder="请输入 2-8 个字符" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
               </label>
               <label className={formRow}>
                 <span className={fieldLabel}>导航别名（可选）</span>
@@ -208,7 +212,7 @@ export const TopNavFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
               </label>
               <label className={formRow}>
                 <span className={fieldLabel}>排序值 <span className="text-[#c27b48]">*</span></span>
-                <input className={fieldInput} type="number" value={draft.sortOrder} onChange={(event) => setDraft({ ...draft, sortOrder: Number(event.target.value) })} />
+                <input className={fieldInput} type="number" min={1} max={999} step={1} value={draft.sortOrder} onChange={(event) => setDraft({ ...draft, sortOrder: Number(event.target.value) })} />
               </label>
               <div className="grid gap-4 xl:col-span-2 xl:grid-cols-2">
                 <div className={formRow}>

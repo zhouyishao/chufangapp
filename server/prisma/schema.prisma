@@ -42,6 +42,7 @@ enum TargetType {
   CATEGORY
   MENU
   BEVERAGE
+  TOPIC
 }
 
 enum PostStatus {
@@ -88,6 +89,12 @@ enum FamilyInviteStatus {
   PENDING
   EXPIRED
   REVOKED
+}
+
+enum BannerStatus {
+  DRAFT
+  ENABLED
+  DISABLED
 }
 
 model User {
@@ -760,6 +767,43 @@ model Banner {
   @@map("banners")
 }
 
+model HomeHeroBanner {
+  id                  Int          @id @default(autoincrement())
+  navId               Int          @map("nav_id")
+  title               String       @db.VarChar(120)
+  subtitle            String?      @db.VarChar(160)
+  buttonText          String?      @map("button_text") @db.VarChar(32)
+  cover               String       @db.VarChar(255)
+  imageFocus          String       @default("center") @map("image_focus") @db.VarChar(20)
+  targetType          TargetType   @default(NONE) @map("target_type")
+  targetId            String?      @map("target_id") @db.VarChar(64)
+  targetTitleSnapshot String?      @map("target_title_snapshot") @db.VarChar(120)
+  link                String?      @db.VarChar(255)
+  sortOrder           Int          @default(1) @map("sort_order")
+  startAt             DateTime?    @map("start_at")
+  endAt               DateTime?    @map("end_at")
+  remark              String?      @db.VarChar(255)
+
+  nav                 HomeTopNav   @relation(fields: [navId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  deletedAt           DateTime?    @map("deleted_at")
+  status              BannerStatus @default(DRAFT) @map("status")
+  sort                Int          @default(0) @map("sort")
+  isDeleted           Boolean      @default(false) @map("is_deleted")
+  isPublish           Boolean      @default(true) @map("is_publish")
+  isRecommend         Boolean      @default(false) @map("is_recommend")
+  sourceType          SourceType   @default(ADMIN) @map("source_type")
+  sourceId            Int?         @map("source_id")
+  auditStatus         AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy           Int?         @map("created_by")
+  updatedBy           Int?         @map("updated_by")
+
+  @@index([navId, status, sortOrder])
+  @@map("home_hero_banners")
+}
+
 model Favorite {
   id           Int          @id @default(autoincrement())
   userId       Int          @map("user_id")
@@ -1116,6 +1160,8 @@ model HomeTopNav {
   deletedAt       DateTime?             @map("deleted_at")
 
   relations       HomeTopNavRelation[]
+  heroBanners     HomeHeroBanner[]
+  modules         ContentModule[]
   style           HomeTopNavStyle?
   contentRule     HomeTopNavContentRule?
 
@@ -1153,6 +1199,32 @@ model HomeTopNavStyle {
   nav             HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
   @@map("home_top_nav_styles")
+}
+
+model ContentModule {
+  id            Int        @id @default(autoincrement())
+  navId         Int        @map("nav_id")
+  title         String     @db.VarChar(80)
+  subtitle      String?    @db.VarChar(160)
+  displayStyle  String     @map("display_style") @db.VarChar(40)
+  contentType   String     @map("content_type") @db.VarChar(20)
+  contentSource String     @map("content_source") @db.VarChar(20)
+  displayCount  Int        @default(6) @map("display_count")
+  showMore      Boolean    @default(false) @map("show_more")
+  moreLink      String?    @map("more_link") @db.VarChar(255)
+  sortOrder     Int        @default(1) @map("sort_order")
+  status        String     @default("ENABLED") @db.VarChar(20)
+  items         Json?
+  categoryId    Int?       @map("category_id")
+  tagId         Int?       @map("tag_id")
+
+  nav           HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@index([navId, status, sortOrder])
+  @@map("content_modules")
 }
 
 model HomeTopNavContentRule {
