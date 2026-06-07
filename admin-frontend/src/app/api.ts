@@ -631,6 +631,112 @@ export const deleteAdminResource = async <T extends AdminResourceItem>(resource:
   return request<T>(`/${resource}/${id}`, { method: 'DELETE' });
 };
 
+// ====== 首页顶部轮播图（HeroBanner）API ======
+// 已迁移至顶部导航配置内容，绑定 navId
+// 旧全局接口 /home-hero-banners 已废弃，保留类型用于兼容
+
+export type BannerStatus = 'DRAFT' | 'ENABLED' | 'DISABLED';
+export type HeroBannerTargetType = 'NONE' | 'URL' | 'RECIPE' | 'INGREDIENT' | 'CATEGORY' | 'MENU' | 'BEVERAGE' | 'TOPIC';
+export type HeroBannerImageFocus = 'left' | 'center' | 'right';
+
+export type HeroBanner = {
+  id: number;
+  navId: number;
+  title: string;
+  subtitle: string | null;
+  buttonText: string | null;
+  cover: string;
+  imageFocus: HeroBannerImageFocus;
+  targetType: HeroBannerTargetType;
+  targetId: string | null;
+  targetTitleSnapshot: string | null;
+  link: string | null;
+  sortOrder: number;
+  status: BannerStatus;
+  startAt: string | null;
+  endAt: string | null;
+  remark: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HeroBannerPayload = {
+  title: string;
+  subtitle: string | null;
+  buttonText: string | null;
+  cover: string;
+  imageFocus: HeroBannerImageFocus;
+  targetType: HeroBannerTargetType;
+  targetId: string | null;
+  targetTitleSnapshot: string | null;
+  link: string | null;
+  sortOrder: number;
+  status: BannerStatus;
+  startAt: string | null;
+  endAt: string | null;
+  remark: string | null;
+};
+
+export const listHeroBanners = async (navId: string, params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: BannerStatus;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<HeroBanner>>(`/home/top-navs/${navId}/hero-banners?${qs.toString()}`);
+};
+
+export const getHeroBanner = async (navId: string, bannerId: number) =>
+  request<HeroBanner>(`/home/top-navs/${navId}/hero-banners/${bannerId}`);
+
+export const createHeroBanner = async (navId: string, payload: HeroBannerPayload) =>
+  request<HeroBanner>(`/home/top-navs/${navId}/hero-banners`, { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateHeroBanner = async (navId: string, bannerId: number, payload: HeroBannerPayload) =>
+  request<HeroBanner>(`/home/top-navs/${navId}/hero-banners/${bannerId}`, { method: 'PUT', body: JSON.stringify(payload) });
+
+export const updateHeroBannerStatus = async (navId: string, bannerId: number, status: BannerStatus) =>
+  request<HeroBanner>(`/home/top-navs/${navId}/hero-banners/${bannerId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+
+export const deleteHeroBanner = async (navId: string, bannerId: number) =>
+  request<HeroBanner>(`/home/top-navs/${navId}/hero-banners/${bannerId}`, { method: 'DELETE' });
+
+// ====== 旧类型别名，兼容已废弃的 HomeHeroBannersPage ======
+// 该页面已迁移至顶部导航配置内容，不再作为独立页面路由
+// 以下导出仅用于保持 TypeScript 编译兼容
+
+/** @deprecated 使用 HeroBanner 替代 */
+export type HomeHeroBanner = HeroBanner;
+/** @deprecated 使用 HeroBannerPayload 替代 */
+export type HomeHeroBannerPayload = HeroBannerPayload;
+/** @deprecated 使用 BannerStatus 替代 */
+export type HomeHeroBannerStatus = BannerStatus;
+/** @deprecated 使用 HeroBannerTargetType 替代 */
+export type HomeHeroBannerTargetType = HeroBannerTargetType;
+/** @deprecated 使用 listHeroBanners 替代 */
+export const listHomeHeroBanners = async (params: { page?: number; pageSize?: number; q?: string; status?: BannerStatus } = {}) => {
+  // 已废弃：请使用 listHeroBanners(navId, params)
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<HomeHeroBanner>>(`/home/top-navs/0/hero-banners?${qs.toString()}`);
+};
+/** @deprecated 使用 createHeroBanner 替代 */
+export const createHomeHeroBanner = async (payload: HomeHeroBannerPayload) =>
+  request<HomeHeroBanner>('/home/top-navs/0/hero-banners', { method: 'POST', body: JSON.stringify(payload) });
+/** @deprecated 使用 updateHeroBanner 替代 */
+export const updateHomeHeroBanner = async (id: number, payload: HomeHeroBannerPayload) =>
+  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+/** @deprecated 使用 updateHeroBannerStatus 替代 */
+export const updateHomeHeroBannerStatus = async (id: number, status: HomeHeroBannerStatus) =>
+  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+/** @deprecated 使用 deleteHeroBanner 替代 */
+export const deleteHomeHeroBanner = async (id: number) =>
+  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}`, { method: 'DELETE' });
+
 export type Beverage = {
   id: string;
   legacyId?: number;
@@ -730,6 +836,7 @@ export type HomeTopNavContentRule = {
 
 export type HomeTopNav = {
   id: string;
+  legacyId?: number;
   code?: string | null;
   name: string;
   alias?: string | null;
@@ -814,6 +921,85 @@ export const listContentSelector = async (params: { type: string; keyword?: stri
   setParam(qs, 'keyword', params.keyword?.trim());
   return request<PageResult<ContentSelectorItem>>(`/content-selector?${qs.toString()}`);
 };
+
+// ====== 内容模块 (ContentModule) API ======
+
+export type ContentModuleDisplayStyle = 'HORIZONTAL_RECIPE_CARD' | 'SEASONAL_INGREDIENT_CARD' | 'IMAGE_TEXT_LIST' | 'TWO_COLUMN_RECIPE_GRID';
+export type ContentModuleContentType = 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+export type ContentModuleContentSource = 'MANUAL' | 'CATEGORY' | 'TAG';
+export type ContentModuleStatus = 'ENABLED' | 'DISABLED';
+
+export type ContentModuleItem = {
+  id: string;
+  type: string;
+  sortOrder: number;
+};
+
+export type ContentModule = {
+  id: number;
+  navId: number;
+  title: string;
+  subtitle: string | null;
+  displayStyle: ContentModuleDisplayStyle;
+  displayStyleLabel?: string;
+  contentType: ContentModuleContentType;
+  contentTypeLabel?: string;
+  contentSource: ContentModuleContentSource;
+  contentSourceLabel?: string;
+  displayCount: number;
+  showMore: boolean;
+  moreLink: string | null;
+  sortOrder: number;
+  status: ContentModuleStatus;
+  items: ContentModuleItem[];
+  categoryId: number | null;
+  tagId: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ContentModulePayload = {
+  title: string;
+  subtitle?: string | null;
+  displayStyle: ContentModuleDisplayStyle;
+  contentType: ContentModuleContentType;
+  contentSource: ContentModuleContentSource;
+  displayCount: number;
+  showMore: boolean;
+  moreLink?: string | null;
+  sortOrder: number;
+  status: ContentModuleStatus;
+  items?: ContentModuleItem[];
+  categoryId?: number | null;
+  tagId?: number | null;
+};
+
+export const listContentModules = async (navId: string, params: {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  status?: ContentModuleStatus;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'keyword', params.keyword?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<ContentModule>>(`/home/top-navs/${navId}/modules?${qs.toString()}`);
+};
+
+export const getContentModule = async (navId: string, moduleId: number) =>
+  request<ContentModule>(`/home/top-navs/${navId}/modules/${moduleId}`);
+
+export const createContentModule = async (navId: string, payload: ContentModulePayload) =>
+  request<ContentModule>(`/home/top-navs/${navId}/modules`, { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateContentModule = async (navId: string, moduleId: number, payload: ContentModulePayload) =>
+  request<ContentModule>(`/home/top-navs/${navId}/modules/${moduleId}`, { method: 'PUT', body: JSON.stringify(payload) });
+
+export const updateContentModuleStatus = async (navId: string, moduleId: number, status: ContentModuleStatus) =>
+  request<ContentModule>(`/home/top-navs/${navId}/modules/${moduleId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+
+export const deleteContentModule = async (navId: string, moduleId: number) =>
+  request<boolean>(`/home/top-navs/${navId}/modules/${moduleId}`, { method: 'DELETE' });
 
 export type FamilyUserSummary = {
   id: string;

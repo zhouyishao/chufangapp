@@ -24,6 +24,8 @@ import { FilesPage } from './pages/FilesPage';
 import { ForbiddenPage } from './pages/ForbiddenPage';
 import { FruitCreatePage } from './pages/FruitCreatePage';
 import { FruitEditPage } from './pages/FruitEditPage';
+// HomeHeroBannersPage 已迁移至顶部导航配置内容，不再作为独立页面路由
+// import { HomeHeroBannersPage } from './pages/HomeHeroBannersPage';
 import { HomeOpsPage } from './pages/HomeOpsPage';
 import { IngredientCreatePage } from './pages/IngredientCreatePage';
 import { IngredientDetailPage } from './pages/IngredientDetailPage';
@@ -99,6 +101,8 @@ export const App = () => (
         <Route path="home-ops/top-nav/:id/content/carousels/:carouselId/edit" element={withPermission(<TopNavCarouselFormPage />, 'home:update')} />
         <Route path="home-ops/top-nav/:id/content/modules/new" element={withPermission(<TopNavModuleFormPage />, 'home:update')} />
         <Route path="home-ops/top-nav/:id/content/modules/:moduleId/edit" element={withPermission(<TopNavModuleFormPage />, 'home:update')} />
+        {/* 首页顶部轮播图已迁移至顶部导航管理 → 配置内容 → 轮播图设置，不再作为独立页面 */}
+        {/* <Route path="home-ops/hero-banners" element={withPermission(<HomeHeroBannersPage />, 'banner:view')} /> */}
         <Route path="home-ops/banners" element={withPermission(<BannersPage />, 'banner:view')} />
         <Route path="home-ops/recommend-slots" element={withPermission(<RecommendationsPage />, 'recommendation:view')} />
         <Route path="home-ops/today" element={withPermission(<RecommendationsPage />, 'recommendation:view')} />

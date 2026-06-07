@@ -537,6 +537,32 @@ const main = async () => {
     () => prisma.banner.deleteMany({ where: { title: '初夏家常菜' } })
   );
 
+  // HomeHeroBanner 需要绑定默认顶部导航
+  const defaultNav = await prisma.homeTopNav.findFirst({ where: { isDefault: true, deletedAt: null } });
+  if (defaultNav) {
+    await replaceByTitle(
+      () =>
+        prisma.homeHeroBanner.create({
+          data: {
+            navId: defaultNav.id,
+            title: '初夏家常菜',
+            subtitle: '番茄牛腩配一碗米饭，晚餐不用再纠结。',
+            buttonText: '查看菜谱',
+            cover: '/static/images/banner-seasonal.svg',
+            imageFocus: 'center',
+            targetType: 'RECIPE',
+            targetId: String(recipe.id),
+            link: null,
+            sortOrder: 1,
+            sort: 1,
+            status: 'ENABLED',
+            isPublish: true
+          }
+        }),
+      () => prisma.homeHeroBanner.deleteMany({ where: { title: '初夏家常菜' } })
+    );
+  }
+
   const existingMenus = await prisma.menu.findMany({
     where: { name: '家庭晚餐菜单' },
     select: { id: true }
