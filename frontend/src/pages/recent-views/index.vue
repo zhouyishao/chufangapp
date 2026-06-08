@@ -114,8 +114,8 @@ const goToRecipe = (recipeId: string) => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -134,15 +134,15 @@ const goToRecipe = (recipeId: string) => {
 
 .eyebrow {
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .page-title {
   margin-top: 4rpx;
   color: var(--app-text);
-  font-size: 42rpx;
-  font-weight: 600;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
 }
 
 .timeline-card {
@@ -158,8 +158,8 @@ const goToRecipe = (recipeId: string) => {
 .timeline-date {
   margin-bottom: 16rpx;
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-row {
@@ -187,25 +187,25 @@ const goToRecipe = (recipeId: string) => {
 
 .recipe-name {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.45;
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-body-sm);
 }
 
 .recipe-time {
   margin-top: 8rpx;
   color: var(--app-text-tertiary);
-  font-size: 20rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .arrow {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
+  font-size: var(--font-size-detail-title);
 }
 </style>

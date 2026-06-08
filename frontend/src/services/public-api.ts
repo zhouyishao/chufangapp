@@ -170,6 +170,20 @@ export type ApiHomeTopNavContent = {
   }[];
 };
 
+export type ApiHomeHeroBanner = {
+  id: number;
+  moduleType: 'HOME_HERO_CAROUSEL';
+  title: string;
+  subtitle: string | null;
+  buttonText: string | null;
+  cover: string;
+  imageFocus: string;
+  targetType: string;
+  targetId: string | null;
+  link: string | null;
+  sortOrder: number;
+};
+
 export const getHome = async () => {
   const data = await request<ApiMobileHome>('/mobile/home');
   const recommendRecipes = data.recommendations
@@ -229,6 +243,11 @@ export const getHomeTopNavContents = async (navId: string, params: { page?: numb
     ...data,
     items: data.items.map((item) => ({ ...item, coverUrl: resolveAssetUrl(item.coverUrl) }))
   };
+};
+
+export const getHomeHeroBanners = async (navId: string) => {
+  const data = await request<ApiHomeHeroBanner[]>(`/app/home/top-navs/${navId}/hero-banners`);
+  return data.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) }));
 };
 
 export type ApiRecipeListItem = {
@@ -321,4 +340,145 @@ export const listIngredients = async (params: { page: number; pageSize: number; 
 export const getIngredient = async (id: number) => {
   const data = await request<ApiIngredientListItem>(`/ingredients/${id}`);
   return { ...data, cover: resolveAssetUrl(data.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80') };
+};
+
+// ====== 分类页聚合接口 ======
+
+export type PageModuleTopNavItem = {
+  id: string;
+  code: string | null;
+  name: string;
+  navType: string;
+  contentType: string | null;
+  isDefault: boolean;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type PageModuleCategoryFilterItem = {
+  name: string;
+  key: string;
+  type: 'system' | 'category';
+  categoryId?: number;
+};
+
+export type PageModuleBanner = {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  buttonText: string | null;
+  cover: string;
+  imageFocus: string;
+  targetType: string;
+  targetId: string | null;
+  link: string | null;
+  sortOrder: number;
+};
+
+export type PageModuleContentItem = {
+  id: string;
+  navId: number;
+  title: string;
+  subtitle: string | null;
+  displayStyle: string;
+  contentType: string;
+  contentSource: string;
+  displayCount: number;
+  showMore: boolean;
+  showTitle: boolean;
+  moreLink: string | null;
+  sortOrder: number;
+  status: string;
+  items: Array<Record<string, unknown>>;
+};
+
+export type PageModule = {
+  moduleType: string;
+  sortOrder: number;
+  config?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+};
+
+export type PageModulesResult = PageModule[];
+
+export const getPageModules = async (params: {
+  page?: string;
+  type?: string;
+  filter?: string;
+  categoryId?: number;
+} = {}) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', params.page);
+  if (params.type) qs.set('type', params.type);
+  if (params.filter) qs.set('filter', params.filter);
+  if (params.categoryId) qs.set('categoryId', String(params.categoryId));
+  const data = await request<PageModulesResult>(`/app/page-modules?${qs.toString()}`);
+  // Resolve asset URLs in banner covers and content module item covers
+  return data.map((mod) => {
+    if (mod.moduleType === 'hero_banner' && mod.data) {
+      const heroData = mod.data as { banners?: Array<{ cover: string }> };
+      if (heroData.banners) {
+        heroData.banners = heroData.banners.map((b) => ({ ...b, cover: resolveAssetUrl(b.cover) }));
+      }
+    }
+    if (mod.moduleType === 'content_module' && mod.data) {
+      const contentData = mod.data as unknown as Array<{ items?: Array<{ cover?: string | null }> }>;
+      for (const cm of contentData) {
+        if (cm.items) {
+          cm.items = cm.items.map((item) => ({
+            ...item,
+            cover: item.cover ? resolveAssetUrl(item.cover as string) : null
+          }));
+        }
+      }
+    }
+    return mod;
+  });
+};
+
+// ====== 首页内容模块 ======
+
+export type HomeModuleItem = {
+  id: string;
+  code?: string;
+  type: 'recipe' | 'ingredient';
+  title?: string;
+  name?: string;
+  cover: string | null;
+  duration?: string | null;
+  difficulty?: string | null;
+  servings?: number | null;
+  calories?: string | null;
+  description?: string | null;
+  favoriteCount?: number | null;
+  currentPrice?: number | null;
+  priceUnit?: string | null;
+  sortOrder?: number;
+};
+
+export type HomeModule = {
+  id: number;
+  navId: number;
+  title: string;
+  subtitle: string | null;
+  displayStyle: string;
+  contentType: string;
+  contentSource: string;
+  displayCount: number;
+  showMore: boolean;
+  moreLink: string | null;
+  sortOrder: number;
+  status: string;
+  items: HomeModuleItem[];
+};
+
+export const getHomeModules = async (navId: string) => {
+  const data = await request<HomeModule[]>(`/app/home/top-navs/${navId}/modules`);
+  return data.map((mod) => ({
+    ...mod,
+    items: mod.items.map((item) => ({
+      ...item,
+      cover: resolveAssetUrl(item.cover)
+    }))
+  }));
 };

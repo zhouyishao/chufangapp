@@ -7,12 +7,22 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    BannerCarouselModule: typeof import('./src/components/category-modules/BannerCarouselModule.vue')['default']
+    CategoryFilterModule: typeof import('./src/components/category-modules/CategoryFilterModule.vue')['default']
+    FourCardGridModule: typeof import('./src/components/category-modules/FourCardGridModule.vue')['default']
     HeroRecipeCard: typeof import('./src/components/home/hero-recipe-card.vue')['default']
     HomeHeader: typeof import('./src/components/home/home-header.vue')['default']
+    HomeModuleRenderer: typeof import('./src/components/home-modules/HomeModuleRenderer.vue')['default']
     HomeTabBar: typeof import('./src/components/home/home-tab-bar.vue')['default']
+    HorizontalRecipeCardModule: typeof import('./src/components/home-modules/HorizontalRecipeCardModule.vue')['default']
+    ImageTextListModule: typeof import('./src/components/home-modules/ImageTextListModule.vue')['default']
     NutButton: typeof import('nutui-uniapp/components/button/button.vue')['default']
     NutSearchbar: typeof import('nutui-uniapp/components/searchbar/searchbar.vue')['default']
     NutTag: typeof import('nutui-uniapp/components/tag/tag.vue')['default']
+    SearchBarModule: typeof import('./src/components/category-modules/SearchBarModule.vue')['default']
+    SeasonalIngredientCardModule: typeof import('./src/components/home-modules/SeasonalIngredientCardModule.vue')['default']
     SectionBlock: typeof import('./src/components/home/section-block.vue')['default']
+    TopNavModule: typeof import('./src/components/category-modules/TopNavModule.vue')['default']
+    TwoColumnRecipeGridModule: typeof import('./src/components/home-modules/TwoColumnRecipeGridModule.vue')['default']
   }
 }

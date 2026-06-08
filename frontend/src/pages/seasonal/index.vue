@@ -16,16 +16,16 @@
 
 .placeholder-title {
   display: block;
-  color: #2f2f2f;
-  font-size: 40rpx;
-  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .placeholder-desc {
   display: block;
   margin-top: 16rpx;
-  color: #8c8c8c;
-  font-size: 26rpx;
-  line-height: 40rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 </style>

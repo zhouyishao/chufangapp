@@ -113,8 +113,8 @@ const openRecipe = (recipeId: string) => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -143,15 +143,15 @@ const openRecipe = (recipeId: string) => {
 
 .eyebrow {
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .page-title {
   margin-top: 4rpx;
   color: var(--app-text);
-  font-size: 42rpx;
-  font-weight: 600;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
 }
 
 .studio-card {
@@ -167,22 +167,22 @@ const openRecipe = (recipeId: string) => {
 
 .studio-card__label {
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .studio-card__title {
   margin-top: 10rpx;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 600;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .studio-card__desc {
   margin-top: 12rpx;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .studio-mark {
@@ -194,9 +194,9 @@ const openRecipe = (recipeId: string) => {
   flex: 0 0 auto;
   border-radius: 28rpx;
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 24rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .stats-card {
@@ -213,14 +213,14 @@ const openRecipe = (recipeId: string) => {
 
 .stat-value {
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 600;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .stat-label {
   margin-top: 6rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .stat-divider {
@@ -267,17 +267,17 @@ const openRecipe = (recipeId: string) => {
   min-width: 0;
   flex: 1;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .status-pill {
   padding: 7rpx 12rpx;
   border-radius: var(--app-radius-button);
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 20rpx;
-  font-weight: 500;
+  color: var(--text-white);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .status-pill.is-draft {
@@ -288,8 +288,8 @@ const openRecipe = (recipeId: string) => {
 .recipe-desc {
   margin-top: 12rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.5;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .recipe-meta {
@@ -298,7 +298,7 @@ const openRecipe = (recipeId: string) => {
   gap: 12rpx;
   margin-top: 14rpx;
   color: var(--app-text-tertiary);
-  font-size: 21rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .empty-tip {
@@ -308,14 +308,14 @@ const openRecipe = (recipeId: string) => {
 
 .empty-tip__title {
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
 }
 
 .empty-tip__desc {
   margin-top: 10rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 </style>

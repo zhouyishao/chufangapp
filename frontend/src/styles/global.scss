@@ -1,15 +1,53 @@
 :root,
 page {
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+
+  --font-size-hero: 28px;
+  --font-size-page-title: 24px;
+  --font-size-detail-title: 22px;
+  --font-size-section-title: 18px;
+  --font-size-card-title: 17px;
+  --font-size-list-title: 16px;
+  --font-size-body: 15px;
+  --font-size-body-sm: 14px;
+  --font-size-caption: 13px;
+  --font-size-tag: 12px;
+  --font-size-tabbar: 11px;
+
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+
+  --line-hero: 36px;
+  --line-page-title: 32px;
+  --line-detail-title: 30px;
+  --line-section-title: 26px;
+  --line-card-title: 24px;
+  --line-list-title: 24px;
+  --line-body: 24px;
+  --line-body-sm: 22px;
+  --line-caption: 20px;
+  --line-tag: 18px;
+  --line-tabbar: 14px;
+
+  --text-primary: #2F2F2F;
+  --text-secondary: #4A4A4A;
+  --text-tertiary: #7A746B;
+  --text-placeholder: #B7AEA1;
+  --text-brand: #7A8B6F;
+  --text-white: #FFFDFC;
+  --text-warm: #D98A4A;
+
   --app-bg: #f5f1ea;
   --app-surface: rgba(255, 253, 252, 0.92);
   --app-surface-strong: #fffdfc;
-  --app-text: #2f2f2f;
-  --app-text-secondary: #b7aea1;
+  --app-text: var(--text-primary);
+  --app-text-secondary: var(--text-placeholder);
   --app-text-tertiary: rgba(183, 174, 161, 0.72);
   --app-border: #e9e2d6;
-  --app-primary: #7a8b6f;
-  --app-accent: #7a8b6f;
-  --app-accent-warm: #c27b48;
+  --app-primary: var(--text-brand);
+  --app-accent: var(--text-brand);
+  --app-accent-warm: var(--text-warm);
   --app-accent-gold: #e2c48a;
   --app-accent-fresh: #a8b48a;
   --app-accent-soft: #e9e2d6;
@@ -24,17 +62,17 @@ page {
   --app-radius-button: 28rpx;
   --app-radius-input: 32rpx;
 
-  /* Font stacks (bundled via @fontsource in src/main.ts) */
-  --app-font-sans: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
-  --app-font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
-  --app-font-number: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
-  --app-font-vibe: 'LXGW WenKai', 'Noto Serif SC', serif;
+  --app-font-sans: var(--font-system);
+  --app-font-serif: var(--font-system);
+  --app-font-number: var(--font-system);
+  --app-font-vibe: var(--font-system);
 }
 
 page {
   color: var(--app-text);
-  font-size: 28rpx;
-  line-height: 1.7;
+  font-family: var(--font-system);
+  font-size: var(--font-size-body);
+  line-height: var(--line-body);
 }
 
 view,
@@ -59,7 +97,7 @@ button {
 }
 
 button[disabled] {
-  color: #fffdfc;
+  color: var(--text-white);
   opacity: 0.54;
 }
 
@@ -97,14 +135,74 @@ textarea::placeholder {
 .page-title,
 .hero-title,
 .title {
-  font-family: var(--app-font-serif);
-  font-weight: 600;
+  font-family: var(--font-system);
+  font-weight: var(--font-semibold);
   letter-spacing: 0;
 }
 
+.hero-title {
+  font-size: var(--font-size-hero);
+  line-height: var(--line-hero);
+}
+
+.page-title,
+.title {
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-page-title);
+}
+
 .section-title {
-  font-family: var(--app-font-sans);
-  font-weight: 500;
+  font-family: var(--font-system);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+}
+
+.card-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-card-title);
+}
+
+.list-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
+  line-height: var(--line-list-title);
+}
+
+.body-text {
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body);
+}
+
+.body-sm {
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body-sm);
+}
+
+.caption-text {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-regular);
+  line-height: var(--line-caption);
+}
+
+.tag-text {
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tag);
+}
+
+.tabbar-text {
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tabbar);
 }
 
 .eyebrow,

@@ -528,17 +528,17 @@ onShow(() => {
   max-width: 620rpx;
   overflow: hidden;
   color: var(--app-text);
-  font-size: 48rpx;
-  font-weight: 600;
-  line-height: 1.14;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-page-title);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .family-selector__arrow {
   color: var(--app-text-secondary);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
   transition: transform 160ms ease;
 }
 
@@ -591,18 +591,18 @@ onShow(() => {
 
 .family-option__name {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .family-option.is-active .family-option__name,
 .family-option__check {
-  color: #7a8b6f;
+  color: var(--text-brand);
 }
 
 .family-option__check {
-  font-size: 36rpx;
-  font-weight: 600;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .family-sheet__divider {
@@ -622,13 +622,13 @@ onShow(() => {
 
 .family-manage-row__name {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .family-manage-row__icon {
   color: var(--app-text-secondary);
-  font-size: 38rpx;
+  font-size: var(--font-size-section-title);
 }
 
 .status-card {
@@ -659,16 +659,16 @@ onShow(() => {
 .status-label {
   display: block;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .status-value {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text);
-  font-size: 48rpx;
-  font-weight: 500;
-  line-height: 1;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tabbar);
 }
 
 .status-note {
@@ -679,7 +679,7 @@ onShow(() => {
   gap: 8rpx;
   align-items: flex-end;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .basket-board {
@@ -706,15 +706,15 @@ onShow(() => {
 
 .board-title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .board-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.45;
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-body-sm);
 }
 
 .mode-switch {
@@ -735,13 +735,13 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .mode-button.is-active {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
   box-shadow: 0 14rpx 30rpx rgba(47, 47, 47, 0.12);
 }
 
@@ -787,22 +787,22 @@ onShow(() => {
 .recipe-title {
   display: block;
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 500;
-  line-height: 1.35;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
+  line-height: var(--line-caption);
 }
 
 .recipe-subtitle {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .recipe-arrow {
   color: var(--app-text);
-  font-size: 50rpx;
-  line-height: 1;
+  font-size: var(--font-size-hero);
+  line-height: var(--line-tabbar);
   transition: transform 0.2s ease;
 }
 
@@ -859,9 +859,9 @@ onShow(() => {
   height: 34rpx;
   border: 1rpx solid rgba(122, 139, 111, 0.2);
   border-radius: 50%;
-  color: #fffdfc;
-  font-size: 20rpx;
-  font-weight: 700;
+  color: var(--text-white);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .check.is-checked {
@@ -872,15 +872,15 @@ onShow(() => {
 .ingredient-name {
   overflow: hidden;
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 650;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ingredient-amount {
   color: var(--app-text-secondary);
-  font-size: 27rpx;
+  font-size: var(--font-size-body-sm);
   text-align: left;
 }
 
@@ -902,9 +902,9 @@ onShow(() => {
   height: 58rpx;
   border-radius: var(--app-radius-button);
   background: #e5735f;
-  color: #fffdfc;
-  font-size: 24rpx;
-  font-weight: 700;
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-remove {
@@ -934,13 +934,13 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 23rpx;
-  font-weight: 750;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .dock-button.is-primary {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .empty-card {
@@ -1029,16 +1029,16 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
-  font-size: 21rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .empty-title {
   position: relative;
   z-index: 1;
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 500;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
 }
 
 .empty-desc {
@@ -1046,8 +1046,8 @@ onShow(() => {
   z-index: 1;
   max-width: 460rpx;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .empty-actions {
@@ -1066,13 +1066,13 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: var(--app-accent-soft);
   color: var(--app-text);
-  font-size: 24rpx;
-  font-weight: 750;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .empty-button.is-primary {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .empty-button::after {
@@ -1116,21 +1116,21 @@ onShow(() => {
 
 .price-panel__title {
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 600;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .price-panel__desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.5;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .price-panel__close {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
-  line-height: 1;
+  font-size: var(--font-size-detail-title);
+  line-height: var(--line-tabbar);
 }
 
 .price-list {
@@ -1152,8 +1152,8 @@ onShow(() => {
 
 .price-row__name {
   color: var(--app-text);
-  font-size: 27rpx;
-  font-weight: 500;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
 }
 
 .price-row__field {
@@ -1168,16 +1168,16 @@ onShow(() => {
 .price-row__prefix,
 .price-row__unit {
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .price-input {
   min-width: 0;
   flex: 1;
   color: var(--app-text);
-  font-size: 25rpx;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
 }
 
 .save-price-button {
@@ -1187,9 +1187,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #fffdfc;
-  font-size: 27rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .save-price-button::after {

@@ -1,0 +1,116 @@
+- generic [ref=e7]:
+  - generic [ref=e8]:
+    - img [ref=e11]
+    - generic [ref=e13]:
+      - generic [ref=e14]: 9:41
+      - generic [ref=e15]: ▮▮▮ WiFi 100
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - generic [ref=e22]:
+          - generic: 搜索菜谱、食材、做法
+          - searchbox [ref=e24]
+      - img [ref=e26] [cursor=pointer]
+    - generic [ref=e31]:
+      - generic [ref=e33] [cursor=pointer]: 推荐
+      - generic [ref=e35] [cursor=pointer]: 今日吃什么
+      - generic [ref=e37] [cursor=pointer]: 时令食材
+      - generic [ref=e39] [cursor=pointer]: 家庭菜谱
+    - generic [ref=e40]:
+      - generic [ref=e41]: 番茄牛腩
+      - generic [ref=e42]: 酸甜开胃，适合一家人的晚餐...
+      - generic [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: 去看看
+        - img [ref=e46]
+  - generic [ref=e54]:
+    - generic [ref=e55]:
+      - generic [ref=e56]: 为你推荐
+      - generic [ref=e57] [cursor=pointer]: 更多 〉
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - img [ref=e66]
+        - img [ref=e68] [cursor=pointer]
+        - generic [ref=e70]:
+          - generic [ref=e71]: 番茄牛腩
+          - generic [ref=e72]: 25分钟 · 2人
+          - generic [ref=e73]:
+            - generic [ref=e75]: 家常菜
+            - generic [ref=e77]: 家常菜
+      - generic [ref=e78]:
+        - img [ref=e81]
+        - img [ref=e83] [cursor=pointer]
+        - generic [ref=e85]:
+          - generic [ref=e86]: 芦笋虾仁
+          - generic [ref=e87]: 15分钟 · 约 260 kcal
+          - generic [ref=e88]:
+            - generic [ref=e90]: 清爽快手
+            - generic [ref=e92]: 简单
+      - generic [ref=e93]:
+        - img [ref=e96]
+        - img [ref=e98] [cursor=pointer]
+        - generic [ref=e100]:
+          - generic [ref=e101]: 番茄牛腩
+          - generic [ref=e102]: 60分钟 · 约 520 kcal
+          - generic [ref=e103]:
+            - generic [ref=e105]: 家庭主菜
+            - generic [ref=e107]: 中等
+      - generic [ref=e108]:
+        - img [ref=e111]
+        - img [ref=e113] [cursor=pointer]
+        - generic [ref=e115]:
+          - generic [ref=e116]: 菌菇豆腐汤
+          - generic [ref=e117]: 25分钟 · 约 180 kcal
+          - generic [ref=e118]:
+            - generic [ref=e120]: 轻负担
+            - generic [ref=e122]: 简单
+    - generic [ref=e123]:
+      - generic [ref=e124]:
+        - generic [ref=e125]: 时令食材
+        - generic [ref=e126]: 6月的时令食材，新鲜营养更美味
+      - generic [ref=e127] [cursor=pointer]: 更多 〉
+    - generic [ref=e132]:
+      - generic [ref=e133]:
+        - img [ref=e136]
+        - generic [ref=e137]: 番茄
+        - generic [ref=e138]: 时令：6
+      - generic [ref=e139]:
+        - img [ref=e142]
+        - generic [ref=e143]: 虾仁
+        - generic [ref=e144]: 时令：5月
+      - generic [ref=e145]:
+        - img [ref=e148]
+        - generic [ref=e149]: 三文鱼
+        - generic [ref=e150]: 时令：5月
+      - generic [ref=e151]:
+        - img [ref=e154]
+        - generic [ref=e155]: 芦笋
+        - generic [ref=e156]: 时令：5月
+      - generic [ref=e157]:
+        - img [ref=e160]
+        - generic [ref=e161]: 番茄
+        - generic [ref=e162]: 时令：6-8月
+      - generic [ref=e163]:
+        - img [ref=e166]
+        - generic [ref=e167]: 草莓
+        - generic [ref=e168]: 时令：5月
+      - generic [ref=e169]:
+        - img [ref=e172]
+        - generic [ref=e173]: 苹果
+        - generic [ref=e174]: 时令：6-8月
+      - generic [ref=e175]:
+        - img [ref=e178]
+        - generic [ref=e179]: 牛肉
+        - generic [ref=e180]: 时令：5月
+  - generic [ref=e181]:
+    - generic [ref=e182] [cursor=pointer]:
+      - img [ref=e184]
+      - generic [ref=e187]: 首页
+    - generic [ref=e188] [cursor=pointer]:
+      - img [ref=e190]
+      - generic [ref=e192]: 食材
+    - generic [ref=e193] [cursor=pointer]:
+      - img [ref=e195]
+      - generic [ref=e199]: 菜篮子
+    - generic [ref=e200] [cursor=pointer]:
+      - img [ref=e202]
+      - generic [ref=e205]: 我的

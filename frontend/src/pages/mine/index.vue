@@ -355,33 +355,33 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
-  font-size: 23rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
   box-shadow: 0 14rpx 34rpx rgba(0, 0, 0, 0.04);
 }
 
 .profile__edit--dark {
   background: #7a8b6f;
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .profile__name {
   display: block;
   margin-top: 42rpx;
   color: var(--app-text);
-  font-size: 48rpx;
-  font-weight: 600;
-  line-height: 1.12;
-  letter-spacing: -1rpx;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-page-title);
+  letter-spacing: 0;
 }
 
 .profile__desc {
   display: block;
   margin-top: 14rpx;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  font-weight: 700;
-  line-height: 1.42;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body-sm);
 }
 
 .family-module {
@@ -444,9 +444,9 @@ onShow(() => {
   justify-content: center;
   padding: 0;
   color: var(--app-text-secondary);
-  font-size: 42rpx;
-  font-weight: 700;
-  line-height: 1;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-tabbar);
 }
 
 .profile-actions {
@@ -511,23 +511,23 @@ onShow(() => {
 
 .profile-action__value {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
-  line-height: 1;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-tabbar);
 }
 
 .profile-action__label {
   margin-top: 10rpx;
   color: var(--app-text-secondary);
-  font-size: 19rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .family-card__name {
   display: inline-block;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 600;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .family-summary {
@@ -542,8 +542,8 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: rgba(233, 226, 214, 0.72);
   color: var(--app-text-secondary);
-  font-size: 19rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .family-add-button::after,
@@ -577,14 +577,14 @@ onShow(() => {
 
 .settings-title {
   color: var(--app-text);
-  font-size: 27rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .settings-desc {
   margin-top: 6rpx;
   color: var(--app-text-secondary);
-  font-size: 21rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .logout-button {
@@ -594,9 +594,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: rgba(229, 115, 95, 0.12);
-  color: #e5735f;
-  font-size: 26rpx;
-  font-weight: 600;
+  color: var(--app-danger);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .join-mask {
@@ -631,21 +631,21 @@ onShow(() => {
 .join-panel__title {
   display: block;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 500;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-medium);
 }
 
 .join-panel__subtitle {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
+  font-size: var(--font-size-tag);
 }
 
 .join-panel__close {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
-  line-height: 1;
+  font-size: var(--font-size-detail-title);
+  line-height: var(--line-tabbar);
 }
 
 .join-tabs {
@@ -665,13 +665,13 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .join-tab.is-active {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .join-section {
@@ -682,8 +682,8 @@ onShow(() => {
   display: block;
   margin-bottom: 12rpx;
   color: var(--app-text);
-  font-size: 24rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .field-label--spaced {
@@ -708,9 +708,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 23rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .family-invite-card {
@@ -728,14 +728,14 @@ onShow(() => {
 
 .family-invite-title {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .family-invite-desc {
   margin-top: 6rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .family-invite-body {
@@ -770,8 +770,8 @@ onShow(() => {
 .family-link {
   overflow: hidden;
   color: var(--app-text-secondary);
-  font-size: 21rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -781,8 +781,8 @@ onShow(() => {
   height: 58rpx;
   border: 0;
   border-radius: var(--app-radius-button);
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .family-link-button {
@@ -796,7 +796,7 @@ onShow(() => {
   width: 100%;
   margin-top: 16rpx;
   background: #7a8b6f;
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .invite-input {
@@ -807,7 +807,7 @@ onShow(() => {
   border-radius: 24rpx;
   background: rgba(255, 253, 252, 0.82);
   color: var(--app-text);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .panel-primary-button {
@@ -817,9 +817,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #fffdfc;
-  font-size: 26rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .member-list {
@@ -853,15 +853,15 @@ onShow(() => {
 .member-name {
   display: block;
   color: var(--app-text);
-  font-size: 27rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .member-role {
   flex: 0 0 auto;
   color: var(--app-text-secondary);
-  font-size: 21rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .member-note-input {
@@ -872,7 +872,7 @@ onShow(() => {
   border: 0;
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .member-remove-button {
@@ -882,9 +882,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: rgba(229, 115, 95, 0.12);
-  color: #e5735f;
-  font-size: 21rpx;
-  font-weight: 500;
+  color: var(--app-danger);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .invite-preview {
@@ -897,23 +897,23 @@ onShow(() => {
 .invite-preview__name {
   display: block;
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 700;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .invite-preview__code {
   display: block;
   margin-top: 6rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .join-help {
   display: block;
   margin: 18rpx 0;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .qr-box {
@@ -969,8 +969,8 @@ onShow(() => {
   border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 25rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .background-slider-row {
@@ -980,8 +980,8 @@ onShow(() => {
   gap: 10rpx;
   margin-top: 22rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .qr-dot:nth-child(2),
@@ -1015,15 +1015,15 @@ onShow(() => {
   display: block;
   margin-top: 20rpx;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 600;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .guest-desc {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
+  font-size: var(--font-size-tag);
 }
 
 .guest-login-button {
@@ -1033,9 +1033,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #fffdfc;
-  font-size: 26rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .guest-actions {
@@ -1056,12 +1056,12 @@ onShow(() => {
 }
 
 .guest-action__icon {
-  font-size: 36rpx;
+  font-size: var(--font-size-section-title);
 }
 
 .guest-action__label {
   color: var(--app-text-secondary);
-  font-size: 20rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .guest-settings {
@@ -1076,11 +1076,11 @@ onShow(() => {
   padding: 24rpx 0;
   border-bottom: 1rpx solid var(--app-border);
   color: var(--app-text);
-  font-size: 26rpx;
+  font-size: var(--font-size-caption);
 }
 
 .guest-arrow {
   color: var(--app-text-tertiary);
-  font-size: 32rpx;
+  font-size: var(--font-size-list-title);
 }
 </style>

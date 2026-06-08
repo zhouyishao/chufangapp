@@ -165,15 +165,15 @@ const resetPassword = async () => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 500;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .top-title {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
   text-align: center;
 }
 
@@ -197,23 +197,23 @@ const resetPassword = async () => {
 
 .step-label {
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .title {
   margin-top: 14rpx;
   color: var(--app-text);
-  font-size: 44rpx;
-  font-weight: 600;
-  line-height: 1.24;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-detail-title);
 }
 
 .desc {
   margin-top: 14rpx;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .field,
@@ -224,8 +224,8 @@ const resetPassword = async () => {
 .field-label {
   margin-bottom: 12rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .input {
@@ -234,7 +234,7 @@ const resetPassword = async () => {
   border-radius: 28rpx;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 27rpx;
+  font-size: var(--font-size-body-sm);
 }
 
 .primary-button {
@@ -244,14 +244,14 @@ const resetPassword = async () => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #fffdfc;
-  font-size: 28rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .phone-tip {
   color: var(--app-text-secondary);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .code-input {
@@ -261,8 +261,8 @@ const resetPassword = async () => {
   border-radius: 32rpx;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 48rpx;
-  font-weight: 600;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
   letter-spacing: 12rpx;
   text-align: center;
 }
@@ -270,7 +270,7 @@ const resetPassword = async () => {
 .code-help {
   margin-top: 16rpx;
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
   text-align: center;
 }
 </style>

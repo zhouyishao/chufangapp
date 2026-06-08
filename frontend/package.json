@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "unh dev",
-    "dev:h5": "uni dev -p h5",
+    "dev:h5": "uni dev -p h5 --port 5175",
     "build": "unh build",
     "about": "unh info",
     "type-check": "vue-tsc --noEmit"

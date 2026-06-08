@@ -637,7 +637,7 @@ onShow(() => {
 
 .favorite-button.is-collected {
   background: rgba(229, 115, 95, 0.12);
-  color: #e5735f;
+  color: var(--app-danger);
 }
 
 .header-overlay.is-solid .back-button,
@@ -662,15 +662,15 @@ onShow(() => {
 
 .back-icon {
   color: var(--app-text);
-  font-size: 36rpx;
-  font-weight: 600;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .header-title {
   overflow: hidden;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 700;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
   opacity: 0;
   text-align: center;
   text-overflow: ellipsis;
@@ -696,13 +696,13 @@ onShow(() => {
 
 .remote-banner__text {
   color: var(--app-text-secondary);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .remote-banner__error {
-  color: #dc2626;
-  font-size: 24rpx;
-  line-height: 1.4;
+  color: var(--app-danger);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-caption);
 }
 
 .remote-banner__retry {
@@ -712,7 +712,7 @@ onShow(() => {
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 253, 252, 0.9);
   color: var(--app-text);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .recipe-header {
@@ -739,15 +739,15 @@ onShow(() => {
 
 .recipe-name {
   color: var(--app-text);
-  font-size: 40rpx;
-  font-weight: 600;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-subtitle {
   display: block;
   margin-bottom: 24rpx;
   color: var(--app-text-secondary);
-  font-size: 26rpx;
+  font-size: var(--font-size-caption);
 }
 
 .recipe-meta {
@@ -764,13 +764,13 @@ onShow(() => {
 
 .meta-label {
   color: var(--app-text-tertiary);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .meta-value {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 500;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
 }
 
 .ingredients-section,
@@ -811,23 +811,23 @@ onShow(() => {
 
 .beverage-name {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .beverage-meta,
 .beverage-reason {
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.45;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .section-title {
   display: block;
   margin-bottom: 24rpx;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .section-header {
@@ -854,9 +854,9 @@ onShow(() => {
   border: 1rpx solid #e5735f;
   border-radius: var(--app-radius-button);
   background: #fffdfc;
-  color: #e5735f;
-  font-size: 24rpx;
-  font-weight: 500;
+  color: var(--app-danger);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .section-basket-button::after {
@@ -904,12 +904,12 @@ onShow(() => {
 
 .ingredient-name {
   color: var(--app-text);
-  font-size: 28rpx;
+  font-size: var(--font-size-body-sm);
 }
 
 .ingredient-note {
   color: var(--app-text-tertiary);
-  font-size: 21rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .ingredient-side {
@@ -921,7 +921,7 @@ onShow(() => {
 
 .ingredient-amount {
   color: var(--app-text-secondary);
-  font-size: 26rpx;
+  font-size: var(--font-size-caption);
 }
 
 .ingredient-basket {
@@ -966,8 +966,8 @@ onShow(() => {
   border-radius: 50%;
   background: var(--app-accent-soft);
   color: var(--app-accent);
-  font-size: 24rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .step-content {
@@ -979,8 +979,8 @@ onShow(() => {
 
 .step-text {
   color: var(--app-text);
-  font-size: 28rpx;
-  line-height: 1.8;
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-body);
 }
 
 .step-image {
@@ -1001,8 +1001,8 @@ onShow(() => {
   border-radius: 12rpx;
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .bottom-actions {
@@ -1038,21 +1038,21 @@ onShow(() => {
 .guide-title {
   display: block;
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .guide-subtitle {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .guide-close {
   color: var(--app-text-tertiary);
-  font-size: 36rpx;
-  line-height: 1;
+  font-size: var(--font-size-section-title);
+  line-height: var(--line-tabbar);
 }
 
 .guide-image {
@@ -1085,7 +1085,7 @@ onShow(() => {
 
 .guide-text {
   color: var(--app-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.7;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body);
 }
 </style>

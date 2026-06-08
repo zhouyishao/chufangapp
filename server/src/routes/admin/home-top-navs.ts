@@ -8,13 +8,16 @@ import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
 
 const navStatusValues = ['draft', 'online', 'offline'] as const;
-const navTypeValues = ['system_recommend', 'recipe_category', 'recipe_tag', 'topic', 'recommend_pool'] as const;
+const navTypeValues = ['system_recommend', 'recipe_category', 'recipe_tag', 'topic', 'recommend_pool', 'content_type'] as const;
+const displayPositions = ['home_top', 'category_top'] as const;
+const navContentTypes = ['recipe', 'ingredient', 'fruit', 'seasoning', 'beverage'] as const;
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   keyword: z.string().trim().optional(),
-  status: z.enum(navStatusValues).optional()
+  status: z.enum(navStatusValues).optional(),
+  displayPosition: z.enum(displayPositions).optional()
 });
 
 const relationSchema = z.object({
@@ -51,7 +54,8 @@ const upsertSchema = z.object({
   name: z.string().trim().min(2).max(8),
   alias: z.string().trim().max(64).nullable().optional(),
   navType: z.enum(navTypeValues).default('recipe_category'),
-  displayPosition: z.string().trim().max(32).default('home_top'),
+  contentType: z.enum(navContentTypes).nullable().optional(),
+  displayPosition: z.enum(displayPositions).default('home_top'),
   iconUrl: z.string().trim().max(255).nullable().optional(),
   sortOrder: z.coerce.number().int().min(1).max(999).default(1),
   status: z.enum(navStatusValues).default('draft'),
@@ -96,7 +100,8 @@ const navTypeText: Record<string, string> = {
   recipe_category: '菜谱分类',
   recipe_tag: '菜谱标签',
   topic: '专题',
-  recommend_pool: '推荐池'
+  recommend_pool: '推荐池',
+  content_type: '内容类型'
 };
 
 const statusText: Record<string, string> = {
@@ -105,12 +110,27 @@ const statusText: Record<string, string> = {
   offline: '已下线'
 };
 
+const displayPositionLabel: Record<string, string> = {
+  home_top: '首页',
+  category_top: '分类页'
+};
+
+const contentTypeLabelMap: Record<string, string> = {
+  recipe: '菜谱',
+  ingredient: '食材',
+  fruit: '水果',
+  seasoning: '调料',
+  beverage: '酒水'
+};
+
 const serializeNav = <T extends {
   id: number;
   bizId?: string | null;
   code?: string | null;
   navType: string;
   status: string;
+  contentType?: string | null;
+  displayPosition: string;
   relations?: Array<{ relationType: string; relationId: string; relationName: string | null }>;
   style?: unknown;
   contentRule?: unknown;
@@ -120,6 +140,8 @@ const serializeNav = <T extends {
   id: getPublicId('top_nav', item),
   code: getPublicCode('top_nav', item),
   navTypeText: navTypeText[item.navType] ?? item.navType,
+  contentTypeLabel: item.contentType ? (contentTypeLabelMap[item.contentType] ?? item.contentType) : null,
+  displayPositionLabel: displayPositionLabel[item.displayPosition] ?? item.displayPosition,
   relationName: item.relations?.[0]?.relationName ?? '-',
   statusText: statusText[item.status] ?? item.status
 });
@@ -175,12 +197,13 @@ adminHomeTopNavsRouter.get('/summary', requireAdminAuth, async (_req, res) => {
 adminHomeTopNavsRouter.get('/', requireAdminAuth, async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { page, pageSize, keyword, status } = parsed.data;
+  const { page, pageSize, keyword, status, displayPosition } = parsed.data;
   const skip = (page - 1) * pageSize;
   const where = {
     deletedAt: null,
     isDeleted: false,
     ...(status ? { status } : {}),
+    ...(displayPosition ? { displayPosition } : {}),
     ...(keyword ? { name: { contains: keyword, mode: 'insensitive' as const } } : {})
   };
   const [list, total] = await Promise.all([
@@ -201,7 +224,7 @@ adminHomeTopNavsRouter.post('/', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   await validateDefault(parsed.data);
-  if (parsed.data.status === 'online' && parsed.data.relations.length === 0) throw new HttpError('请先选择关联内容', 422, 422);
+  if (parsed.data.status === 'online' && parsed.data.navType !== 'content_type' && parsed.data.relations.length === 0) throw new HttpError('请先选择关联内容', 422, 422);
   const codes = await prisma.homeTopNav.findMany({ select: { code: true } });
   const created = await prisma.$transaction(async (tx) => {
     if (parsed.data.isDefault) await tx.homeTopNav.updateMany({ where: { displayPosition: parsed.data.displayPosition, deletedAt: null }, data: { isDefault: false } });
@@ -212,6 +235,7 @@ adminHomeTopNavsRouter.post('/', requireAdminAuth, async (req, res) => {
         name: parsed.data.name,
         alias: parsed.data.alias ?? null,
         navType: parsed.data.navType,
+        contentType: parsed.data.contentType ?? null,
         displayPosition: parsed.data.displayPosition,
         iconUrl: parsed.data.iconUrl ?? null,
         sortOrder: parsed.data.sortOrder,
@@ -236,7 +260,7 @@ adminHomeTopNavsRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   await validateDefault(parsed.data, existing.id);
-  if (parsed.data.status === 'online' && parsed.data.relations.length === 0) throw new HttpError('请先选择关联内容', 422, 422);
+  if (parsed.data.status === 'online' && parsed.data.navType !== 'content_type' && parsed.data.relations.length === 0) throw new HttpError('请先选择关联内容', 422, 422);
   const updated = await prisma.$transaction(async (tx) => {
     if (parsed.data.isDefault) await tx.homeTopNav.updateMany({ where: { displayPosition: parsed.data.displayPosition, deletedAt: null, id: { not: existing.id } }, data: { isDefault: false } });
     await tx.homeTopNav.update({
@@ -245,6 +269,7 @@ adminHomeTopNavsRouter.put('/:id', requireAdminAuth, async (req, res) => {
         name: parsed.data.name,
         alias: parsed.data.alias ?? null,
         navType: parsed.data.navType,
+        contentType: parsed.data.contentType ?? null,
         displayPosition: parsed.data.displayPosition,
         iconUrl: parsed.data.iconUrl ?? null,
         sortOrder: parsed.data.sortOrder,

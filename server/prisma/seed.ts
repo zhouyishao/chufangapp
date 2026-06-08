@@ -71,20 +71,35 @@ const main = async () => {
     update: {}
   });
 
-  const ingredientCategory = await ensureCategory('INGREDIENT', '应季食材', 100);
+  const ingredientCategory = await ensureCategory('INGREDIENT', '蔬菜', 100);
   const recipeCategory = await ensureCategory('RECIPE', '家常菜', 100);
 
-  const recipeCategories = ['快手菜', '早餐', '午餐', '晚餐', '汤羹', '凉菜', '主食', '下饭菜', '宴客菜', '减脂餐', '儿童餐', '老人餐', '烘焙'];
-  for (const [index, name] of recipeCategories.entries()) await ensureCategory('RECIPE', name, 95 - index);
-  const ingredientCategories = ['时令蔬菜', '肉禽蛋', '水产海鲜', '豆制品', '菌菇类', '水果', '主食米面', '调味料', '干货', '奶制品', '酒水饮品'];
-  for (const [index, name] of ingredientCategories.entries()) await ensureCategory('INGREDIENT', name, 95 - index);
-  await ensureCategory('INGREDIENT', '蔬菜', 90);
-  await ensureCategory('INGREDIENT', '生禽', 86);
-  await ensureCategory('INGREDIENT', '水产', 84);
-  await ensureCategory('INGREDIENT', '调料', 82);
-  await ensureCategory('SEASONING', '基础调料', 80);
-  await ensureCategory('FRUIT', '时令水果', 80);
-  const beverageCategory = await ensureCategory('BEVERAGE', '酒水饮品', 100);
+  // ====== 分类页默认分类数据 ======
+  // 菜谱分类
+  const recipeCategoryNames = ['家常菜', '快手菜', '下饭菜', '汤羹', '早餐', '宴客菜'];
+  for (const [index, name] of recipeCategoryNames.entries()) await ensureCategory('RECIPE', name, 100 - index);
+
+  // 食材分类
+  const ingredientCategoryNames = ['蔬菜', '肉禽蛋', '水产海鲜', '豆制品', '主食米面', '干货菌菇', '半成品'];
+  for (const [index, name] of ingredientCategoryNames.entries()) await ensureCategory('INGREDIENT', name, 100 - index);
+
+  // 水果分类
+  const fruitCategoryNames = ['时令水果', '热带水果', '柑橘类', '浆果类', '瓜果类', '核果类', '仁果类'];
+  for (const [index, name] of fruitCategoryNames.entries()) await ensureCategory('FRUIT', name, 100 - index);
+
+  // 调料分类
+  const seasoningCategoryNames = ['基础调味', '酱料', '香辛料', '复合调味', '腌制调料', '烘焙调料'];
+  for (const [index, name] of seasoningCategoryNames.entries()) await ensureCategory('SEASONING', name, 100 - index);
+
+  // 酒水分类
+  const beverageCategoryNames = ['白酒', '啤酒', '葡萄酒', '黄酒米酒', '洋酒', '茶饮', '果汁饮品'];
+  for (const [index, name] of beverageCategoryNames.entries()) await ensureCategory('BEVERAGE', name, 100 - index);
+
+  // 保留旧的通用分类（向后兼容）
+  await ensureCategory('INGREDIENT', '应季食材', 50);
+
+  // 酒水主分类（用于seed后续beverage数据关联）
+  const beverageCategory = await ensureCategory('BEVERAGE', '茶饮', 100);
 
   const ensureTag = async (scope: TagScope, name: string, sort = 0) => {
     return prisma.tag.upsert({
@@ -196,6 +211,48 @@ const main = async () => {
         relationName: item.relationName
       }
     });
+  }
+
+  // ====== 分类页顶部导航默认数据 ======
+  const categoryTopNavSeeds = [
+    { name: '菜谱', contentType: 'recipe', sortOrder: 1, isDefault: false },
+    { name: '食材', contentType: 'ingredient', sortOrder: 2, isDefault: true },
+    { name: '水果', contentType: 'fruit', sortOrder: 3, isDefault: false },
+    { name: '调料', contentType: 'seasoning', sortOrder: 4, isDefault: false },
+    { name: '酒水', contentType: 'beverage', sortOrder: 5, isDefault: false }
+  ];
+  for (const item of categoryTopNavSeeds) {
+    const existing = await prisma.homeTopNav.findFirst({
+      where: { displayPosition: 'category_top', contentType: item.contentType, deletedAt: null }
+    });
+    if (existing) {
+      await prisma.homeTopNav.update({
+        where: { id: existing.id },
+        data: { name: item.name, contentType: item.contentType, sortOrder: item.sortOrder, status: 'online', isDefault: item.isDefault, navType: 'content_type' }
+      });
+    } else {
+      await prisma.homeTopNav.create({
+        data: {
+          ...(await identityFor('top_nav', () => prisma.homeTopNav.findMany({ select: { code: true } }))),
+          name: item.name,
+          navType: 'content_type',
+          contentType: item.contentType,
+          displayPosition: 'category_top',
+          sortOrder: item.sortOrder,
+          status: 'online',
+          isDefault: item.isDefault,
+          isFixed: true,
+          showMoreEntry: false,
+          description: `${item.name}分类页顶部导航`
+        }
+      });
+    }
+    if (item.isDefault) {
+      await prisma.homeTopNav.updateMany({
+        where: { id: { not: existing?.id ?? 0 }, displayPosition: 'category_top', deletedAt: null },
+        data: { isDefault: false }
+      });
+    }
   }
 
   // Look up tags for linking after recipe creation

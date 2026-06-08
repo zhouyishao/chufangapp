@@ -42,7 +42,25 @@ npm install
 npm run dev
 ```
 
+- Admin: `http://127.0.0.1:5174`
 Default API base: `http://localhost:3002/api/admin`
+
+### 4) Start C端 App (H5)
+
+```bash
+cd frontend
+npm run dev:h5
+```
+
+- C端 H5: `http://127.0.0.1:5175`
+
+## Ports
+
+| 服务 | 端口 |
+|------|------|
+| 后端 API | `3002` |
+| 后台管理 | `5174` |
+| C 端 H5 | `5175` |
 
 ## Notes
 

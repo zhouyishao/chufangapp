@@ -112,15 +112,15 @@ const goToForgotPassword = () => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 500;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
 .top-title {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
   text-align: center;
 }
 
@@ -142,15 +142,15 @@ const goToForgotPassword = () => {
 
 .title {
   color: var(--app-text);
-  font-size: 46rpx;
-  font-weight: 600;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
 }
 
 .desc {
   margin-top: 14rpx;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .demo-account {
@@ -161,8 +161,8 @@ const goToForgotPassword = () => {
   border-radius: 24rpx;
   background: #e9e2d6;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .field {
@@ -172,8 +172,8 @@ const goToForgotPassword = () => {
 .field-label {
   margin-bottom: 12rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .input {
@@ -182,7 +182,7 @@ const goToForgotPassword = () => {
   border-radius: 28rpx;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 27rpx;
+  font-size: var(--font-size-body-sm);
 }
 
 .primary-button {
@@ -192,9 +192,9 @@ const goToForgotPassword = () => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #fffdfc;
-  font-size: 28rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .link-row {
@@ -208,7 +208,7 @@ const goToForgotPassword = () => {
   border: 0;
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 </style>

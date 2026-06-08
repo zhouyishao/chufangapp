@@ -81,8 +81,8 @@ onLoad((options) => {
   border-radius: 50%;
   background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 500;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -106,16 +106,16 @@ onLoad((options) => {
 .page-title {
   margin-top: 6rpx;
   color: var(--app-text);
-  font-size: 62rpx;
-  font-weight: 600;
-  letter-spacing: -1rpx;
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0;
 }
 
 .page-subtitle {
   margin-top: 14rpx;
   color: var(--app-text-tertiary);
-  font-size: 24rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .invite-card {
@@ -160,8 +160,8 @@ onLoad((options) => {
   margin-top: 18rpx;
   text-align: center;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .link-card {
@@ -173,8 +173,8 @@ onLoad((options) => {
 
 .link-title {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .link-value {
@@ -183,8 +183,8 @@ onLoad((options) => {
   border-radius: 26rpx;
   background: var(--app-accent-soft);
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.5;
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-body-sm);
   word-break: break-all;
 }
 </style>

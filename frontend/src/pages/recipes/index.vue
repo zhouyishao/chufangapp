@@ -597,14 +597,14 @@ onMounted(() => {
 
 .back-icon {
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 700;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .header-title {
   color: var(--app-text);
-  font-size: 48rpx;
-  font-weight: 600;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
 }
 
 .header-spacer {
@@ -625,13 +625,13 @@ onMounted(() => {
 }
 
 .search-icon {
-  font-size: 32rpx;
+  font-size: var(--font-size-list-title);
   opacity: 0.4;
 }
 
 .search-placeholder {
   color: var(--app-text-tertiary);
-  font-size: 28rpx;
+  font-size: var(--font-size-body-sm);
 }
 
 .content {
@@ -650,14 +650,14 @@ onMounted(() => {
 
 .empty-state__title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .empty-state__desc {
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 36rpx;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
 }
 
 .category-section {
@@ -695,14 +695,14 @@ onMounted(() => {
 
 .category-label {
   color: var(--app-text-secondary);
-  font-size: 27rpx;
-  font-weight: 700;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
   white-space: nowrap;
 }
 
 .category-chip.active .category-label {
   color: var(--app-accent);
-  font-weight: 600;
+  font-weight: var(--font-semibold);
 }
 
 .filter-section {
@@ -725,12 +725,12 @@ onMounted(() => {
 
 .filter-label {
   color: var(--app-text-secondary);
-  font-size: 26rpx;
+  font-size: var(--font-size-caption);
 }
 
 .filter-arrow {
   color: var(--app-text-tertiary);
-  font-size: 20rpx;
+  font-size: var(--font-size-tabbar);
   transition: transform 160ms ease;
 }
 
@@ -760,8 +760,8 @@ onMounted(() => {
   border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .filter-option::after {
@@ -770,7 +770,7 @@ onMounted(() => {
 
 .filter-option.is-active {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .recipes-list {
@@ -787,13 +787,13 @@ onMounted(() => {
 
 .remote-banner__text {
   color: var(--app-text-secondary);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .remote-banner__error {
-  color: #dc2626;
-  font-size: 24rpx;
-  line-height: 1.4;
+  color: var(--app-danger);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-caption);
 }
 
 .remote-banner__retry {
@@ -803,7 +803,7 @@ onMounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 253, 252, 0.9);
   color: var(--app-text);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .recipe-card {
@@ -842,8 +842,8 @@ onMounted(() => {
 .recipe-name {
   flex: 1;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-actions {
@@ -851,13 +851,13 @@ onMounted(() => {
 }
 
 .action-icon {
-  font-size: 36rpx;
+  font-size: var(--font-size-section-title);
 }
 
 .recipe-reason {
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.5;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .recipe-meta {
@@ -872,13 +872,13 @@ onMounted(() => {
 }
 
 .meta-icon {
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
   opacity: 0.6;
 }
 
 .meta-text {
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .recipe-tags {
@@ -926,7 +926,7 @@ onMounted(() => {
 
 .load-more-text {
   color: var(--app-text-tertiary);
-  font-size: 26rpx;
+  font-size: var(--font-size-caption);
 }
 
 </style>

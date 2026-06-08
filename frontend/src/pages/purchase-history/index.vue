@@ -198,23 +198,23 @@ const goBack = () => {
 
 .back-icon {
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 700;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .eyebrow {
   display: block;
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .page-title {
   display: block;
   margin-top: 6rpx;
   color: var(--app-text);
-  font-size: 44rpx;
-  font-weight: 500;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-medium);
 }
 
 .summary-card {
@@ -227,15 +227,15 @@ const goBack = () => {
 .summary-label {
   display: block;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .summary-value {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text);
-  font-size: 44rpx;
-  font-weight: 500;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-medium);
 }
 
 .history-card {
@@ -264,8 +264,8 @@ const goBack = () => {
   display: block;
   margin-bottom: 8rpx;
   color: var(--app-text-tertiary);
-  font-size: 24rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .history-item {
@@ -280,21 +280,21 @@ const goBack = () => {
 .history-date {
   display: block;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-medium);
 }
 
 .history-meta {
   display: block;
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
+  font-size: var(--font-size-tag);
 }
 
 .history-arrow {
   color: var(--app-text);
-  font-size: 44rpx;
-  line-height: 1;
+  font-size: var(--font-size-detail-title);
+  line-height: var(--line-tabbar);
   transition: transform 0.2s ease;
 }
 
@@ -314,13 +314,13 @@ const goBack = () => {
 
 .history-recipes {
   color: var(--app-text);
-  font-size: 24rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .history-items {
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.5;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 </style>

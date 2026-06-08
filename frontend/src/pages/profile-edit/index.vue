@@ -133,8 +133,8 @@ const save = async () => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -154,8 +154,8 @@ const save = async () => {
 
 .page-title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
   text-align: center;
 }
 
@@ -196,17 +196,17 @@ const save = async () => {
   padding: 8rpx 14rpx;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
-  color: #fffdfc;
-  font-size: 20rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .preview-name {
   max-width: 100%;
   color: var(--app-text);
-  font-size: 40rpx;
-  font-weight: 600;
-  line-height: 1.25;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-card-title);
   text-align: center;
 }
 
@@ -214,8 +214,8 @@ const save = async () => {
   max-width: 520rpx;
   margin-top: 12rpx;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.45;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
   text-align: center;
 }
 
@@ -244,15 +244,15 @@ const save = async () => {
 
 .field-label {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .field-count {
   flex-shrink: 0;
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .text-input {
@@ -264,8 +264,8 @@ const save = async () => {
   border-radius: 28rpx;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 27rpx;
-  font-weight: 500;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
 }
 
 .text-area {
@@ -277,9 +277,9 @@ const save = async () => {
   border-radius: 28rpx;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 27rpx;
-  font-weight: 700;
-  line-height: 1.6;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body-sm);
 }
 
 .actions {
@@ -302,10 +302,10 @@ const save = async () => {
   height: 84rpx;
   border: 0;
   border-radius: var(--app-radius-button);
-  font-size: 27rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .primary-button::after {

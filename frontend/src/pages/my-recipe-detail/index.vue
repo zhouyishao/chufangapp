@@ -139,8 +139,8 @@ onLoad((query?: Record<string, string | undefined>) => {
   border-radius: var(--app-radius-button);
   background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
   backdrop-filter: blur(14rpx);
 }
 
@@ -189,9 +189,9 @@ onLoad((query?: Record<string, string | undefined>) => {
 
 .recipe-name {
   color: var(--app-text);
-  font-size: 42rpx;
-  font-weight: 600;
-  line-height: 1.15;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-detail-title);
 }
 
 .status-pill {
@@ -199,9 +199,9 @@ onLoad((query?: Record<string, string | undefined>) => {
   padding: 10rpx 16rpx;
   border-radius: var(--app-radius-button);
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 21rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .status-pill.is-draft {
@@ -212,8 +212,8 @@ onLoad((query?: Record<string, string | undefined>) => {
 .recipe-desc {
   margin-top: 16rpx;
   color: var(--app-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .meta-grid {
@@ -231,27 +231,27 @@ onLoad((query?: Record<string, string | undefined>) => {
 
 .meta-label {
   color: var(--app-text-tertiary);
-  font-size: 20rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .meta-value {
   margin-top: 8rpx;
   color: var(--app-text);
-  font-size: 25rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .section-title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .section-note {
   color: var(--app-text-tertiary);
-  font-size: 23rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .ingredient-list {
@@ -276,14 +276,14 @@ onLoad((query?: Record<string, string | undefined>) => {
 
 .ingredient-name {
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .ingredient-amount {
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
 }
 
 .step-list {
@@ -310,9 +310,9 @@ onLoad((query?: Record<string, string | undefined>) => {
   flex: 0 0 auto;
   border-radius: 50%;
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 24rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .step-main {
@@ -322,22 +322,22 @@ onLoad((query?: Record<string, string | undefined>) => {
 
 .step-title {
   color: var(--app-text);
-  font-size: 27rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .step-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .note-text {
   margin-top: 18rpx;
   color: var(--app-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .setting-tags {
@@ -351,7 +351,7 @@ onLoad((query?: Record<string, string | undefined>) => {
   border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 </style>

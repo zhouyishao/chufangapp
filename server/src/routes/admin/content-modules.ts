@@ -7,9 +7,9 @@ import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere } from '../../lib/business-id';
 
-const displayStyles = ['HORIZONTAL_RECIPE_CARD', 'SEASONAL_INGREDIENT_CARD', 'IMAGE_TEXT_LIST', 'TWO_COLUMN_RECIPE_GRID'] as const;
+const displayStyles = ['HORIZONTAL_RECIPE_CARD', 'SEASONAL_INGREDIENT_CARD', 'IMAGE_TEXT_LIST', 'TWO_COLUMN_RECIPE_GRID', 'LARGE_IMAGE_CAROUSEL', 'FOUR_CARD_GRID'] as const;
 const contentTypes = ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'] as const;
-const contentSources = ['MANUAL', 'CATEGORY', 'TAG'] as const;
+const contentSources = ['MANUAL', 'CATEGORY', 'CATEGORY_CONTENT', 'CATEGORY_GROUP', 'TAG'] as const;
 const moduleStatuses = ['ENABLED', 'DISABLED'] as const;
 
 const upsertSchema = z.object({
@@ -20,12 +20,13 @@ const upsertSchema = z.object({
   contentSource: z.enum(contentSources),
   displayCount: z.coerce.number().int().min(1).max(50).default(6),
   showMore: z.coerce.boolean().default(false),
+  showTitle: z.coerce.boolean().default(true),
   moreLink: z.string().trim().max(255).nullable().optional(),
   sortOrder: z.coerce.number().int().min(1).max(999).default(1),
   status: z.enum(moduleStatuses).default('ENABLED'),
   items: z.array(z.object({
     id: z.union([z.string(), z.number()]).transform(String),
-    type: z.string(),
+    type: z.string().optional().default(''),
     sortOrder: z.coerce.number().int().min(0).default(0)
   })).optional().default([]),
   categoryId: z.coerce.number().int().nullable().optional(),
@@ -47,7 +48,9 @@ const displayStyleLabel: Record<string, string> = {
   HORIZONTAL_RECIPE_CARD: '横向菜谱卡片',
   SEASONAL_INGREDIENT_CARD: '时令食材卡片',
   IMAGE_TEXT_LIST: '图文列表',
-  TWO_COLUMN_RECIPE_GRID: '双列菜谱卡片'
+  TWO_COLUMN_RECIPE_GRID: '双列菜谱卡片',
+  LARGE_IMAGE_CAROUSEL: '大矩形图片模块',
+  FOUR_CARD_GRID: '四宫格小卡片模块'
 };
 
 const contentTypeLabel: Record<string, string> = {
@@ -61,6 +64,8 @@ const contentTypeLabel: Record<string, string> = {
 const contentSourceLabel: Record<string, string> = {
   MANUAL: '手动选择',
   CATEGORY: '按分类筛选',
+  CATEGORY_CONTENT: '分类内容自动读取',
+  CATEGORY_GROUP: '分类管理入口',
   TAG: '按标签筛选'
 };
 
@@ -68,7 +73,9 @@ const displayStyleContentTypes: Record<string, string[]> = {
   HORIZONTAL_RECIPE_CARD: ['RECIPE'],
   SEASONAL_INGREDIENT_CARD: ['INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
   IMAGE_TEXT_LIST: ['RECIPE'],
-  TWO_COLUMN_RECIPE_GRID: ['RECIPE']
+  TWO_COLUMN_RECIPE_GRID: ['RECIPE'],
+  LARGE_IMAGE_CAROUSEL: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
+  FOUR_CARD_GRID: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']
 };
 
 const serializeModule = (item: {
@@ -81,6 +88,7 @@ const serializeModule = (item: {
   contentSource: string;
   displayCount: number;
   showMore: boolean;
+  showTitle: boolean;
   moreLink: string | null;
   sortOrder: number;
   status: string;
@@ -149,7 +157,10 @@ adminContentModulesRouter.get('/:moduleId', requireAdminAuth, async (req, res) =
 adminContentModulesRouter.post('/', requireAdminAuth, async (req, res) => {
   const nav = await getExistingNav(String(req.params.navId));
   const parsed = upsertSchema.safeParse(req.body);
-  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+    throw new HttpError(messages || '参数错误', 400, 400);
+  }
 
   const allowedTypes = displayStyleContentTypes[parsed.data.displayStyle] ?? [];
   if (!allowedTypes.includes(parsed.data.contentType)) {
@@ -158,6 +169,12 @@ adminContentModulesRouter.post('/', requireAdminAuth, async (req, res) => {
       422,
       422
     );
+  }
+
+  // Fallback: LARGE_IMAGE_CAROUSEL items auto-type to "image"
+  let resolvedItems = (parsed.data.items ?? []) as Array<{ id: string; type?: string; sortOrder: number }>;
+  if (parsed.data.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
+    resolvedItems = resolvedItems.map(item => ({ ...item, type: item.type || 'image' }));
   }
 
   const created = await prisma.contentModule.create({
@@ -170,10 +187,11 @@ adminContentModulesRouter.post('/', requireAdminAuth, async (req, res) => {
       contentSource: parsed.data.contentSource,
       displayCount: parsed.data.displayCount,
       showMore: parsed.data.showMore,
+      showTitle: parsed.data.showTitle,
       moreLink: parsed.data.moreLink ?? null,
       sortOrder: parsed.data.sortOrder,
       status: parsed.data.status,
-      items: parsed.data.items ?? [],
+      items: resolvedItems,
       categoryId: parsed.data.categoryId ?? null,
       tagId: parsed.data.tagId ?? null
     }
@@ -185,7 +203,10 @@ adminContentModulesRouter.put('/:moduleId', requireAdminAuth, async (req, res) =
   const nav = await getExistingNav(String(req.params.navId));
   const existing = await getExistingModule(nav.id, String(req.params.moduleId));
   const parsed = upsertSchema.safeParse(req.body);
-  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+    throw new HttpError(messages || '参数错误', 400, 400);
+  }
 
   const allowedTypes = displayStyleContentTypes[parsed.data.displayStyle] ?? [];
   if (!allowedTypes.includes(parsed.data.contentType)) {
@@ -194,6 +215,12 @@ adminContentModulesRouter.put('/:moduleId', requireAdminAuth, async (req, res) =
       422,
       422
     );
+  }
+
+  // Fallback: LARGE_IMAGE_CAROUSEL items auto-type to "image"
+  let resolvedItemsUpdate = (parsed.data.items ?? []) as Array<{ id: string; type?: string; sortOrder: number }>;
+  if (parsed.data.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
+    resolvedItemsUpdate = resolvedItemsUpdate.map(item => ({ ...item, type: item.type || 'image' }));
   }
 
   const updated = await prisma.contentModule.update({
@@ -206,10 +233,11 @@ adminContentModulesRouter.put('/:moduleId', requireAdminAuth, async (req, res) =
       contentSource: parsed.data.contentSource,
       displayCount: parsed.data.displayCount,
       showMore: parsed.data.showMore,
+      showTitle: parsed.data.showTitle,
       moreLink: parsed.data.moreLink ?? null,
       sortOrder: parsed.data.sortOrder,
       status: parsed.data.status,
-      items: parsed.data.items ?? [],
+      items: resolvedItemsUpdate,
       categoryId: parsed.data.categoryId ?? null,
       tagId: parsed.data.tagId ?? null
     }

@@ -58,22 +58,22 @@ const handleAction = () => {
 
 .section-title {
   color: var(--app-text);
-  font-size: 40rpx;
-  font-weight: 500;
-  line-height: 56rpx;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
+  line-height: var(--line-section-title);
 }
 
 .section-subtitle {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 36rpx;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
 }
 
 .section-link {
   color: var(--app-primary);
-  font-size: 24rpx;
-  line-height: 36rpx;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
