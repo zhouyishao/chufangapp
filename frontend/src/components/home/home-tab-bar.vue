@@ -21,7 +21,7 @@
           <polyline points="9 22 9 12 15 12 15 22" />
         </svg>
         <svg
-          v-else-if="tab.id === 'ingredients'"
+          v-else-if="tab.id === 'categories' || tab.id === 'ingredients'"
           class="tab-icon"
           viewBox="0 0 24 24"
           fill="none"
@@ -30,9 +30,10 @@
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-          <path d="M12 12v10" />
-          <path d="M8 22h8" />
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
         </svg>
         <svg
           v-else-if="tab.id === 'basket'"
@@ -78,6 +79,7 @@ const handleTabClick = (tabId: string) => {
   const routes: Record<string, string> = {
     home: '/pages/index/index',
     ingredients: '/pages/ingredients/index',
+    categories: '/pages/ingredients/index',
     basket: '/pages/basket/index',
     mine: '/pages/mine/index'
   };
@@ -159,13 +161,13 @@ const handleTabClick = (tabId: string) => {
 
 .home-tab-bar__label {
   color: var(--app-text-secondary);
-  font-size: 20rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-regular);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .is-active .home-tab-bar__label {
   color: var(--app-primary);
-  font-weight: 600;
+  font-weight: var(--font-semibold);
 }
 </style>

@@ -287,8 +287,8 @@ onLoad((options) => {
   border-radius: 50%;
   background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 500;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -330,17 +330,17 @@ onLoad((options) => {
 
 .member-name {
   color: var(--app-text);
-  font-size: 64rpx;
-  font-weight: 600;
-  letter-spacing: -1rpx;
-  line-height: 1.05;
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0;
+  line-height: var(--line-hero);
 }
 
 .member-joined {
   margin-top: 12rpx;
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .info-section {
@@ -365,8 +365,8 @@ onLoad((options) => {
 
 .info-label {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .info-right {
@@ -377,8 +377,8 @@ onLoad((options) => {
 
 .info-value {
   color: var(--app-text-secondary);
-  font-size: 28rpx;
-  font-weight: 700;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .info-value--muted {
@@ -390,7 +390,7 @@ onLoad((options) => {
 
 .arrow {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
+  font-size: var(--font-size-detail-title);
 }
 
 .action-section {
@@ -406,9 +406,9 @@ onLoad((options) => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: rgba(229, 115, 95, 0.12);
-  color: #e5735f;
-  font-size: 26rpx;
-  font-weight: 600;
+  color: var(--app-danger);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .danger-button--soft {
@@ -425,15 +425,15 @@ onLoad((options) => {
 
 .empty-title {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .empty-desc {
   margin-top: 10rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-body-sm);
 }
 
 .mask {
@@ -464,8 +464,8 @@ onLoad((options) => {
 .panel-title {
   display: block;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .center-title {
@@ -474,8 +474,8 @@ onLoad((options) => {
 
 .panel-close {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
-  line-height: 1;
+  font-size: var(--font-size-detail-title);
+  line-height: var(--line-tabbar);
 }
 
 .text-input {
@@ -487,7 +487,7 @@ onLoad((options) => {
   border-radius: 24rpx;
   background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .panel-actions {
@@ -506,8 +506,8 @@ onLoad((options) => {
   height: 76rpx;
   border: 0;
   border-radius: var(--app-radius-button);
-  font-size: 24rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .ghost-button {
@@ -517,7 +517,7 @@ onLoad((options) => {
 
 .primary-button {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .role-list {
@@ -549,15 +549,15 @@ onLoad((options) => {
 
 .role-title {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .role-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.45;
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-body-sm);
 }
 
 .radio {

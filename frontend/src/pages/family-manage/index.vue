@@ -268,8 +268,8 @@ onShow(() => {
   border-radius: 50%;
   background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 500;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -293,14 +293,14 @@ onShow(() => {
 .family-title {
   display: block;
   color: var(--app-text);
-  font-size: 46rpx;
-  font-weight: 600;
-  letter-spacing: -0.6rpx;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0;
 }
 
 .title-arrow {
   color: var(--app-text-secondary);
-  font-size: 30rpx;
+  font-size: var(--font-size-body);
   transform: translateY(4rpx);
   transition: transform 160ms ease;
 }
@@ -313,8 +313,8 @@ onShow(() => {
   display: block;
   margin-top: 10rpx;
   color: var(--app-text-tertiary);
-  font-size: 24rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .section {
@@ -339,9 +339,9 @@ onShow(() => {
   border: 0;
   border-radius: var(--app-radius-button);
   background: rgba(229, 115, 95, 0.12);
-  color: #e5735f;
-  font-size: 26rpx;
-  font-weight: 600;
+  color: var(--app-danger);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .danger-button--soft {
@@ -353,8 +353,8 @@ onShow(() => {
   display: block;
   margin-bottom: 18rpx;
   color: var(--app-text-tertiary);
-  font-size: 24rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .cell-list {
@@ -396,19 +396,19 @@ onShow(() => {
 .cell-title,
 .cell-left {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .cell-subtitle {
   margin-top: 6rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .cell-arrow {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
+  font-size: var(--font-size-detail-title);
 }
 
 .cell--invite {
@@ -424,8 +424,8 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
-  font-weight: 500;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
 }
 
 .cell-right {
@@ -440,8 +440,8 @@ onShow(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .select-mask {
@@ -482,8 +482,8 @@ onShow(() => {
 .sheet-title {
   display: block;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .sheet-list {
@@ -514,20 +514,20 @@ onShow(() => {
 
 .sheet-item__name {
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .sheet-item__desc {
   margin-top: 6rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .sheet-item__check {
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .edit-head {
@@ -540,14 +540,14 @@ onShow(() => {
 .edit-title {
   display: block;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .edit-close {
   color: var(--app-text-tertiary);
-  font-size: 42rpx;
-  line-height: 1;
+  font-size: var(--font-size-detail-title);
+  line-height: var(--line-tabbar);
 }
 
 .edit-input {
@@ -559,7 +559,7 @@ onShow(() => {
   border-radius: 24rpx;
   background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
-  font-size: 24rpx;
+  font-size: var(--font-size-tag);
 }
 
 .edit-textarea {
@@ -573,8 +573,8 @@ onShow(() => {
   border-radius: 24rpx;
   background: rgba(255, 253, 252, 0.86);
   color: var(--app-text);
-  font-size: 26rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .edit-textarea :deep(textarea),
@@ -587,8 +587,8 @@ onShow(() => {
   border: 0;
   background: transparent;
   color: var(--app-text);
-  font-size: 26rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
   resize: none;
 }
 
@@ -604,8 +604,8 @@ onShow(() => {
   height: 76rpx;
   border: 0;
   border-radius: var(--app-radius-button);
-  font-size: 24rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .ghost-button {
@@ -615,6 +615,6 @@ onShow(() => {
 
 .primary-button {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 </style>

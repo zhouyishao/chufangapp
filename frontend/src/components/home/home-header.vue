@@ -9,12 +9,13 @@
         shape="round"
         placeholder="搜索菜谱、食材、做法"
         @search="emitSearch"
-      />
+      >
+        <template #leftin>
+          <view class="home-search-icon" />
+        </template>
+      </nut-searchbar>
       <button class="add-button" @tap="openActionSheet">
-        <svg class="add-button__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-          <path d="M12 5v14" />
-          <path d="M5 12h14" />
-        </svg>
+        <view class="add-button__icon" />
       </button>
     </view>
 
@@ -160,7 +161,7 @@ const addRecipe = () => {
   margin: 0;
   border-radius: 0;
   background: transparent;
-  color: #fffdfc;
+  color: var(--text-white);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   overflow: hidden;
@@ -208,7 +209,7 @@ const addRecipe = () => {
   border: 0;
   border-radius: 50%;
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
   box-shadow: 0 8rpx 28rpx rgba(122, 139, 111, 0.2);
 }
 
@@ -220,6 +221,18 @@ const addRecipe = () => {
 .add-button__icon {
   width: 34rpx;
   height: 34rpx;
+  background: currentColor;
+  -webkit-mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
+  mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
+}
+
+.home-search-icon {
+  width: 32rpx;
+  height: 32rpx;
+  background: currentColor;
+  color: var(--app-text-secondary);
+  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
+  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
 }
 
 .category-scroll {
@@ -247,20 +260,20 @@ const addRecipe = () => {
   border: 0;
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 29rpx;
-  font-weight: 400;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-regular);
 }
 
 .category-tab.is-active {
   color: var(--app-primary);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .home-header.is-immersive .category-tab {
   color: rgba(255, 253, 252, 0.5);
-  font-size: 30rpx;
-  font-weight: 400;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-regular);
 }
 
 .home-header.is-immersive.is-pinned .category-tab {
@@ -268,9 +281,9 @@ const addRecipe = () => {
 }
 
 .home-header.is-immersive .category-tab.is-active {
-  color: #fffdfc;
-  font-size: 32rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .home-header.is-immersive.is-pinned .category-tab.is-active {
@@ -286,7 +299,7 @@ const addRecipe = () => {
   display: inline-flex;
   align-items: center;
   padding-bottom: 14rpx;
-  line-height: 1;
+  line-height: var(--line-tabbar);
   white-space: nowrap;
 }
 
@@ -325,7 +338,7 @@ const addRecipe = () => {
 .home-header.is-immersive :deep(.nut-searchbar__search-input) {
   border-color: rgba(255, 253, 252, 0.32);
   background: rgba(255, 253, 252, 0.3);
-  color: #fffdfc;
+  color: var(--text-white);
   backdrop-filter: blur(22rpx);
   -webkit-backdrop-filter: blur(22rpx);
 }
@@ -341,15 +354,23 @@ const addRecipe = () => {
   box-shadow: none;
 }
 
+.home-header.is-immersive .home-search-icon {
+  color: rgba(255, 253, 252, 0.82);
+}
+
 .home-header.is-immersive.is-pinned .add-button {
   background: var(--app-accent-soft);
   color: var(--app-text);
 }
 
+.home-header.is-immersive.is-pinned .home-search-icon {
+  color: var(--app-text-secondary);
+}
+
 .home-header.is-immersive :deep(.nut-searchbar__input),
 .home-header.is-immersive :deep(.nut-searchbar__input::placeholder) {
   color: rgba(255, 253, 252, 0.82);
-  font-weight: 400;
+  font-weight: var(--font-regular);
 }
 
 .home-header.is-immersive.is-pinned :deep(.nut-searchbar__input),
@@ -417,7 +438,7 @@ const addRecipe = () => {
 
 .add-action__title {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 </style>

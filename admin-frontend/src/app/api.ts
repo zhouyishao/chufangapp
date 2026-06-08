@@ -802,7 +802,9 @@ export const deleteBeverage = async (id: string) => request<Beverage>(`/beverage
 export const enableBeverage = async (id: string) => request<Beverage>(`/beverages/${id}/enable`, { method: 'POST' });
 export const disableBeverage = async (id: string) => request<Beverage>(`/beverages/${id}/disable`, { method: 'POST' });
 export type HomeTopNavStatus = 'draft' | 'online' | 'offline';
-export type HomeTopNavType = 'system_recommend' | 'recipe_category' | 'recipe_tag' | 'topic' | 'recommend_pool';
+export type HomeTopNavType = 'system_recommend' | 'recipe_category' | 'recipe_tag' | 'topic' | 'recommend_pool' | 'content_type';
+export type HomeTopNavDisplayPosition = 'home_top' | 'category_top';
+export type HomeTopNavContentType = 'recipe' | 'ingredient' | 'fruit' | 'seasoning' | 'beverage';
 
 export type HomeTopNavRelation = {
   relationType: string;
@@ -842,7 +844,10 @@ export type HomeTopNav = {
   alias?: string | null;
   navType: HomeTopNavType;
   navTypeText?: string;
+  contentType?: string | null;
+  contentTypeLabel?: string | null;
   displayPosition: string;
+  displayPositionLabel?: string;
   iconUrl?: string | null;
   sortOrder: number;
   status: HomeTopNavStatus;
@@ -863,6 +868,7 @@ export type HomeTopNavPayload = {
   name: string;
   alias?: string | null;
   navType: HomeTopNavType;
+  contentType?: string | null;
   displayPosition: string;
   iconUrl?: string | null;
   sortOrder: number;
@@ -894,10 +900,11 @@ export type ContentSelectorItem = {
 
 export const getHomeTopNavSummary = async () => request<HomeTopNavSummary>('/home/top-navs/summary');
 
-export const listHomeTopNavs = async (params: { page?: number; pageSize?: number; keyword?: string; status?: HomeTopNavStatus } = {}) => {
+export const listHomeTopNavs = async (params: { page?: number; pageSize?: number; keyword?: string; status?: HomeTopNavStatus; displayPosition?: HomeTopNavDisplayPosition } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'keyword', params.keyword?.trim());
   setParam(qs, 'status', params.status);
+  setParam(qs, 'displayPosition', params.displayPosition);
   return request<PageResult<HomeTopNav>>(`/home/top-navs?${qs.toString()}`);
 };
 
@@ -924,9 +931,9 @@ export const listContentSelector = async (params: { type: string; keyword?: stri
 
 // ====== 内容模块 (ContentModule) API ======
 
-export type ContentModuleDisplayStyle = 'HORIZONTAL_RECIPE_CARD' | 'SEASONAL_INGREDIENT_CARD' | 'IMAGE_TEXT_LIST' | 'TWO_COLUMN_RECIPE_GRID';
+export type ContentModuleDisplayStyle = 'HORIZONTAL_RECIPE_CARD' | 'SEASONAL_INGREDIENT_CARD' | 'IMAGE_TEXT_LIST' | 'TWO_COLUMN_RECIPE_GRID' | 'LARGE_IMAGE_CAROUSEL' | 'FOUR_CARD_GRID';
 export type ContentModuleContentType = 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
-export type ContentModuleContentSource = 'MANUAL' | 'CATEGORY' | 'TAG';
+export type ContentModuleContentSource = 'MANUAL' | 'CATEGORY' | 'CATEGORY_CONTENT' | 'CATEGORY_GROUP' | 'TAG';
 export type ContentModuleStatus = 'ENABLED' | 'DISABLED';
 
 export type ContentModuleItem = {
@@ -948,6 +955,7 @@ export type ContentModule = {
   contentSourceLabel?: string;
   displayCount: number;
   showMore: boolean;
+  showTitle: boolean;
   moreLink: string | null;
   sortOrder: number;
   status: ContentModuleStatus;
@@ -966,12 +974,26 @@ export type ContentModulePayload = {
   contentSource: ContentModuleContentSource;
   displayCount: number;
   showMore: boolean;
+  showTitle: boolean;
   moreLink?: string | null;
   sortOrder: number;
   status: ContentModuleStatus;
   items?: ContentModuleItem[];
   categoryId?: number | null;
   tagId?: number | null;
+};
+
+/** 按内容类型自动映射 CategoryType 并列出对应分类 */
+export const listCategoriesByContentType = async (contentType: ContentModuleContentType) => {
+  const categoryTypeMap: Record<ContentModuleContentType, IngredientCategory['type']> = {
+    RECIPE: 'RECIPE',
+    INGREDIENT: 'INGREDIENT',
+    FRUIT: 'FRUIT',
+    SEASONING: 'SEASONING',
+    BEVERAGE: 'BEVERAGE'
+  };
+  const type = categoryTypeMap[contentType];
+  return listCategories({ page: 1, pageSize: 100, type, status: 'ACTIVE' });
 };
 
 export const listContentModules = async (navId: string, params: {

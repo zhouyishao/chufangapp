@@ -354,12 +354,12 @@ const saveRecipe = () => {
   border-radius: 50%;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 500;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
 }
 
 .icon-button text {
-  line-height: 1;
+  line-height: var(--line-tabbar);
 }
 
 .draft-button {
@@ -368,9 +368,9 @@ const saveRecipe = () => {
   margin-left: auto;
   border-radius: var(--app-radius-button);
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 24rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .eyebrow,
@@ -387,15 +387,15 @@ const saveRecipe = () => {
 
 .eyebrow {
   color: var(--app-text-tertiary);
-  font-size: 20rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .page-title {
   margin-top: 2rpx;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 600;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .cover-card {
@@ -428,24 +428,24 @@ const saveRecipe = () => {
   height: 72rpx;
   border-radius: 50%;
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 40rpx;
-  font-weight: 600;
-  line-height: 68rpx;
+  color: var(--text-white);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-hero);
   text-align: center;
 }
 
 .cover-title {
   margin-top: 16rpx;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .cover-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .cover-actions {
@@ -466,13 +466,13 @@ const saveRecipe = () => {
   border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .cover-action.is-active {
   background: #7a8b6f;
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .form-section {
@@ -493,7 +493,7 @@ const saveRecipe = () => {
   width: 100%;
   border: 0;
   color: var(--app-text);
-  font-weight: 500;
+  font-weight: var(--font-medium);
 }
 
 .field-block {
@@ -515,8 +515,8 @@ const saveRecipe = () => {
   height: 64rpx;
   padding: 0;
   background: transparent;
-  font-size: 34rpx;
-  font-weight: 600;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .intro-input {
@@ -524,8 +524,8 @@ const saveRecipe = () => {
   padding: 0;
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .quick-grid {
@@ -544,16 +544,16 @@ const saveRecipe = () => {
 
 .quick-label {
   color: var(--app-text-tertiary);
-  font-size: 20rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .quick-input,
 .picker-value {
   margin-top: 8rpx;
   color: var(--app-text);
-  font-size: 24rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .quick-input {
@@ -572,15 +572,15 @@ const saveRecipe = () => {
 
 .section-title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .section-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.4;
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-caption);
 }
 
 .ingredient-list,
@@ -606,7 +606,7 @@ const saveRecipe = () => {
   height: 76rpx;
   padding: 0;
   background: transparent;
-  font-size: 25rpx;
+  font-size: var(--font-size-caption);
 }
 
 .ingredient-amount {
@@ -619,8 +619,8 @@ const saveRecipe = () => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text-tertiary);
-  font-size: 30rpx;
-  line-height: 44rpx;
+  font-size: var(--font-size-body);
+  line-height: var(--line-body-sm);
 }
 
 .add-row-button {
@@ -630,8 +630,8 @@ const saveRecipe = () => {
   border-radius: 22rpx;
   background: #e9e2d6;
   color: var(--app-text);
-  font-size: 25rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .step-card {
@@ -651,9 +651,9 @@ const saveRecipe = () => {
   flex: 0 0 auto;
   border-radius: 50%;
   background: #7a8b6f;
-  color: #fffdfc;
-  font-size: 24rpx;
-  font-weight: 600;
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
 }
 
 .step-main {
@@ -665,8 +665,8 @@ const saveRecipe = () => {
   height: 122rpx;
   padding: 0;
   background: transparent;
-  font-size: 25rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .step-tools {
@@ -682,8 +682,8 @@ const saveRecipe = () => {
   height: 58rpx;
   padding: 0 20rpx;
   border-radius: var(--app-radius-button);
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .step-image-button {
@@ -693,12 +693,12 @@ const saveRecipe = () => {
 
 .step-video-button {
   background: #7a8b6f;
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .step-delete-button {
   background: rgba(229, 115, 95, 0.12);
-  color: #e5735f;
+  color: var(--app-danger);
 }
 
 .media-state {
@@ -713,8 +713,8 @@ const saveRecipe = () => {
   border-radius: var(--app-radius-button);
   background: #fffdfc;
   color: var(--app-text-secondary);
-  font-size: 21rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .setting-row {
@@ -727,14 +727,14 @@ const saveRecipe = () => {
 
 .setting-label {
   color: var(--app-text);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .setting-value {
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
 }
 
 .note-box {
@@ -747,8 +747,8 @@ const saveRecipe = () => {
 .note-box text {
   display: block;
   color: var(--app-text);
-  font-size: 25rpx;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
 }
 
 .note-box textarea {
@@ -757,8 +757,8 @@ const saveRecipe = () => {
   padding: 0;
   background: transparent;
   color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.55;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
 }
 
 .bottom-actions {
@@ -780,13 +780,13 @@ const saveRecipe = () => {
 .secondary-button {
   height: 82rpx;
   border-radius: var(--app-radius-button);
-  font-size: 27rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .primary-button {
   background: #7a8b6f;
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .secondary-button {

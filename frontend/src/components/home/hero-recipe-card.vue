@@ -177,10 +177,10 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
 .hero-card__title {
   display: block;
   color: var(--app-text);
-  font-family: var(--app-font-serif);
-  font-size: 40rpx;
-  font-weight: 600;
-  line-height: 1.25;
+  font-family: var(--font-system);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-card-title);
   text-shadow: none;
 }
 
@@ -190,9 +190,9 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   max-width: 500rpx;
   margin-top: 10rpx;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
-  font-weight: 400;
-  line-height: 1.55;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -208,8 +208,8 @@ const handleSwiperChange = (event: SwiperChangeEvent) => {
   border-radius: 50%;
   background: var(--app-accent-soft);
   color: var(--app-accent-warm);
-  font-size: 23rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
 }
 
 .hero-card__arrow {

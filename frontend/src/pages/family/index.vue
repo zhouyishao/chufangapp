@@ -74,8 +74,8 @@ onShow(() => {
   border-radius: 50%;
   background: rgba(255, 253, 252, 0.92);
   color: var(--app-text);
-  font-size: 38rpx;
-  font-weight: 500;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -87,9 +87,9 @@ onShow(() => {
   display: block;
   margin-top: 6rpx;
   color: var(--app-text);
-  font-size: 68rpx;
-  font-weight: 600;
-  letter-spacing: -1.2rpx;
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0;
 }
 
 .family-list {
@@ -123,8 +123,8 @@ onShow(() => {
 .family-card__name {
   overflow: hidden;
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -132,13 +132,13 @@ onShow(() => {
 .family-card__desc {
   margin-top: 10rpx;
   color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .family-card__arrow {
   color: var(--app-text-tertiary);
-  font-size: 44rpx;
-  font-weight: 700;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
 }
 </style>

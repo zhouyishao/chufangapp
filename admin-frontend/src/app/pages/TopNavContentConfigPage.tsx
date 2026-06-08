@@ -280,6 +280,24 @@ export const TopNavContentConfigPage = () => {
       {notice ? <div className="rounded-2xl bg-[#eef3ea] px-5 py-4 text-sm text-[#5f7f56]">{notice}</div> : null}
       {error ? <div className="rounded-2xl bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div> : null}
 
+      {/* 展示位置说明 */}
+      {nav.displayPosition === 'category_top' ? (
+        <div className="rounded-2xl border border-[#d6decd] bg-[#eef3ea] px-5 py-4 text-sm">
+          <p className="font-semibold text-[#2f2f2f] mb-2">📍 当前配置展示位置</p>
+          <p className="text-[#5f7f56]">
+            分类页 / <b>{nav.name}</b> Tab / 分类筛选下方 / 内容模块区
+          </p>
+          <p className="mt-2 text-xs text-[#8c8c8c]">
+            展示条件：C端进入分类页 → 选中「{nav.name}」Tab → 模块已启用且有内容 → 按排序值展示
+          </p>
+          {nav.contentType ? (
+            <p className="mt-1 text-xs text-[#8c8c8c]">
+              调试接口：/api/app/page-modules?page=category&type={nav.contentType}&filter=recommend
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[1fr_380px]">
         <div className="space-y-5">
           {/* 轮播图设置 */}
@@ -449,8 +467,10 @@ export const TopNavContentConfigPage = () => {
         {/* 右侧预览 */}
         <div className="rounded-2xl border border-[#e4ddd1] bg-[#fffdfc] p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[#2f2f2f]">首页预览（{nav.name} Tab）</h2>
-            <button className="flex items-center gap-1 text-xs text-[#6f8663]" onClick={() => setNotice('首页预览已刷新')}>
+            <h2 className="text-lg font-semibold text-[#2f2f2f]">
+              {nav.displayPosition === 'category_top' ? `分类页预览（${nav.name} Tab）` : `首页预览（${nav.name} Tab）`}
+            </h2>
+            <button className="flex items-center gap-1 text-xs text-[#6f8663]" onClick={() => setNotice('预览已刷新')}>
               <RefreshCw className="h-3 w-3" /> 刷新预览
             </button>
           </div>

@@ -73,8 +73,8 @@ const goToRegister = () => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 500;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-medium);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -101,23 +101,23 @@ const goToRegister = () => {
 
 .eyebrow {
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 500;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-medium);
 }
 
 .title {
   margin-top: 20rpx;
   color: var(--app-text);
-  font-size: 48rpx;
-  font-weight: 600;
-  line-height: 1.2;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-page-title);
 }
 
 .desc {
   margin-top: 18rpx;
   color: var(--app-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.7;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body);
 }
 
 .action-card {
@@ -130,13 +130,13 @@ const goToRegister = () => {
   height: 88rpx;
   border: 0;
   border-radius: var(--app-radius-button);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .primary-button {
   background: var(--app-accent);
-  color: #fffdfc;
+  color: var(--text-white);
 }
 
 .secondary-button {
@@ -148,7 +148,7 @@ const goToRegister = () => {
 .agreement {
   margin-top: 22rpx;
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
+  font-size: var(--font-size-tabbar);
   text-align: center;
 }
 
@@ -160,13 +160,13 @@ const goToRegister = () => {
 
 .benefit-title {
   color: var(--app-text);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
 }
 
 .benefit-desc {
   margin-top: 8rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
+  font-size: var(--font-size-tag);
 }
 </style>

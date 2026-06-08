@@ -143,8 +143,8 @@ onShow(() => {
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -164,15 +164,15 @@ onShow(() => {
 
 .eyebrow {
   color: var(--app-text-tertiary);
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
 }
 
 .page-title {
   margin-top: 4rpx;
   color: var(--app-text);
-  font-size: 42rpx;
-  font-weight: 600;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-semibold);
 }
 
 .summary-card {
@@ -183,16 +183,16 @@ onShow(() => {
 
 .summary-title {
   color: var(--app-text);
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .summary-desc {
   margin-top: 10rpx;
   padding-right: 140rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.6;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .summary-count {
@@ -200,8 +200,8 @@ onShow(() => {
   right: 28rpx;
   bottom: 28rpx;
   color: var(--app-text);
-  font-size: 36rpx;
-  font-weight: 600;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-list {
@@ -218,8 +218,8 @@ onShow(() => {
   display: block;
   margin-bottom: 18rpx;
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-card {
@@ -246,15 +246,15 @@ onShow(() => {
 
 .recipe-name {
   color: var(--app-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
 }
 
 .recipe-desc {
   margin-top: 10rpx;
   color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.45;
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
 }
 
 .recipe-meta {
@@ -263,14 +263,14 @@ onShow(() => {
   gap: 12rpx;
   margin-top: 14rpx;
   color: var(--app-text-tertiary);
-  font-size: 21rpx;
+  font-size: var(--font-size-tabbar);
 }
 
 .heart {
   position: absolute;
   top: 24rpx;
   right: 28rpx;
-  color: #e5735f;
-  font-size: 34rpx;
+  color: var(--app-danger);
+  font-size: var(--font-size-card-title);
 }
 </style>
