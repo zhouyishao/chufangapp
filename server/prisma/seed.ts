@@ -92,7 +92,7 @@ const main = async () => {
   for (const [index, name] of seasoningCategoryNames.entries()) await ensureCategory('SEASONING', name, 100 - index);
 
   // 酒水分类
-  const beverageCategoryNames = ['白酒', '啤酒', '葡萄酒', '黄酒米酒', '洋酒', '茶饮', '果汁饮品'];
+  const beverageCategoryNames = ['白酒', '红酒', '啤酒', '鸡尾酒', '茶饮', '果汁', '咖啡', '乳饮', '调制饮品', '自制饮品', '其他'];
   for (const [index, name] of beverageCategoryNames.entries()) await ensureCategory('BEVERAGE', name, 100 - index);
 
   // 保留旧的通用分类（向后兼容）
@@ -542,8 +542,47 @@ const main = async () => {
     () => prisma.recommendation.deleteMany({ where: { title: '今日推荐：番茄牛腩' } })
   );
 
+  const oolongDescription = JSON.stringify({
+    descriptionText: '清爽解腻，适合搭配油脂较重的菜品。',
+    showMixMethod: true,
+    mixMethod: '冲泡',
+    baseLiquor: '乌龙茶叶 5g',
+    mixIngredients: '沸水 250ml',
+    accessories: '无',
+    garnish: '薄荷叶（可选）',
+    glassType: '玻璃杯',
+    iceType: '无冰',
+    mixSteps: [
+      {
+        id: 'step-1',
+        stepNo: 1,
+        description: '将5g乌龙茶叶投入干净的玻璃杯中。',
+        image: null,
+        estimatedTime: 10,
+        sort: 1
+      },
+      {
+        id: 'step-2',
+        stepNo: 2,
+        description: '用95度以上的沸水冲入杯中，静置冲泡3分钟。',
+        image: null,
+        estimatedTime: 180,
+        sort: 2
+      },
+      {
+        id: 'step-3',
+        stepNo: 3,
+        description: '待茶汤呈现明亮金黄色时即可饮用。',
+        image: null,
+        estimatedTime: 10,
+        sort: 3
+      }
+    ],
+    mixTips: '水温越高，乌龙茶的香气释放越充分，但避免闷盖太久。'
+  });
+
   const beverages = [
-    { name: '乌龙茶', beverageType: '茶饮', description: '清爽解腻，适合搭配油脂较重的菜品。', sort: 100 },
+    { name: '乌龙茶', beverageType: '茶饮', description: oolongDescription, sort: 100 },
     { name: '酸梅汤', beverageType: '无酒精饮品', description: '酸甜开胃，适合火锅和烧烤。', sort: 95 },
     { name: '牛奶', beverageType: '乳饮', description: '适合儿童餐和早餐搭配。', sort: 90 },
     { name: '果汁', beverageType: '果汁', description: '适合儿童餐与轻食搭配。', sort: 85 },
@@ -666,6 +705,98 @@ const main = async () => {
 
   await prisma.favorite.deleteMany({ where: { userId: user.id, recipeId: recipe.id } });
   await prisma.favorite.create({ data: { userId: user.id, recipeId: recipe.id } });
+
+  // ====== 资源接口管理表初始化数据 ======
+  console.log('Seeding resource apps...');
+  await prisma.resourceCallLog.deleteMany({});
+  await prisma.resourceApiKey.deleteMany({});
+  await prisma.resourceApp.deleteMany({});
+  await prisma.resourcePermission.deleteMany({});
+
+  const app1 = await prisma.resourceApp.create({
+    data: {
+      name: '家里有菜 C 端小程序',
+      appId: 'wx_1234567890',
+      appType: 'APP',
+      owner: '张三',
+      status: 'ACTIVE'
+    }
+  });
+
+  const app2 = await prisma.resourceApp.create({
+    data: {
+      name: '家庭菜谱管理后台',
+      appId: 'admin_webapp',
+      appType: 'ADMIN',
+      owner: '李四',
+      status: 'ACTIVE'
+    }
+  });
+
+  const crypto = require('crypto');
+  const rawKey1 = 'ak_c_end_app_secret_123456';
+  const rawKey2 = 'ak_admin_backend_secret_789';
+
+  const key1Hash = crypto.createHash('sha256').update(rawKey1).digest('hex');
+  const key2Hash = crypto.createHash('sha256').update(rawKey2).digest('hex');
+
+  const apiKey1 = await prisma.resourceApiKey.create({
+    data: {
+      name: 'C端核心API密钥',
+      appId: app1.id,
+      keyPrefix: 'ak_c_end_app',
+      keyHash: key1Hash,
+      permissionScope: 'recipe:view,ingredient:view,beverage:view',
+      status: 'ACTIVE'
+    }
+  });
+
+  const apiKey2 = await prisma.resourceApiKey.create({
+    data: {
+      name: '管理后台密钥',
+      appId: app2.id,
+      keyPrefix: 'ak_admin_ba',
+      keyHash: key2Hash,
+      permissionScope: '*',
+      status: 'ACTIVE'
+    }
+  });
+
+  await prisma.resourcePermission.createMany({
+    data: [
+      { name: '菜谱列表查询', code: 'recipe:list', path: '/api/admin/recipes', method: 'GET', module: 'RECIPE', authRequired: true, status: 'ACTIVE' },
+      { name: '新增菜谱', code: 'recipe:create', path: '/api/admin/recipes', method: 'POST', module: 'RECIPE', authRequired: true, status: 'ACTIVE' },
+      { name: '食材列表查询', code: 'ingredient:list', path: '/api/admin/ingredients', method: 'GET', module: 'INGREDIENT', authRequired: true, status: 'ACTIVE' },
+      { name: '水果列表查询', code: 'fruit:list', path: '/api/admin/ingredients?type=FRUIT', method: 'GET', module: 'FRUIT', authRequired: true, status: 'ACTIVE' }
+    ]
+  });
+
+  await prisma.resourceCallLog.createMany({
+    data: [
+      {
+        calledAt: new Date(),
+        appId: app1.id,
+        apiKeyId: apiKey1.id,
+        apiKeyPrefix: 'ak_c_end_app',
+        path: '/api/admin/recipes',
+        method: 'GET',
+        statusCode: 200,
+        durationMs: 45,
+        ip: '127.0.0.1'
+      },
+      {
+        calledAt: new Date(),
+        appId: app2.id,
+        apiKeyId: apiKey2.id,
+        apiKeyPrefix: 'ak_admin_ba',
+        path: '/api/admin/recipes',
+        method: 'POST',
+        statusCode: 201,
+        durationMs: 120,
+        ip: '127.0.0.1'
+      }
+    ]
+  });
 };
 
 main()

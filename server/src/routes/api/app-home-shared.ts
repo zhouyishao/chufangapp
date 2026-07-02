@@ -3,6 +3,31 @@ import { buildPublicIdWhere, getPublicCode, getPublicId } from '../../lib/busine
 
 const publicRecipeWhere = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true, auditStatus: 'APPROVED' as const };
 
+type AppImageModuleItem = {
+  id?: unknown;
+  type?: unknown;
+  cover?: unknown;
+  title?: unknown;
+  subtitle?: unknown;
+  buttonText?: unknown;
+  jumpType?: unknown;
+  jumpTarget?: unknown;
+  sortOrder?: unknown;
+  status?: unknown;
+};
+
+const toStringOrNull = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+const toNumberOrZero = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getModuleCategoryName = async (categoryId: number | null) => {
+  if (!categoryId) return null;
+  const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { name: true } });
+  return cat?.name ?? null;
+};
+
 export const serializeModuleForApp = async (mod: {
   id: number;
   navId: number;
@@ -23,6 +48,45 @@ export const serializeModuleForApp = async (mod: {
 }) => {
   const moduleItems: unknown[] = Array.isArray(mod.items) ? mod.items : [];
   let resolvedItems: unknown[] = [];
+
+  if (mod.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
+    const categoryName = await getModuleCategoryName(mod.categoryId);
+    const imageItems = (moduleItems as AppImageModuleItem[])
+      .filter((item) => item && typeof item === 'object' && item.status === 'ENABLED')
+      .map((item) => ({
+        id: String(item.id ?? ''),
+        type: 'image',
+        cover: toStringOrNull(item.cover),
+        title: toStringOrNull(item.title),
+        subtitle: toStringOrNull(item.subtitle),
+        buttonText: toStringOrNull(item.buttonText),
+        jumpType: toStringOrNull(item.jumpType) ?? 'NONE',
+        jumpTarget: toStringOrNull(item.jumpTarget),
+        sortOrder: toNumberOrZero(item.sortOrder),
+        status: 'ENABLED'
+      }))
+      .filter((item) => item.id && item.cover)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    return {
+      id: mod.id,
+      navId: mod.navId,
+      title: mod.title,
+      subtitle: mod.subtitle,
+      displayStyle: mod.displayStyle,
+      contentType: mod.contentType,
+      contentSource: mod.contentSource,
+      categoryId: mod.categoryId,
+      categoryName,
+      displayCount: mod.displayCount,
+      showMore: mod.showMore,
+      showTitle: mod.showTitle,
+      moreLink: mod.moreLink,
+      sortOrder: mod.sortOrder,
+      status: mod.status,
+      items: imageItems
+    };
+  }
 
   // 数据源说明：
   // - RECIPE   → prisma.recipe 表
@@ -281,11 +345,7 @@ export const serializeModuleForApp = async (mod: {
   }
 
   // 返回时附带分类名称，便于 C 端显示分组标题
-  let categoryName: string | null = null;
-  if (mod.categoryId) {
-    const cat = await prisma.category.findUnique({ where: { id: mod.categoryId }, select: { name: true } });
-    categoryName = cat?.name ?? null;
-  }
+  const categoryName = await getModuleCategoryName(mod.categoryId);
 
   return {
     id: mod.id,

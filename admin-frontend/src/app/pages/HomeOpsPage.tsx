@@ -9,22 +9,10 @@ import { StatusTag } from '../components/StatusTag';
 import type { AdminResourceItem } from '../types';
 
 const moduleCards = [
-  { title: 'Banner 管理', description: '管理首页头图、跳转、排序与上下架。', count: '6' },
-  { title: '推荐位管理', description: '配置首页推荐位、权重和内容池。', count: '12' },
-  { title: '今日推荐', description: '维护今日吃什么和编辑精选内容。', count: '4' },
-  { title: '时令食材', description: '按月份配置时令食材与推荐理由。', count: '18' }
-];
-
-const mockBanners: AdminResourceItem[] = [
-  { id: 'banner_mock_001', title: '春季时令菜', image: null, targetType: 'RECIPE', sort: 1, isPublish: true },
-  { id: 'banner_mock_002', title: '今日吃什么', image: null, targetType: 'MENU', sort: 2, isPublish: true },
-  { id: 'banner_mock_003', title: '厨房新手指南', image: null, targetType: 'URL', sort: 3, isPublish: false }
-];
-
-const mockRecommendations: AdminResourceItem[] = [
-  { id: 'recommend_mock_011', title: '番茄炒蛋', targetType: 'RECIPE', sort: 90, isPublish: true },
-  { id: 'recommend_mock_012', title: '春笋', targetType: 'INGREDIENT', sort: 72, isPublish: true },
-  { id: 'recommend_mock_013', title: '柠檬薄荷气泡饮', targetType: 'MENU', sort: 66, isPublish: true }
+  { title: 'Banner 管理', description: '管理首页头图、跳转、排序与上下架。' },
+  { title: '推荐位管理', description: '配置首页推荐位、权重和内容池。' },
+  { title: '今日推荐', description: '维护今日吃什么和编辑精选内容。' },
+  { title: '时令食材', description: '按月份配置时令食材与推荐理由。' }
 ];
 
 export const HomeOpsPage = () => {
@@ -49,9 +37,9 @@ export const HomeOpsPage = () => {
         setRecommendations(recommendationResult.list);
       } catch (err) {
         if (!alive) return;
-        setError(`真实接口暂不可用，已切换本地 mock 数据：${err instanceof Error ? err.message : '加载失败'}`);
-        setBanners(mockBanners);
-        setRecommendations(mockRecommendations);
+        setError(err instanceof Error ? err.message : '加载失败');
+        setBanners([]);
+        setRecommendations([]);
       } finally {
         if (alive) setLoading(false);
       }
@@ -107,7 +95,7 @@ export const HomeOpsPage = () => {
             <div className="text-sm text-[#8c8c8c]">{card.description}</div>
             <div className="mt-4 flex items-end justify-between">
               <div className="text-lg font-semibold text-[#2f2f2f]">{card.title}</div>
-              <div className="text-3xl font-semibold text-[#7a8b6f]">{card.count}</div>
+              <div className="text-3xl font-semibold text-[#7a8b6f]">-</div>
             </div>
           </div>
         ))}

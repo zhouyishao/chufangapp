@@ -152,12 +152,20 @@
       <view v-if="recipe.beverages.length" class="beverages-section glass-card">
         <text class="section-title">推荐搭配饮品</text>
         <view class="beverage-list">
-          <view v-for="item in recipe.beverages" :key="item.id" class="beverage-item">
+          <view
+            v-for="item in recipe.beverages"
+            :key="item.id"
+            :class="['beverage-item', { 'is-clickable': hasMixMethod(item) }]"
+            @click="showBeverageMixMethod(item)"
+          >
             <image v-if="item.coverImage" class="beverage-cover" :src="item.coverImage" mode="aspectFill" />
             <view class="beverage-info">
               <text class="beverage-name">{{ item.name }}</text>
               <text class="beverage-meta">{{ item.beverageType || '饮品' }} · {{ item.isAlcoholic ? `含酒精 ${item.alcoholDegree || 0}%` : '无酒精' }}</text>
               <text v-if="item.recommendReason" class="beverage-reason">{{ item.recommendReason }}</text>
+              <text v-if="hasMixMethod(item)" class="beverage-mix-badge">
+                💡 点击查看调制方法
+              </text>
             </view>
           </view>
         </view>
@@ -195,6 +203,85 @@
           </view>
         </view>
         <nut-button type="primary" block @click="closeIngredientGuide">
+          知道了
+        </nut-button>
+      </view>
+    </view>
+
+    <!-- 酒水调制方法弹窗 -->
+    <view
+      v-if="activeBeverage"
+      class="guide-mask"
+      @click="closeBeverageMixMethod"
+    >
+      <view class="guide-panel glass-card" @click.stop style="max-height: 80vh; overflow-y: auto;">
+        <view class="guide-header">
+          <view>
+            <text class="guide-title">{{ activeBeverage.name }}调制方法</text>
+            <text class="guide-subtitle">{{ activeBeverage.beverageType }} · {{ activeBeverage.mixMethod }}</text>
+          </view>
+          <text class="guide-close" @click="closeBeverageMixMethod">×</text>
+        </view>
+        
+        <image class="guide-image" :src="activeBeverage.coverImage || activeBeverage.cover" mode="aspectFill" />
+        
+        <!-- 配方材料 -->
+        <view class="mix-ingredients-box">
+          <view v-if="activeBeverage.baseLiquor" class="mix-info-row">
+            <text class="mix-info-label">基酒/主料：</text>
+            <text class="mix-info-val">{{ activeBeverage.baseLiquor }}</text>
+          </view>
+          <view v-if="activeBeverage.mixIngredients" class="mix-info-row">
+            <text class="mix-info-label">辅料：</text>
+            <text class="mix-info-val">{{ activeBeverage.mixIngredients }}</text>
+          </view>
+          <view v-if="activeBeverage.accessories" class="mix-info-row">
+            <text class="mix-info-label">额外配件：</text>
+            <text class="mix-info-val">{{ activeBeverage.accessories }}</text>
+          </view>
+          <view v-if="activeBeverage.garnish" class="mix-info-row">
+            <text class="mix-info-label">装饰物：</text>
+            <text class="mix-info-val">{{ activeBeverage.garnish }}</text>
+          </view>
+          <view v-if="activeBeverage.glassType || activeBeverage.iceType" class="mix-info-row">
+            <text class="mix-info-label">杯型/冰块：</text>
+            <text class="mix-info-val">
+              {{ [activeBeverage.glassType, activeBeverage.iceType].filter(Boolean).join(' / ') }}
+            </text>
+          </view>
+        </view>
+        
+        <!-- 调制步骤 -->
+        <view v-if="activeBeverage.mixSteps && activeBeverage.mixSteps.length" class="mix-steps-section">
+          <text class="mix-section-title">调制步骤</text>
+          <view class="mix-steps-list">
+            <view
+              v-for="(step, idx) in activeBeverage.mixSteps"
+              :key="idx"
+              class="mix-step-item"
+            >
+              <view class="mix-step-number">{{ step.stepNo }}</view>
+              <view class="mix-step-content">
+                <text class="mix-step-text">{{ step.description }}</text>
+                <text v-if="step.estimatedTime" class="mix-step-time">预计用时：{{ step.estimatedTime }}秒</text>
+                <image
+                  v-if="step.image"
+                  class="mix-step-image"
+                  :src="step.image"
+                  mode="aspectFill"
+                />
+              </view>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 小贴士 -->
+        <view v-if="activeBeverage.mixTips" class="mix-tips-box">
+          <text class="mix-tips-title">调制小贴士</text>
+          <text class="mix-tips-text">{{ activeBeverage.mixTips }}</text>
+        </view>
+        
+        <nut-button type="primary" block @click="closeBeverageMixMethod" style="margin-top: 20rpx;">
           知道了
         </nut-button>
       </view>
@@ -242,6 +329,7 @@ interface Recipe {
     isAlcoholic: boolean;
     alcoholDegree: number | null;
     recommendReason: string | null;
+    description: string | null;
   }[];
 }
 
@@ -332,7 +420,8 @@ const loadRemoteRecipe = async (id: string) => {
         beverageType: entry.beverage.beverageType,
         isAlcoholic: entry.beverage.isAlcoholic,
         alcoholDegree: entry.beverage.alcoholDegree,
-        recommendReason: entry.recommendReason
+        recommendReason: entry.recommendReason,
+        description: entry.beverage.description
       }))
     };
   } catch (err) {
@@ -558,6 +647,42 @@ const showIngredientGuide = (name: string) => {
 
 const closeIngredientGuide = () => {
   activeGuideName.value = '';
+};
+
+const activeBeverage = ref<any>(null);
+
+const hasMixMethod = (beverage: any) => {
+  if (!beverage || !beverage.description) return false;
+  try {
+    if (beverage.description.startsWith('{')) {
+      const parsed = JSON.parse(beverage.description);
+      return parsed.showMixMethod === true && (parsed.mixMethod || parsed.baseLiquor || (parsed.mixSteps && parsed.mixSteps.length));
+    }
+  } catch (e) {}
+  return false;
+};
+
+const showBeverageMixMethod = (beverage: any) => {
+  if (!hasMixMethod(beverage)) {
+    return;
+  }
+  try {
+    const descObj = JSON.parse(beverage.description);
+    activeBeverage.value = {
+      name: beverage.name,
+      coverImage: beverage.coverImage,
+      beverageType: beverage.beverageType,
+      isAlcoholic: beverage.isAlcoholic,
+      alcoholDegree: beverage.alcoholDegree,
+      ...descObj
+    };
+  } catch (e) {
+    uni.showToast({ title: '配置解析失败', icon: 'none' });
+  }
+};
+
+const closeBeverageMixMethod = () => {
+  activeBeverage.value = null;
 };
 
 onShow(() => {
@@ -1087,5 +1212,123 @@ onShow(() => {
   color: var(--app-text-secondary);
   font-size: var(--font-size-caption);
   line-height: var(--line-body);
+}
+
+.beverage-item.is-clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.beverage-item.is-clickable:active {
+  transform: scale(0.98);
+  background-color: rgba(245, 241, 234, 0.9);
+}
+.beverage-mix-badge {
+  display: inline-block;
+  margin-top: 8rpx;
+  color: var(--app-accent);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.mix-ingredients-box {
+  background: rgba(245, 241, 234, 0.5);
+  border-radius: 20rpx;
+  padding: 16rpx;
+  margin-top: 16rpx;
+  margin-bottom: 24rpx;
+  text-align: left;
+}
+.mix-info-row {
+  display: flex;
+  margin-bottom: 8rpx;
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+}
+.mix-info-row:last-child {
+  margin-bottom: 0;
+}
+.mix-info-label {
+  color: var(--app-text-tertiary);
+  width: 150rpx;
+  flex-shrink: 0;
+}
+.mix-info-val {
+  color: var(--app-text);
+  font-weight: var(--font-medium);
+}
+.mix-steps-section {
+  margin-bottom: 24rpx;
+  text-align: left;
+}
+.mix-section-title {
+  display: block;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  color: var(--app-text);
+  margin-bottom: 16rpx;
+}
+.mix-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.mix-step-item {
+  display: flex;
+  gap: 16rpx;
+}
+.mix-step-number {
+  width: 36rpx;
+  height: 36rpx;
+  flex-shrink: 0;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+.mix-step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  text-align: left;
+}
+.mix-step-text {
+  font-size: var(--font-size-caption);
+  color: var(--app-text-secondary);
+  line-height: var(--line-body);
+}
+.mix-step-time {
+  font-size: var(--font-size-tag);
+  color: var(--app-text-tertiary);
+}
+.mix-step-image {
+  width: 200rpx;
+  height: 120rpx;
+  border-radius: 12rpx;
+  margin-top: 8rpx;
+}
+.mix-tips-box {
+  background: rgba(239, 243, 236, 0.8);
+  border-left: 6rpx solid var(--app-accent);
+  padding: 16rpx;
+  border-radius: 4rpx 16rpx 16rpx 4rpx;
+  margin-bottom: 24rpx;
+  text-align: left;
+}
+.mix-tips-title {
+  display: block;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+  color: var(--app-accent);
+  margin-bottom: 8rpx;
+}
+.mix-tips-text {
+  font-size: var(--font-size-tag);
+  color: var(--app-text-secondary);
+  line-height: 1.4;
 }
 </style>

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
-  ensureDefaultIngredientCategories,
   listBeverages,
+  listCategories,
   listIngredients,
   listRecipes,
   type Beverage,
@@ -54,6 +54,7 @@ type ContentRow =
       cover: string | null;
       typeLabel: IngredientContentLabel;
       categoryLabel: string;
+      categoryType?: IngredientCategory['type'];
       difficulty: null;
       cookTime: null;
       status: Ingredient['status'];
@@ -143,6 +144,7 @@ const toIngredientRow = (ingredient: Ingredient): ContentRow => {
     cover: ingredient.cover,
     typeLabel: kindByCategoryName[categoryLabel] ?? '食材',
     categoryLabel,
+    categoryType: ingredient.category?.type,
     difficulty: null,
     cookTime: null,
     status: ingredient.status,
@@ -197,7 +199,7 @@ export const ContentListPage = () => {
     setError(null);
     setNotice(null);
     try {
-      const categoryResult = await ensureDefaultIngredientCategories();
+      const categoryResult = await listCategories({ page: 1, pageSize: 100, status: 'ACTIVE' });
       const nextCategories = categoryResult.list;
       setCategories(nextCategories);
 
@@ -304,8 +306,21 @@ export const ContentListPage = () => {
     }
   };
 
-  const getDetailPath = (row: ContentRow) => (row.source === 'recipe' ? `/content/recipes/${row.id}` : row.source === 'beverage' ? `/content/beverages/${row.id}/edit` : `/content/ingredients/${row.id}`);
-  const getEditPath = (row: ContentRow) => (row.source === 'recipe' ? `/content/recipes/${row.id}/edit` : row.source === 'beverage' ? `/content/beverages/${row.id}/edit` : `/content/ingredients/${row.id}/edit`);
+  const getDetailPath = (row: ContentRow) => {
+    if (row.source === 'recipe') return `/content/recipes/${row.id}`;
+    if (row.source === 'beverage') return `/content/beverages/${row.id}`;
+    if (row.categoryType === 'FRUIT') return `/content/fruits/${row.id}`;
+    if (row.categoryType === 'SEASONING') return `/content/seasonings/${row.id}`;
+    return `/content/ingredients/${row.id}`;
+  };
+
+  const getEditPath = (row: ContentRow) => {
+    if (row.source === 'recipe') return `/content/recipes/${row.id}/edit`;
+    if (row.source === 'beverage') return `/content/beverages/${row.id}/edit`;
+    if (row.categoryType === 'FRUIT') return `/content/fruits/${row.id}/edit`;
+    if (row.categoryType === 'SEASONING') return `/content/seasonings/${row.id}/edit`;
+    return `/content/ingredients/${row.id}/edit`;
+  };
 
   const handleConfirmCreate = () => {
     setCreateOpen(false);

@@ -1,4 +1,4 @@
-import { Fragment, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,15 +13,6 @@ import { StatusTag } from '../components/StatusTag';
 type Draft = { name: string; type: IngredientCategory['type']; sort: number; status: IngredientCategory['status']; isPublish: boolean };
 
 type CategoryTypeFilter = 'all' | IngredientCategory['type'];
-type CategoryChildRow = {
-  id: string;
-  name: string;
-  type: IngredientCategory['type'];
-  parentName: string;
-  sort: number;
-  status: IngredientCategory['status'];
-  updatedAt: string;
-};
 
 const emptyDraft: Draft = { name: '', type: 'RECIPE', sort: 0, status: 'ACTIVE', isPublish: true };
 
@@ -58,34 +49,6 @@ const formatDate = (value: string) => {
   return date.toLocaleString('zh-CN', { hour12: false });
 };
 
-const getRelatedCount = (item: IngredientCategory) => Math.max(0, item.sort * 12 + (item.name.length % 9) * 17);
-
-const defaultChildNames: Record<string, string[]> = {
-  家常菜: ['下饭菜', '快手菜', '晚餐菜'],
-  快手菜: ['15分钟快手菜', '30分钟家常菜'],
-  早餐: ['营养早餐', '儿童早餐'],
-  午餐: ['便当午餐', '一人食'],
-  晚餐: ['轻食晚餐', '一周晚餐'],
-  汤羹: ['家常汤', '滋补汤'],
-  凉菜: ['爽口凉菜', '拌菜'],
-  主食: ['米饭面食', '饼类'],
-  下饭菜: ['红烧类', '酱香类'],
-  宴客菜: ['硬菜', '聚餐菜']
-};
-
-const getChildRows = (item: IngredientCategory): CategoryChildRow[] => {
-  const names = defaultChildNames[item.name] ?? [`${item.name}推荐`, `${item.name}精选`];
-  return names.slice(0, 3).map((name, index) => ({
-    id: `${item.id}__child_${index}`,
-    name,
-    type: item.type,
-    parentName: item.name,
-    sort: Math.max(0, item.sort - index - 1),
-    status: item.status,
-    updatedAt: item.updatedAt
-  }));
-};
-
 export const CategoriesPage = () => {
   const [items, setItems] = useState<IngredientCategory[]>([]);
   const [total, setTotal] = useState(0);
@@ -100,9 +63,10 @@ export const CategoriesPage = () => {
   const [statusFilter, setStatusFilter] = useState<IngredientCategory['status'] | ''>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<IngredientCategory | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<IngredientCategory | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [deleting, setDeleting] = useState<IngredientCategory | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [sortingId, setSortingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const canSave = useMemo(() => draft.name.trim().length > 0, [draft.name]);
@@ -115,8 +79,7 @@ export const CategoriesPage = () => {
     const disabled = items.filter((item) => item.status === 'DISABLED').length;
     return {
       total,
-      firstLevel: items.filter((item) => item.sort >= 90).length,
-      secondLevel: Math.max(0, total - items.filter((item) => item.sort >= 90).length),
+      firstLevel: total,
       active,
       disabled
     };
@@ -196,13 +159,45 @@ export const CategoriesPage = () => {
     }
   };
 
-  const toggleExpanded = (item: IngredientCategory) => {
-    setExpandedIds((current) => {
-      const next = new Set(current);
-      if (next.has(item.id)) next.delete(item.id);
-      else next.add(item.id);
-      return next;
-    });
+  const moveCategory = async (item: IngredientCategory, direction: -1 | 1) => {
+    if (sortingId) return;
+    const currentIndex = items.findIndex((category) => category.id === item.id);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= items.length) return;
+
+    const current = items[currentIndex];
+    const target = items[targetIndex];
+    const nextItems = [...items];
+    nextItems[currentIndex] = { ...target, sort: current.sort };
+    nextItems[targetIndex] = { ...current, sort: target.sort };
+    setItems(nextItems);
+    setSortingId(item.id);
+    setError(null);
+    try {
+      await Promise.all([
+        updateCategory(current.id, {
+          name: current.name,
+          type: current.type,
+          sort: target.sort,
+          status: current.status,
+          isPublish: current.isPublish
+        }),
+        updateCategory(target.id, {
+          name: target.name,
+          type: target.type,
+          sort: current.sort,
+          status: target.status,
+          isPublish: target.isPublish
+        })
+      ]);
+      setNotice('分类排序已保存');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '排序保存失败');
+      await refresh();
+    } finally {
+      setSortingId(null);
+    }
   };
 
   return (
@@ -210,7 +205,7 @@ export const CategoriesPage = () => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-[#2f2f2f]">分类管理</h1>
-          <p className="mt-2 text-sm text-[#8c8c8c]">统一管理菜谱、食材、水果、调料、酒水等内容分类，支持多级分类、排序和启用状态控制。</p>
+          <p className="mt-2 text-sm text-[#8c8c8c]">统一管理菜谱、食材、水果、调料、酒水等内容分类，支持类型隔离、排序和启用状态控制。</p>
         </div>
         <Button onClick={openCreate} className="bg-[#2f6f2f] hover:bg-[#235623]">＋ 新增分类</Button>
       </div>
@@ -219,40 +214,63 @@ export const CategoriesPage = () => {
       {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
 
       <div className="rounded-2xl border border-[#e9e2d6] bg-white p-5 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_1fr_1.5fr_auto_auto]">
+        <div className="space-y-4">
           <FilterField label="分类类型">
-            <select value={typeFilter} onChange={(event) => { setPage(1); setTypeFilter(event.target.value as CategoryTypeFilter); }} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]">
-              {typeOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
-            </select>
+            <div className="flex flex-wrap gap-2">
+              {typeOptions.map((option) => {
+                const isActive = typeFilter === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => {
+                      setPage(1);
+                      setTypeFilter(option.key);
+                    }}
+                    className={`h-9 px-4 rounded-xl border text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-[#2f6f2f] text-white border-[#2f6f2f]'
+                        : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
           </FilterField>
-          <FilterField label="层级">
-            <select className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]">
-              <option>全部</option>
-              <option>一级分类</option>
-              <option>二级分类</option>
-            </select>
-          </FilterField>
-          <FilterField label="状态">
-            <select value={statusFilter} onChange={(event) => { setPage(1); setStatusFilter(event.target.value as typeof statusFilter); }} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]">
-              <option value="">全部</option>
-              <option value="ACTIVE">启用</option>
-              <option value="DISABLED">停用</option>
-            </select>
-          </FilterField>
-          <FilterField label="关键词">
-            <Input value={q} onChange={(event) => setQ(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') handleSearch(); }} placeholder="请输入分类名称" className="h-11 rounded-xl" />
-          </FilterField>
-          <div className="flex items-end"><Button onClick={handleSearch} className="h-11 w-full bg-[#2f6f2f] hover:bg-[#235623]">查询</Button></div>
-          <div className="flex items-end"><Button variant="ghost" onClick={handleReset} className="h-11 w-full">重置</Button></div>
+          
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_2fr_auto_auto] pt-2 border-t border-[#f5f1ea]">
+            <FilterField label="层级">
+              <select disabled className="h-11 w-full rounded-xl border border-zinc-200 bg-[#f7f3ec] px-3 text-sm text-[#8c8c8c] outline-none">
+                <option>一级分类</option>
+              </select>
+            </FilterField>
+            <FilterField label="状态">
+              <select value={statusFilter} onChange={(event) => { setPage(1); setStatusFilter(event.target.value as typeof statusFilter); }} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]">
+                <option value="">全部</option>
+                <option value="ACTIVE">启用</option>
+                <option value="DISABLED">停用</option>
+              </select>
+            </FilterField>
+            <FilterField label="关键词">
+              <Input value={q} onChange={(event) => setQ(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') handleSearch(); }} placeholder="请输入分类名称" className="h-11 rounded-xl" />
+            </FilterField>
+            <div className="flex items-end"><Button onClick={handleSearch} className="h-11 w-full bg-[#2f6f2f] hover:bg-[#235623]">查询</Button></div>
+            <div className="flex items-end"><Button variant="ghost" onClick={handleReset} className="h-11 w-full">重置</Button></div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon="▱" title="分类总数" value={stats.total} suffix="个" />
-        <StatCard icon="▰" title="一级分类" value={stats.firstLevel} suffix="个" />
-        <StatCard icon="⌘" title="二级分类" value={stats.secondLevel} suffix="个" />
-        <StatCard icon="✓" title="启用中" value={stats.active} suffix="个" tone="green" />
-        <StatCard icon="Ⅱ" title="停用中" value={stats.disabled} suffix="个" tone="orange" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon="▱" title="筛选结果" value={stats.total} suffix="个" />
+        <StatCard icon="▰" title="分类总数" value={stats.firstLevel} suffix="个" />
+        <StatCard icon="✓" title="本页启用" value={stats.active} suffix="个" tone="green" />
+        <StatCard icon="Ⅱ" title="本页停用" value={stats.disabled} suffix="个" tone="orange" />
+      </div>
+
+      <div className="rounded-2xl border border-[#d6decd] bg-[#eef3ea] px-5 py-4 text-sm text-[#5f7f56]">
+        当前分类接口为一级扁平分类。内容模块、菜谱、食材等下游页面会按这里的“分类类型”读取对应分类；多级分类需要后端补充父级字段后再开放。
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#e9e2d6] bg-white shadow-sm">
@@ -263,10 +281,9 @@ export const CategoriesPage = () => {
                 <th className="border-b border-[#e9e2d6] px-4 py-4"><input type="checkbox" /></th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">分类名称</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">分类类型</th>
-                <th className="border-b border-[#e9e2d6] px-4 py-4">上级分类</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">层级</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">排序</th>
-                <th className="border-b border-[#e9e2d6] px-4 py-4">关联内容数</th>
+                <th className="border-b border-[#e9e2d6] px-4 py-4">关联内容</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">状态</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">更新时间</th>
                 <th className="sticky right-0 z-20 border-b border-[#e9e2d6] bg-[#fffdfc] px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]">操作</th>
@@ -274,70 +291,66 @@ export const CategoriesPage = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={10} className="px-4 py-16 text-center text-[#8c8c8c]">加载中...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-16 text-center text-[#8c8c8c]">加载中...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-16 text-center text-[#8c8c8c]">暂无分类</td></tr>
-              ) : items.map((item) => {
-                const expanded = expandedIds.has(item.id);
-                const childRows = getChildRows(item);
-                return (
-                  <Fragment key={item.id}>
-                    <tr className="transition hover:bg-[#fffdfc]">
+                <tr><td colSpan={9} className="px-4 py-16 text-center text-[#8c8c8c]">暂无分类</td></tr>
+              ) : items.map((item, index) => (
+                    <tr key={item.id} className="transition hover:bg-[#fffdfc]">
                       <td className="border-b border-[#f1ece4] px-4 py-4"><input type="checkbox" /></td>
-                      <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-4 font-medium text-[#2f2f2f]">
+                      <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-4 font-medium">
                         <button
                           type="button"
-                          onClick={() => toggleExpanded(item)}
-                          className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-[#6f6a61] transition hover:bg-[#edf5ea] hover:text-[#6f8b62]"
-                          aria-label={expanded ? '收起子分类' : '展开子分类'}
+                          onClick={() => setSelectedCategory(item)}
+                          className="text-[#2f6f2f] hover:underline cursor-pointer font-medium"
                         >
-                          {expanded ? '⌄' : '›'}
+                          {item.name}
                         </button>
-                        {item.name}
-                        <span className="ml-2 rounded-full bg-[#edf5ea] px-2 py-0.5 text-xs text-[#6f8b62]">{childRows.length}</span>
                       </td>
                       <td className="border-b border-[#f1ece4] px-4 py-4"><span className={`inline-flex rounded-md border px-2.5 py-1 text-xs ${typePillClass[item.type] ?? 'bg-[#f5f1ea] text-[#8c8c8c] border-[#e9e2d6]'}`}>{typeLabels[item.type] ?? item.type}</span></td>
-                      <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-4 text-[#8c8c8c]">—</td>
                       <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">1</td>
-                      <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">{item.sort}</td>
-                      <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">{getRelatedCount(item).toLocaleString('zh-CN')}</td>
+                      <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">
+                        <div className="flex items-center gap-3">
+                          <span className="min-w-8">{item.sort}</span>
+                          <div className="flex flex-col leading-none text-[#8c8c8c]">
+                            <button
+                              type="button"
+                              className="h-4 text-xs hover:text-[#6f8663] disabled:cursor-not-allowed disabled:text-[#d9d2c6]"
+                              disabled={index === 0 || !!sortingId}
+                              aria-label={`上移${item.name}`}
+                              onClick={() => void moveCategory(item, -1)}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              className="h-4 text-xs hover:text-[#6f8663] disabled:cursor-not-allowed disabled:text-[#d9d2c6]"
+                              disabled={index === items.length - 1 || !!sortingId}
+                              aria-label={`下移${item.name}`}
+                              onClick={() => void moveCategory(item, 1)}
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">
+                        {item.relatedCount && item.relatedCount > 0 ? (
+                          <span className="text-[#c27b48]">{item.relatedCount} 条</span>
+                        ) : (
+                          <span className="text-[#8c8c8c]">0 条</span>
+                        )}
+                      </td>
                       <td className="border-b border-[#f1ece4] px-4 py-4"><StatusTag label={item.status === 'ACTIVE' ? '启用' : '停用'} tone={item.status === 'ACTIVE' ? 'green' : 'orange'} /></td>
                       <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">{formatDate(item.updatedAt)}</td>
                       <td className="sticky right-0 z-10 whitespace-nowrap border-b border-[#f1ece4] bg-white px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]">
                         <div className="flex items-center gap-4 text-sm">
-                          <button type="button" onClick={() => navigate(`/taxonomies/categories/${item.id}`)} className="text-[#6f8b62] hover:text-[#2f6f2f]">查看</button>
                           <button type="button" onClick={() => openEdit(item)} className="text-[#6f8b62] hover:text-[#2f6f2f]">编辑</button>
-                          <button type="button" onClick={() => navigate('/taxonomies/categories/create')} className="text-[#6f8b62] hover:text-[#2f6f2f]">新增子分类</button>
                           <button type="button" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')} className="text-[#c27b48] hover:text-[#a35f2f]">{item.status === 'ACTIVE' ? '停用' : '启用'}</button>
                           <button type="button" onClick={() => setDeleting(item)} className="text-red-500 hover:text-red-600">删除</button>
                         </div>
                       </td>
                     </tr>
-                    {expanded ? childRows.map((child) => (
-                      <tr key={child.id} className="bg-[#fffdfc] transition hover:bg-[#f7f2eb]">
-                        <td className="border-b border-[#f1ece4] px-4 py-3" />
-                        <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-3 pl-14 font-medium text-[#2f2f2f]">
-                          <span className="mr-2 text-[#c4bcae]">└</span>{child.name}
-                        </td>
-                        <td className="border-b border-[#f1ece4] px-4 py-3"><span className={`inline-flex rounded-md border px-2.5 py-1 text-xs ${typePillClass[child.type] ?? 'bg-[#f5f1ea] text-[#8c8c8c] border-[#e9e2d6]'}`}>{typeLabels[child.type] ?? child.type}</span></td>
-                        <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-3 text-[#2f2f2f]">{child.parentName}</td>
-                        <td className="border-b border-[#f1ece4] px-4 py-3 text-[#2f2f2f]">2</td>
-                        <td className="border-b border-[#f1ece4] px-4 py-3 text-[#2f2f2f]">{child.sort}</td>
-                        <td className="border-b border-[#f1ece4] px-4 py-3 text-[#2f2f2f]">{Math.max(12, child.sort * 8).toLocaleString('zh-CN')}</td>
-                        <td className="border-b border-[#f1ece4] px-4 py-3"><StatusTag label={child.status === 'ACTIVE' ? '启用' : '停用'} tone={child.status === 'ACTIVE' ? 'green' : 'orange'} /></td>
-                        <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-3 text-[#2f2f2f]">{formatDate(child.updatedAt)}</td>
-                        <td className="sticky right-0 z-10 whitespace-nowrap border-b border-[#f1ece4] bg-[#fffdfc] px-4 py-3 shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]">
-                          <div className="flex items-center gap-4 text-sm">
-                            <button type="button" onClick={() => setNotice('子分类详情接口待接入')} className="text-[#6f8b62] hover:text-[#2f6f2f]">查看</button>
-                            <button type="button" onClick={() => navigate('/taxonomies/categories/create')} className="text-[#6f8b62] hover:text-[#2f6f2f]">编辑</button>
-                            <button type="button" onClick={() => setNotice(`「${child.name}」状态已更新`)} className="text-[#c27b48] hover:text-[#a35f2f]">停用</button>
-                          </div>
-                        </td>
-                      </tr>
-                    )) : null}
-                  </Fragment>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>
@@ -354,16 +367,107 @@ export const CategoriesPage = () => {
           <div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={() => setDrawerOpen(false)}>取消</Button><Button disabled={!canSave} onClick={() => void handleSave()}>保存</Button></div>
         </div>
       </Drawer>
-      <ConfirmModal title="确认删除" open={!!deleting} onClose={() => setDeleting(null)} description={deleting ? `删除分类「${deleting.name}」后将无法恢复。` : null} confirmText="删除" danger onConfirm={handleDelete} />
+      <ConfirmModal
+        title="确认删除"
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        description={
+          deleting ? (
+            deleting.relatedCount && deleting.relatedCount > 0 ? (
+              <span className="text-red-500 font-medium">
+                该分类下有 {deleting.relatedCount} 条关联内容，不能删除。请先在相关内容中解除与该分类的绑定。
+              </span>
+            ) : (
+              `删除分类「${deleting.name}」后将无法恢复。`
+            )
+          ) : null
+        }
+        confirmText={deleting && deleting.relatedCount && deleting.relatedCount > 0 ? "我知道了" : "删除"}
+        danger={!(deleting && deleting.relatedCount && deleting.relatedCount > 0)}
+        onConfirm={
+          deleting && deleting.relatedCount && deleting.relatedCount > 0
+            ? () => setDeleting(null)
+            : handleDelete
+        }
+      />
+      <Drawer
+        title="分类详情"
+        open={Boolean(selectedCategory)}
+        onClose={() => setSelectedCategory(null)}
+        widthClassName="max-w-lg"
+      >
+        {selectedCategory && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-[#e9e2d6] bg-white p-5 shadow-sm">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">分类名称</div>
+                  <div className="mt-1 text-sm font-semibold text-[#2f2f2f]">{selectedCategory.name}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">分类类型</div>
+                  <div className="mt-1">
+                    <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs ${typePillClass[selectedCategory.type] ?? 'bg-[#f5f1ea] text-[#8c8c8c] border-[#e9e2d6]'}`}>
+                      {typeLabels[selectedCategory.type] ?? selectedCategory.type}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">排序值</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">{selectedCategory.sort}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">状态</div>
+                  <div className="mt-1">
+                    <StatusTag label={selectedCategory.status === 'ACTIVE' ? '启用' : '停用'} tone={selectedCategory.status === 'ACTIVE' ? 'green' : 'orange'} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">App 中展示</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">{selectedCategory.isPublish ? '展示' : '隐藏'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">关联内容数</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">{selectedCategory.relatedCount ?? 0} 条</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">创建时间</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">{formatDate(selectedCategory.createdAt)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[#8c8c8c]">更新时间</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">{formatDate(selectedCategory.updatedAt)}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-4 border-t border-[#f5f1ea]">
+              <Button variant="ghost" onClick={() => setSelectedCategory(null)}>
+                关闭
+              </Button>
+              <Button
+                onClick={() => {
+                  const item = selectedCategory;
+                  setSelectedCategory(null);
+                  openEdit(item);
+                }}
+                className="bg-[#7a8b6f] hover:bg-[#68775f]"
+              >
+                编辑分类
+              </Button>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </section>
   );
 };
 
 const FilterField = ({ label, children }: { label: string; children: ReactNode }) => (
-  <label className="grid grid-cols-[72px_1fr] items-center gap-3 text-sm text-[#2f2f2f]">
+  <div className="grid grid-cols-[72px_1fr] items-center gap-3 text-sm text-[#2f2f2f]">
     <span className="font-medium">{label}</span>
     {children}
-  </label>
+  </div>
 );
 
 const StatCard = ({ icon, title, value, suffix, tone = 'green' }: { icon: string; title: string; value: number; suffix: string; tone?: 'green' | 'orange' }) => (
@@ -377,16 +481,16 @@ const StatCard = ({ icon, title, value, suffix, tone = 'green' }: { icon: string
 );
 
 const PaginationFooter = ({ total, page, pageSize, totalPages, canPrev, canNext, loading, setPage, setPageSize }: { total: number; page: number; pageSize: number; totalPages: number; canPrev: boolean; canNext: boolean; loading: boolean; setPage: Dispatch<SetStateAction<number>>; setPageSize: Dispatch<SetStateAction<number>> }) => (
-  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#f1ece4] px-5 py-4 text-sm text-[#8c8c8c]">
+  <div className="flex items-center justify-between gap-4 border-t border-[#f1ece4] px-5 py-4 text-sm text-[#8c8c8c] overflow-x-auto whitespace-nowrap">
     <span>共 {total.toLocaleString('zh-CN')} 条</span>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2">
       <select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value={10}>10 条/页</option><option value={20}>20 条/页</option></select>
       <Button variant="ghost" disabled={!canPrev || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>‹</Button>
       <span className="rounded-lg bg-[#6f8b62] px-4 py-2 text-white">{page}</span>
       <span>/ {totalPages}</span>
       <Button variant="ghost" disabled={!canNext || loading} onClick={() => setPage((value) => value + 1)}>›</Button>
       <span>前往</span>
-      <Input type="number" min={1} max={totalPages} value={page} onChange={(event) => setPage(Math.min(totalPages, Math.max(1, Number(event.target.value) || 1)))} className="h-10 w-16 rounded-lg text-center" />
+      <Input type="number" min={1} max={totalPages} value={page} onChange={(event) => setPage(Math.min(totalPages, Math.max(1, Number(event.target.value) || 1)))} className="h-10 w-16 rounded-lg text-center font-normal" />
       <span>页</span>
     </div>
   </div>

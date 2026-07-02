@@ -48,6 +48,11 @@ apiMobileRouter.post('/auth/login', async (req, res) => {
         create: { ...parsed.data, sourceType: 'USER' },
         update: { nickname: parsed.data.nickname, avatar: parsed.data.avatar }
       });
+
+  if (user.status === 'DISABLED') {
+    throw new HttpError('该账户已被禁用，无法登录，请联系管理员。', 403, 403);
+  }
+
   res.json(ok(user));
 });
 

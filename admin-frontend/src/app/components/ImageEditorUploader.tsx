@@ -10,6 +10,7 @@ type Props = {
   disabled?: boolean;
   onCoverChange: (url: string | null) => void;
   onImagesChange: (urls: string[]) => void;
+  tip?: string;
 };
 
 const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -21,9 +22,9 @@ export const ImageEditorUploader = ({
   max = 8,
   disabled = false,
   onCoverChange,
-  onImagesChange
+  onImagesChange,
+  tip
 }: Props) => {
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const editInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -91,7 +92,6 @@ export const ImageEditorUploader = ({
 
   return (
     <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-4">
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => void handleAdd(event)} />
       <input ref={editInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => void handleReplace(event)} />
 
       <div className="mb-4 flex items-center gap-3">
@@ -111,13 +111,11 @@ export const ImageEditorUploader = ({
 
       <div className="flex flex-wrap gap-4">
         {canAdd ? (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="flex h-28 w-28 items-center justify-center rounded-2xl bg-[#f5f5f4] text-5xl font-light text-[#b8b2a8] transition hover:bg-[#f0ebe3] hover:text-[#6f8b62]"
-          >
-            +
-          </button>
+          <label className="relative flex h-28 w-28 cursor-pointer items-center justify-center overflow-hidden rounded-2xl bg-[#f5f5f4] text-5xl font-light text-[#b8b2a8] transition hover:bg-[#f0ebe3] hover:text-[#6f8b62]">
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="absolute inset-0 cursor-pointer opacity-0" onChange={(event) => void handleAdd(event)} />
+            <span aria-hidden="true">+</span>
+            <span className="sr-only">上传图片</span>
+          </label>
         ) : null}
 
         {allImages.map((url, index) => {
@@ -152,7 +150,7 @@ export const ImageEditorUploader = ({
       </div>
 
       <div className="mt-3 text-xs text-[#8c8c8c]">
-        {uploading ? '上传中...' : '支持 jpg / jpeg / png / webp，封面与图片使用相同尺寸，最多上传 8 张。'}
+        {uploading ? '上传中...' : (tip ?? (max === 1 ? '支持 jpg / jpeg / png / webp，建议使用正方形头像，仅上传 1 张。' : `支持 jpg / jpeg / png / webp，封面与图片使用相同尺寸，最多上传 ${max} 张。`))}
       </div>
       {error ? <div className="mt-2 text-xs text-red-600">{error}</div> : null}
     </div>

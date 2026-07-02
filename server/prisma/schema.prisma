@@ -106,6 +106,13 @@ model User {
   nickname      String?       @db.VarChar(60)
   avatar        String?       @db.VarChar(255)
   gender        String?       @db.VarChar(16)
+  email         String?       @unique @db.VarChar(120)
+  passwordHash  String?       @map("password_hash") @db.VarChar(255)
+  role          String        @default("USER") @db.VarChar(32)
+  source        String        @default("USER") @db.VarChar(32)
+  birthday      DateTime?     @db.Date
+  region        String?       @db.VarChar(100)
+  lastLoginAt   DateTime?     @map("last_login_at")
 
   recipes       Recipe[]      @relation("UserRecipes")
   favorites     Favorite[]
@@ -1248,4 +1255,111 @@ model HomeTopNavContentRule {
   nav                 HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
   @@map("home_top_nav_content_rules")
+}
+
+model ResourceApp {
+  id             Int               @id @default(autoincrement())
+  name           String            @db.VarChar(120)
+  appId          String            @unique @map("app_id") @db.VarChar(64)
+  appType        String            @map("app_type") @db.VarChar(32) // ADMIN / APP / THIRD_PARTY
+  owner          String            @db.VarChar(64)
+  status         RecordStatus      @default(ACTIVE)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  apiKeys        ResourceApiKey[]
+  callLogs       ResourceCallLog[]
+
+  @@map("resource_apps")
+}
+
+model ResourceApiKey {
+  id              Int             @id @default(autoincrement())
+  name            String          @db.VarChar(120)
+  appId           Int             @map("app_id")
+  app             ResourceApp     @relation(fields: [appId], references: [id], onDelete: Cascade)
+  keyHash         String          @map("key_hash") @db.VarChar(255)
+  keyPrefix       String          @map("key_prefix") @db.VarChar(32)
+  permissionScope String          @map("permission_scope") @db.VarChar(255)
+  status          String          @default("ACTIVE") @db.VarChar(20) // ACTIVE / DISABLED / EXPIRED
+  expiresAt       DateTime?       @map("expires_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  callLogs        ResourceCallLog[]
+
+  @@index([appId])
+  @@map("resource_api_keys")
+}
+
+model ResourcePermission {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(120)
+  code         String   @unique @db.VarChar(80)
+  path         String   @db.VarChar(255)
+  method       String   @db.VarChar(16)
+  module       String   @db.VarChar(32)
+  authRequired Boolean  @default(true) @map("auth_required")
+  status       String   @default("ACTIVE") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("resource_permissions")
+}
+
+model ResourceCallLog {
+  id           Int             @id @default(autoincrement())
+  calledAt     DateTime        @default(now()) @map("called_at")
+  appId        Int             @map("app_id")
+  app          ResourceApp     @relation(fields: [appId], references: [id], onDelete: Cascade)
+  apiKeyId     Int?            @map("api_key_id")
+  apiKey       ResourceApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  apiKeyPrefix String?         @map("api_key_prefix") @db.VarChar(32)
+  path         String          @db.VarChar(255)
+  method       String          @db.VarChar(16)
+  statusCode   Int             @map("status_code")
+  durationMs   Int             @map("duration_ms")
+  ip           String?         @db.VarChar(64)
+  errorMessage String?         @map("error_message") @db.Text
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([appId])
+  @@index([apiKeyId])
+  @@index([calledAt])
+  @@map("resource_call_logs")
+}
+
+model ResourceImportBatch {
+  id           Int                  @id @default(autoincrement())
+  importType   String               @map("import_type") @db.VarChar(32) // RECIPE / INGREDIENT / FRUIT / SEASONING / BEVERAGE
+  sourceType   String               @map("source_type") @db.VarChar(64) // JSON / EXCEL
+  fileName     String               @map("file_name") @db.VarChar(255)
+  status       String               @default("PENDING") @db.VarChar(20) // PENDING / COMPLETED / FAILED
+  totalCount   Int                  @default(0) @map("total_count")
+  successCount Int                  @default(0) @map("success_count")
+  failedCount  Int                  @default(0) @map("failed_count")
+  errorMessage String?              @map("error_message") @db.Text
+  createdBy    String               @map("created_by") @db.VarChar(64)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  finishedAt   DateTime?            @map("finished_at")
+
+  items        ResourceImportItem[]
+
+  @@map("resource_import_batches")
+}
+
+model ResourceImportItem {
+  id           Int                 @id @default(autoincrement())
+  importId     Int                 @map("import_id")
+  batch        ResourceImportBatch @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rowIndex     Int                 @map("row_index")
+  rawData      Json                @map("raw_data") // Original unmapped row payload
+  mappedData   Json                @map("mapped_data") // Formatted payload ready for insertion
+  status       String              @default("PENDING") @db.VarChar(20) // PENDING / IMPORTED / FAILED
+  errorMessage String?             @map("error_message") @db.Text
+  targetId     Int?                @map("target_id") // Inserted row ID in main tables on success
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@index([importId])
+  @@map("resource_import_items")
 }

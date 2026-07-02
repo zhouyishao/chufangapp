@@ -70,7 +70,49 @@ adminCategoriesRouter.get('/', requireAdminAuth, async (req, res) => {
     prisma.category.count({ where })
   ]);
 
-  const data: PageResult<ReturnType<typeof serializeCategory>> = { list: list.map(serializeCategory), total, page, pageSize };
+  // 批量统计每个分类的关联内容数量
+  const categoryIds = list.map(c => c.id);
+  const [recipeCounts, ingredientCounts, beverageCounts] = await Promise.all([
+    prisma.recipe.groupBy({
+      by: ['categoryId'],
+      where: { categoryId: { in: categoryIds }, deletedAt: null },
+      _count: { id: true }
+    }),
+    prisma.ingredient.groupBy({
+      by: ['categoryId'],
+      where: { categoryId: { in: categoryIds }, deletedAt: null },
+      _count: { id: true }
+    }),
+    prisma.beverage.groupBy({
+      by: ['categoryId'],
+      where: { categoryId: { in: categoryIds }, deletedAt: null },
+      _count: { id: true }
+    })
+  ]);
+
+  const relatedCountMap = new Map<number, number>();
+  for (const row of recipeCounts) {
+    if (row.categoryId !== null) {
+      relatedCountMap.set(row.categoryId, (relatedCountMap.get(row.categoryId) ?? 0) + row._count.id);
+    }
+  }
+  for (const row of ingredientCounts) {
+    if (row.categoryId !== null) {
+      relatedCountMap.set(row.categoryId, (relatedCountMap.get(row.categoryId) ?? 0) + row._count.id);
+    }
+  }
+  for (const row of beverageCounts) {
+    if (row.categoryId !== null) {
+      relatedCountMap.set(row.categoryId, (relatedCountMap.get(row.categoryId) ?? 0) + row._count.id);
+    }
+  }
+
+  const data: PageResult<ReturnType<typeof serializeCategory> & { relatedCount: number }> = {
+    list: list.map(item => ({ ...serializeCategory(item), relatedCount: relatedCountMap.get(item.id) ?? 0 })),
+    total,
+    page,
+    pageSize
+  };
   res.json(ok(data));
 });
 

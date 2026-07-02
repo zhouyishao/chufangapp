@@ -18,7 +18,8 @@ export class ApiError extends Error {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api';
-const DEFAULT_IMAGE_URL = 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80';
+const DEFAULT_IMAGE_URL =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 900 600%22%3E%3Crect width=%22900%22 height=%22600%22 fill=%22%23F5F1EA%22/%3E%3Cpath d=%22M210 382c78-96 155-144 231-144 74 0 137 44 249 144%22 fill=%22none%22 stroke=%22%237A8B6F%22 stroke-width=%2228%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%22648%22 cy=%22182%22 r=%2250%22 fill=%22%23E9E2D6%22/%3E%3Crect x=%22218%22 y=%22416%22 width=%22464%22 height=%2232%22 rx=%2216%22 fill=%22%23E9E2D6%22/%3E%3C/svg%3E';
 
 const deriveApiOrigin = () => {
   try {
@@ -203,7 +204,7 @@ export const getHome = async () => {
   const recommendIngredients = data.seasonalFoods.map((item) => ({
     id: item.ingredient?.id ?? item.id,
     name: item.ingredient?.name ?? item.name,
-    cover: resolveAssetUrl(item.ingredient?.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80'),
+    cover: resolveAssetUrl(item.ingredient?.cover),
     seasonMonth: String(item.month),
     currentPrice: null,
     priceUnit: null,
@@ -252,6 +253,7 @@ export const getHomeHeroBanners = async (navId: string) => {
 
 export type ApiRecipeListItem = {
   id: string;
+  legacyId?: number;
   code?: string;
   title: string;
   subtitle: string | null;
@@ -279,7 +281,7 @@ export type ApiRecipeDetail = ApiRecipeListItem & {
   calories: number | null;
   tips: string | null;
   steps: { id: number; sortIndex: number; title: string | null; description: string; image: string | null }[];
-  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null }[];
+  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null; ingredient?: { cover: string | null } | null }[];
   beverages?: {
     recommendReason: string | null;
     sortOrder: number;
@@ -330,16 +332,446 @@ export type ApiIngredientListItem = {
   category?: { id: number; name: string; type: 'INGREDIENT' } | null;
 };
 
+export type ApiIngredientDetail = ApiIngredientListItem & {
+  nutrition: string | null;
+  selectionTips: string | null;
+  storageMethod: string | null;
+  taboo: string | null;
+  detailImages: string[] | null;
+  selectionMedia: string | null;
+  relatedRecipes: unknown;
+  priceSource: string | null;
+  priceDate: string | null;
+};
+
+export type ApiBeverageDetail = {
+  id: string;
+  legacyId: number;
+  code?: string | null;
+  name: string;
+  coverImage: string | null;
+  categoryId: number | null;
+  beverageType: string | null;
+  isAlcoholic: boolean;
+  alcoholDegree: number | null;
+  description: string | null;
+  category?: { id: number; name: string; type: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiIngredientPriceRecord = {
+  id: number;
+  ingredientId: number;
+  userId: number | null;
+  price: number;
+  unit: string;
+  date: string;
+  source: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const listIngredients = async (params: { page: number; pageSize: number; q?: string }) => {
   const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
   if (params.q) qs.set('q', params.q);
   const data = await request<PageResult<ApiIngredientListItem>>(`/ingredients?${qs.toString()}`);
-  return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80') })) };
+  return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) })) };
 };
 
 export const getIngredient = async (id: number) => {
-  const data = await request<ApiIngredientListItem>(`/ingredients/${id}`);
-  return { ...data, cover: resolveAssetUrl(data.cover, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80') };
+  const data = await request<ApiIngredientDetail>(`/ingredients/${id}`);
+  return {
+    ...data,
+    cover: resolveAssetUrl(data.cover),
+    detailImages: Array.isArray(data.detailImages) ? data.detailImages.map((url) => resolveAssetUrl(url, data.cover ?? undefined)) : []
+  };
+};
+
+export const getBeverage = async (id: string) => {
+  const data = await request<ApiBeverageDetail>(`/beverages/${encodeURIComponent(id)}`);
+  return {
+    ...data,
+    coverImage: resolveAssetUrl(data.coverImage)
+  };
+};
+
+export const listMobileIngredientPriceRecords = async (params: { userId: number; ingredientId: number }) => {
+  return request<ApiIngredientPriceRecord[]>(
+    `/mobile/ingredient-price-records?userId=${params.userId}&ingredientId=${params.ingredientId}`
+  );
+};
+
+export const createMobileIngredientPriceRecord = async (payload: {
+  userId: number;
+  ingredientId: number;
+  price: number;
+  unit: string;
+  priceDate?: string;
+  source?: string | null;
+}) => {
+  return request<ApiIngredientPriceRecord>('/mobile/ingredient-price-records', {
+    method: 'POST',
+    data: payload
+  });
+};
+
+export const deleteMobileIngredientPriceRecord = async (id: number, userId: number) => {
+  return request<ApiIngredientPriceRecord>(`/mobile/ingredient-price-records/${id}`, {
+    method: 'DELETE',
+    data: { userId }
+  });
+};
+
+export type ApiMobileUser = {
+  id: number;
+  phone: string | null;
+  openid: string | null;
+  nickname: string | null;
+  avatar: string | null;
+};
+
+export const loginMobileAuth = async (payload: {
+  phone?: string;
+  openid?: string;
+  nickname?: string;
+  avatar?: string;
+}) => {
+  return request<ApiMobileUser>('/mobile/auth/login', {
+    method: 'POST',
+    data: payload
+  });
+};
+
+type MobileActivityRecipe = {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  cover: string | null;
+  description: string | null;
+  cookTime: number | null;
+  difficulty: string | null;
+};
+
+type MobileActivityIngredient = {
+  id: number;
+  name: string;
+  cover: string | null;
+  seasonMonth: string | null;
+  currentPrice: number | null;
+  priceUnit: string | null;
+};
+
+export type ApiMobileFavorite = {
+  id: number;
+  userId: number;
+  recipeId: number | null;
+  ingredientId: number | null;
+  recipe: MobileActivityRecipe | null;
+  ingredient: MobileActivityIngredient | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiMobileViewHistory = ApiMobileFavorite;
+
+const resolveMobileActivityAssets = <T extends ApiMobileFavorite | ApiMobileViewHistory>(item: T): T => ({
+  ...item,
+  recipe: item.recipe ? { ...item.recipe, cover: resolveAssetUrl(item.recipe.cover) } : null,
+  ingredient: item.ingredient
+    ? {
+        ...item.ingredient,
+        cover: resolveAssetUrl(
+          item.ingredient.cover,
+          DEFAULT_IMAGE_URL
+        )
+      }
+    : null
+});
+
+export const listMobileFavorites = async (params: { userId: number; page?: number; pageSize?: number }) => {
+  const qs = new URLSearchParams({
+    userId: String(params.userId),
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 50)
+  });
+  const data = await request<PageResult<ApiMobileFavorite>>(`/mobile/favorites?${qs.toString()}`);
+  return { ...data, list: data.list.map(resolveMobileActivityAssets) };
+};
+
+export const addMobileFavorite = async (payload: { userId: number; recipeId?: number; ingredientId?: number }) => {
+  const data = await request<ApiMobileFavorite>('/mobile/favorites', {
+    method: 'POST',
+    data: payload
+  });
+  return resolveMobileActivityAssets(data);
+};
+
+export const deleteMobileFavorite = async (favoriteId: number) => {
+  return request<ApiMobileFavorite>(`/mobile/favorites/${favoriteId}`, {
+    method: 'DELETE'
+  });
+};
+
+export const listMobileViewHistories = async (params: { userId: number; page?: number; pageSize?: number }) => {
+  const qs = new URLSearchParams({
+    userId: String(params.userId),
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 50)
+  });
+  const data = await request<PageResult<ApiMobileViewHistory>>(`/mobile/view-histories?${qs.toString()}`);
+  return { ...data, list: data.list.map(resolveMobileActivityAssets) };
+};
+
+export const addMobileViewHistory = async (payload: { userId: number; recipeId?: number; ingredientId?: number }) => {
+  const data = await request<ApiMobileViewHistory>('/mobile/view-histories', {
+    method: 'POST',
+    data: payload
+  });
+  return resolveMobileActivityAssets(data);
+};
+
+export type ApiSearchHistory = {
+  id: number;
+  userId: number;
+  keyword: string;
+  resultCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const listMobileSearchHistories = async (params: { userId: number; page?: number; pageSize?: number }) => {
+  const qs = new URLSearchParams({
+    userId: String(params.userId),
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 20)
+  });
+  return request<PageResult<ApiSearchHistory>>(`/mobile/search-histories?${qs.toString()}`);
+};
+
+export const clearMobileSearchHistories = async (userId: number) => {
+  return request<{ count: number }>(`/mobile/search-histories?userId=${userId}`, { method: 'DELETE' });
+};
+
+export type ApiSearchResult = {
+  recipes: ApiRecipeListItem[];
+  ingredients: ApiIngredientListItem[];
+};
+
+export const searchMobileContent = async (params: { q: string; userId?: number }) => {
+  const qs = new URLSearchParams({ q: params.q });
+  if (params.userId) qs.set('userId', String(params.userId));
+  const data = await request<ApiSearchResult>(`/mobile/search?${qs.toString()}`);
+  return {
+    recipes: data.recipes.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) })),
+    ingredients: data.ingredients.map((item) => ({
+      ...item,
+      cover: resolveAssetUrl(item.cover)
+    }))
+  };
+};
+
+export type ApiFamilyMember = {
+  id: number;
+  role: 'CREATOR' | 'ADMIN' | 'MEMBER';
+  joinedAt: string;
+  remark: string | null;
+  user: { id: number; nickname: string | null; phone: string | null; avatar: string | null };
+};
+
+export type ApiFamilyPreference = {
+  avoidItems: string[];
+  allergies: string[];
+  preferences: string[];
+  taste: string | null;
+  note: string | null;
+};
+
+export type ApiFamily = {
+  id: number;
+  name: string;
+  avatar: string | null;
+  city: string | null;
+  district: string | null;
+  description: string | null;
+  memberLimit: number;
+  memberCount: number;
+  pendingItems: number;
+  createdAt: string;
+  owner: { id: number; nickname: string | null; phone: string | null; avatar: string | null } | null;
+  members: ApiFamilyMember[];
+  preferences: ApiFamilyPreference;
+};
+
+export type ApiFamilyInvite = {
+  id: number;
+  token: string | null;
+  url: string | null;
+  inviteName: string;
+  inviteStatus: string;
+  expiresAt: string | null;
+  family: ApiFamily;
+};
+
+export const listMobileFamilies = async (userId: number) => {
+  return request<ApiFamily[]>(`/mobile/families?userId=${userId}`);
+};
+
+export const createMobileFamily = async (payload: { userId: number; name: string; city?: string; district?: string; description?: string }) => {
+  return request<ApiFamily>('/mobile/families', { method: 'POST', data: payload });
+};
+
+export const getMobileFamily = async (familyId: number) => {
+  return request<ApiFamily>(`/mobile/families/${familyId}`);
+};
+
+export const updateMobileFamily = async (familyId: number, payload: { userId: number; name: string; description?: string | null }) => {
+  return request<ApiFamily>(`/mobile/families/${familyId}`, { method: 'PUT', data: payload });
+};
+
+export const createMobileFamilyInvite = async (familyId: number, userId: number) => {
+  return request<ApiFamilyInvite>(`/mobile/families/${familyId}/invites`, { method: 'POST', data: { userId } });
+};
+
+export const getMobileFamilyInvite = async (token: string) => {
+  return request<ApiFamilyInvite>(`/mobile/family-invites/${encodeURIComponent(token)}`);
+};
+
+export const joinMobileFamilyInvite = async (token: string, userId: number) => {
+  return request<ApiFamily>(`/mobile/family-invites/${encodeURIComponent(token)}/join`, { method: 'POST', data: { userId } });
+};
+
+export type ApiMyRecipeIngredient = {
+  id: number;
+  name: string;
+  amount: string;
+};
+
+export type ApiMyRecipeStep = {
+  id: number;
+  title: string;
+  description: string;
+};
+
+export type ApiMyRecipe = {
+  id: number;
+  publicId: string;
+  code: string | null;
+  name: string;
+  description: string;
+  image: string | null;
+  duration: string;
+  flavor: string;
+  updatedAt: string;
+  status: 'draft' | 'published';
+  difficulty: string;
+  category: string;
+  visibility: string;
+  note: string;
+  ingredients: ApiMyRecipeIngredient[];
+  steps: ApiMyRecipeStep[];
+};
+
+export const listMobileMyRecipes = async (params: { userId: number; page?: number; pageSize?: number; q?: string }) => {
+  const qs = new URLSearchParams({
+    userId: String(params.userId),
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 20)
+  });
+  if (params.q?.trim()) qs.set('q', params.q.trim());
+  return request<PageResult<ApiMyRecipe>>(`/mobile/my-recipes?${qs.toString()}`);
+};
+
+export const getMobileMyRecipe = async (recipeId: string, userId?: number) => {
+  const qs = userId ? `?userId=${userId}` : '';
+  return request<ApiMyRecipe>(`/mobile/my-recipes/${encodeURIComponent(recipeId)}${qs}`);
+};
+
+export const createMobileMyRecipe = async (payload: {
+  userId: number;
+  title: string;
+  subtitle?: string | null;
+  cover?: string | null;
+  description?: string | null;
+  duration?: string | null;
+  difficulty?: string | null;
+  flavor?: string | null;
+  category?: string | null;
+  visibility?: string | null;
+  notes?: string | null;
+  isDraft?: boolean;
+  ingredients: Array<{ sortIndex: number; name: string; amount?: string | null }>;
+  steps: Array<{ sortIndex: number; title?: string | null; description: string; image?: string | null; video?: string | null }>;
+}) => {
+  return request<ApiMyRecipe>('/mobile/my-recipes', { method: 'POST', data: payload });
+};
+
+export const saveMobileFamilyPreferences = async (familyId: number, payload: ApiFamilyPreference & { userId: number }) => {
+  return request<ApiFamilyPreference>(`/mobile/families/${familyId}/preferences`, { method: 'PUT', data: payload });
+};
+
+export const removeMobileFamilyMember = async (memberId: number, userId: number) => {
+  return request<ApiFamilyMember>(`/mobile/family-members/${memberId}`, { method: 'DELETE', data: { userId } });
+};
+
+export const updateMobileFamilyMember = async (
+  memberId: number,
+  payload: { userId: number; remark?: string | null; role?: 'CREATOR' | 'ADMIN' | 'MEMBER' }
+) => {
+  return request<ApiFamilyMember>(`/mobile/family-members/${memberId}`, { method: 'PUT', data: payload });
+};
+
+export type ApiBasketItem = {
+  id: number;
+  userId: number;
+  familyId: number | null;
+  recipeId: number | null;
+  ingredientId: number | null;
+  recipeName: string | null;
+  name: string;
+  amountText: string | null;
+  quantity: number;
+  unit: string | null;
+  purchaseText: string | null;
+  checked: boolean;
+  checkedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  recipe?: { id: number; title: string; cover: string | null } | null;
+  ingredient?: { id: number; name: string; cover: string | null; currentPrice: number | null; priceUnit: string | null } | null;
+  family?: { id: number; name: string } | null;
+};
+
+export const listMobileBasketItems = async (params: { userId: number; familyId?: number; page?: number; pageSize?: number }) => {
+  const qs = new URLSearchParams({
+    userId: String(params.userId),
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 50)
+  });
+  if (params.familyId) qs.set('familyId', String(params.familyId));
+  const data = await request<PageResult<ApiBasketItem>>(`/mobile/basket-items?${qs.toString()}`);
+  return { ...data, list: data.list.map((item) => ({ ...item, ingredient: item.ingredient ? { ...item.ingredient, cover: resolveAssetUrl(item.ingredient.cover) } : null })) };
+};
+
+export const addMobileBasketItem = async (payload: {
+  userId: number;
+  familyId?: number | null;
+  recipeId?: number | null;
+  ingredientId?: number | null;
+  recipeName?: string | null;
+  name: string;
+  amountText?: string | null;
+  quantity?: number;
+  unit?: string | null;
+  purchaseText?: string | null;
+}) => request<ApiBasketItem>('/mobile/basket-items', { method: 'POST', data: payload });
+
+export const updateMobileBasketItem = async (id: number, payload: { userId: number; quantity?: number; checked?: boolean }) => {
+  return request<ApiBasketItem>(`/mobile/basket-items/${id}`, { method: 'PUT', data: payload });
+};
+
+export const deleteMobileBasketItem = async (id: number, userId: number) => {
+  return request<ApiBasketItem>(`/mobile/basket-items/${id}`, { method: 'DELETE', data: { userId } });
 };
 
 // ====== 分类页聚合接口 ======
@@ -383,6 +815,8 @@ export type PageModuleContentItem = {
   displayStyle: string;
   contentType: string;
   contentSource: string;
+  categoryId: number | null;
+  categoryName: string | null;
   displayCount: number;
   showMore: boolean;
   showTitle: boolean;
@@ -441,10 +875,15 @@ export const getPageModules = async (params: {
 export type HomeModuleItem = {
   id: string;
   code?: string;
-  type: 'recipe' | 'ingredient';
+  type: 'recipe' | 'ingredient' | 'beverage' | 'category' | 'image';
   title?: string;
   name?: string;
   cover: string | null;
+  subtitle?: string | null;
+  buttonText?: string | null;
+  jumpType?: string | null;
+  jumpTarget?: string | null;
+  status?: string | null;
   duration?: string | null;
   difficulty?: string | null;
   servings?: number | null;
@@ -466,6 +905,7 @@ export type HomeModule = {
   contentSource: string;
   displayCount: number;
   showMore: boolean;
+  showTitle?: boolean;
   moreLink: string | null;
   sortOrder: number;
   status: string;

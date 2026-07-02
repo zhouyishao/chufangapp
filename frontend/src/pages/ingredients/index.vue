@@ -53,80 +53,87 @@
         </scroll-view>
       </view>
 
-      <!-- 内容模块区：遍历 content_module 中每个模块按 displayStyle 渲染 -->
-      <template v-for="mod in contentModules" :key="mod.id">
-        <!-- LARGE_IMAGE_CAROUSEL / hero_banner 兼容 -->
-        <view class="category-banner" v-if="isLargeImageModule(mod) && modImages(mod).length">
-          <view v-if="mod.showTitle !== false" class="category-banner__header">
-            <text class="category-banner__header-title">{{ mod.title }}</text>
-            <text v-if="mod.subtitle" class="category-banner__header-subtitle">{{ mod.subtitle }}</text>
+      <!-- 内容区：只渲染后台配置的 content_module，并按分类分组 -->
+      <view
+        v-for="section in contentSections"
+        :id="section.anchorId"
+        :key="section.key"
+        class="category-section"
+      >
+        <view v-if="section.title" class="category-section__header">
+          <text class="category-section__title">{{ section.title }}</text>
+        </view>
+
+        <template v-for="mod in section.modules" :key="mod.id">
+          <HomeModuleRenderer v-if="isLegacyContentModule(mod)" :modules="toHomeModuleList(mod)" />
+
+          <!-- LARGE_IMAGE_CAROUSEL -->
+          <view class="category-banner" v-if="isLargeImageModule(mod) && modImages(mod).length">
+            <view v-if="mod.showTitle !== false" class="category-banner__header">
+              <text class="category-banner__header-title">{{ mod.title }}</text>
+              <text v-if="mod.subtitle" class="category-banner__header-subtitle">{{ mod.subtitle }}</text>
+            </view>
+            <swiper
+              v-if="modImages(mod).length > 1"
+              class="category-banner__swiper"
+              :indicator-dots="false"
+              :autoplay="true"
+              :interval="4000"
+              :circular="true"
+              @change="handleBannerSwiperChange"
+            >
+              <swiper-item v-for="img in modImages(mod)" :key="getItemKey(img)">
+                <view class="category-banner__item" @tap="handleBannerTap(img)">
+                  <image class="category-banner__image" :src="getItemCover(img)" mode="aspectFill" />
+                  <view class="category-banner__copy" v-if="getItemTitle(img)">
+                    <text class="category-banner__title">{{ getItemTitle(img) }}</text>
+                    <text v-if="getItemSubtitle(img)" class="category-banner__subtitle">{{ getItemSubtitle(img) }}</text>
+                  </view>
+                </view>
+              </swiper-item>
+            </swiper>
+            <view class="category-banner__dots" v-if="modImages(mod).length > 1">
+              <view v-for="(dot, idx) in modImages(mod)" :key="getItemKey(dot)" :class="['category-banner__dot', { 'category-banner__dot--active': idx === bannerCurrent }]" />
+            </view>
+            <view v-else class="category-banner__single" @tap="handleBannerTap(modImages(mod)[0])">
+              <image class="category-banner__image" :src="getItemCover(modImages(mod)[0])" mode="aspectFill" />
+              <view class="category-banner__copy" v-if="getItemTitle(modImages(mod)[0])">
+                <text class="category-banner__title">{{ getItemTitle(modImages(mod)[0]) }}</text>
+                <text v-if="getItemSubtitle(modImages(mod)[0])" class="category-banner__subtitle">{{ getItemSubtitle(modImages(mod)[0]) }}</text>
+              </view>
+            </view>
           </view>
-          <swiper
-            v-if="modImages(mod).length > 1"
-            class="category-banner__swiper"
-            :indicator-dots="false"
-            :autoplay="true"
-            :interval="4000"
-            :circular="true"
-            @change="handleBannerSwiperChange"
-          >
-            <swiper-item v-for="img in modImages(mod)" :key="img.id">
-              <view class="category-banner__item" @tap="handleBannerTap(img)">
-                <image class="category-banner__image" :src="img.cover" mode="aspectFill" />
-                <view class="category-banner__copy" v-if="img.title">
-                  <text class="category-banner__title">{{ img.title }}</text>
-                  <text v-if="img.subtitle" class="category-banner__subtitle">{{ img.subtitle }}</text>
+
+          <!-- FOUR_CARD_GRID -->
+          <view class="category-grid" v-if="isFourCardGridModule(mod) && modItems(mod).length">
+            <view v-if="mod.showTitle !== false" class="category-grid__header">
+              <text class="category-grid__header-title">{{ mod.title }}</text>
+              <text v-if="mod.subtitle" class="category-grid__header-subtitle">{{ mod.subtitle }}</text>
+            </view>
+            <view class="category-grid__items">
+              <view
+                v-for="item in modItems(mod)"
+                :key="getItemKey(item)"
+                class="category-grid__card"
+                @tap="handleGridTap(item)"
+              >
+                <image v-if="getItemCover(item)" class="category-grid__image" :src="getItemCover(item)" mode="aspectFill" />
+                <view class="category-grid__body">
+                  <text class="category-grid__name">{{ getItemTitle(item) }}</text>
+                  <text v-if="getItemSubtitle(item)" class="category-grid__subtitle">{{ getItemSubtitle(item) }}</text>
                 </view>
               </view>
-            </swiper-item>
-          </swiper>
-          <view class="category-banner__dots" v-if="modImages(mod).length > 1">
-            <view v-for="(dot, idx) in modImages(mod)" :key="idx" :class="['category-banner__dot', { 'category-banner__dot--active': idx === bannerCurrent }]" />
-          </view>
-          <view v-else class="category-banner__single" @tap="handleBannerTap(modImages(mod)[0])">
-            <image class="category-banner__image" :src="modImages(mod)[0].cover" mode="aspectFill" />
-            <view class="category-banner__copy" v-if="modImages(mod)[0].title">
-              <text class="category-banner__title">{{ modImages(mod)[0].title }}</text>
-              <text v-if="modImages(mod)[0].subtitle" class="category-banner__subtitle">{{ modImages(mod)[0].subtitle }}</text>
             </view>
           </view>
-        </view>
+        </template>
+      </view>
 
-        <!-- FOUR_CARD_GRID -->
-        <view class="category-grid" v-if="isFourCardGridModule(mod) && modItems(mod).length">
-          <view v-if="mod.showTitle !== false" class="category-grid__header">
-            <text class="category-grid__header-title">{{ mod.title }}</text>
-            <text v-if="mod.subtitle" class="category-grid__header-subtitle">{{ mod.subtitle }}</text>
-          </view>
-          <view class="category-grid__items">
-            <view
-              v-for="item in modItems(mod)"
-              :key="item.key || item.id"
-              class="category-grid__card"
-              @tap="handleGridTap(item)"
-            >
-              <text class="category-grid__name">{{ item.name || item.title }}</text>
-            </view>
-          </view>
-        </view>
-      </template>
-
-      <!-- 向后兼容：hero_banner 无 content_module 时用旧逻辑 -->
-      <view class="category-banner" v-if="!contentModules.length && bannerItems.length">
-        <swiper v-if="bannerItems.length > 1" class="category-banner__swiper" :indicator-dots="false" :autoplay="true" :interval="4000" :circular="true" @change="handleBannerSwiperChange">
-          <swiper-item v-for="banner in bannerItems" :key="banner.id">
-            <view class="category-banner__item" @tap="handleBannerTap(banner)">
-              <image class="category-banner__image" :src="banner.cover" mode="aspectFill" />
-              <view class="category-banner__copy" v-if="banner.title"><text class="category-banner__title">{{ banner.title }}</text><text v-if="banner.subtitle" class="category-banner__subtitle">{{ banner.subtitle }}</text></view>
-            </view>
-          </swiper-item>
-        </swiper>
-        <view class="category-banner__dots" v-if="bannerItems.length > 1"><view v-for="(dot, idx) in bannerItems" :key="idx" :class="['category-banner__dot', { 'category-banner__dot--active': idx === bannerCurrent }]" /></view>
-        <view v-else class="category-banner__single" @tap="handleBannerTap(bannerItems[0])"><image class="category-banner__image" :src="bannerItems[0].cover" mode="aspectFill" /><view class="category-banner__copy" v-if="bannerItems[0].title"><text class="category-banner__title">{{ bannerItems[0].title }}</text><text v-if="bannerItems[0].subtitle" class="category-banner__subtitle">{{ bannerItems[0].subtitle }}</text></view></view>
+      <view v-if="!contentSections.length && (topNavItems.length || filterItems.length)" class="category-status category-status--content">
+        <text class="category-status__text">暂无当前分类内容</text>
       </view>
 
       <!-- 空态 -->
-      <view v-if="!loading && !topNavItems.length && !filterItems.length && !bannerItems.length && !gridItems.length" class="category-status">
+      <view v-if="!loading && !topNavItems.length && !filterItems.length && !contentSections.length" class="category-status">
         <text class="category-status__text">暂无内容</text>
       </view>
     </template>
@@ -140,20 +147,19 @@
 import { computed, onMounted, ref } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
+import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
 import {
   getPageModules,
   type PageModule,
   type PageModuleTopNavItem,
   type PageModuleCategoryFilterItem,
-  type PageModuleBanner
+  type HomeModule
 } from '../../services/public-api';
 import type { HomeTab } from '../../types/home';
 
 // ====== 从接口提取数据的工具函数 ======
 type TopNavData = { activeKey: string; items: PageModuleTopNavItem[] };
 type FilterData = { activeKey: string; items: PageModuleCategoryFilterItem[] };
-type BannerData = { navId: string | null; banners: PageModuleBanner[] };
-type GridData = { items: PageModuleCategoryFilterItem[] };
 
 const extractTopNavItems = (mods: PageModule[]): PageModuleTopNavItem[] =>
   (mods.find(m => m.moduleType === 'top_nav')?.data as TopNavData | undefined)?.items ?? [];
@@ -161,25 +167,42 @@ const extractTopNavItems = (mods: PageModule[]): PageModuleTopNavItem[] =>
 const extractFilterItems = (mods: PageModule[]): PageModuleCategoryFilterItem[] =>
   (mods.find(m => m.moduleType === 'category_filter')?.data as FilterData | undefined)?.items ?? [];
 
-const extractBannerItems = (mods: PageModule[]): PageModuleBanner[] =>
-  (mods.find(m => m.moduleType === 'hero_banner')?.data as BannerData | undefined)?.banners ?? [];
-
-const extractGridItems = (mods: PageModule[]): PageModuleCategoryFilterItem[] =>
-  (mods.find(m => m.moduleType === 'category_grid')?.data as GridData | undefined)?.items ?? [];
-
 // ====== 内容模块提取（从 content_module moduleType） ======
 type ContentModuleData = {
   id: number;
+  navId: number;
   title: string;
   subtitle: string | null;
   displayStyle: string;
+  contentType: string;
+  contentSource: string;
+  categoryId: number | null;
+  categoryName: string | null;
   showTitle: boolean;
+  sortOrder: number;
   items: Array<Record<string, unknown>>;
+};
+
+type ContentSection = {
+  key: string;
+  anchorId: string;
+  title: string;
+  modules: ContentModuleData[];
+};
+
+type TapTarget = Record<string, unknown> & {
+  link?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  jumpType?: string | null;
+  jumpTarget?: string | null;
+  type?: string | null;
+  id?: string | number;
 };
 
 const extractContentModules = (mods: PageModule[]): ContentModuleData[] => {
   const cm = mods.find(m => m.moduleType === 'content_module');
-  return (cm?.data as ContentModuleData[]) ?? [];
+  return (cm?.data as unknown as ContentModuleData[]) ?? [];
 };
 
 const isLargeImageModule = (mod: ContentModuleData) =>
@@ -187,6 +210,14 @@ const isLargeImageModule = (mod: ContentModuleData) =>
 
 const isFourCardGridModule = (mod: ContentModuleData) =>
   mod.displayStyle === 'FOUR_CARD_GRID';
+
+const isLegacyContentModule = (mod: ContentModuleData) =>
+  ['HORIZONTAL_RECIPE_CARD', 'SEASONAL_INGREDIENT_CARD', 'IMAGE_TEXT_LIST', 'TWO_COLUMN_RECIPE_GRID'].includes(mod.displayStyle);
+
+const isSupportedContentModule = (mod: ContentModuleData) =>
+  isLegacyContentModule(mod) || isLargeImageModule(mod) || isFourCardGridModule(mod);
+
+const toHomeModuleList = (mod: ContentModuleData): HomeModule[] => [mod as unknown as HomeModule];
 
 const modImages = (mod: ContentModuleData): Array<Record<string, unknown>> =>
   (mod.items ?? []).filter((item: Record<string, unknown>) => item.cover);
@@ -197,14 +228,21 @@ const modItems = (mod: ContentModuleData): Array<Record<string, unknown>> =>
 const extractSearchConfig = (mods: PageModule[]): Record<string, unknown> | null =>
   (mods.find(m => m.moduleType === 'search_bar')?.config as Record<string, unknown>) ?? null;
 
-const extractActiveFilterKey = (mods: PageModule[]): string =>
-  (mods.find(m => m.moduleType === 'category_filter')?.data as FilterData | undefined)?.activeKey ?? 'recommend';
+const toText = (value: unknown) => (typeof value === 'string' ? value : '');
+const toNullableNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const getItemKey = (item: Record<string, unknown>) => String(item.id ?? item.key ?? item.title ?? item.name ?? item.sortOrder ?? 'item');
+const getItemCover = (item: Record<string, unknown>) => toText(item.cover);
+const getItemTitle = (item: Record<string, unknown>) => toText(item.title) || toText(item.name);
+const getItemSubtitle = (item: Record<string, unknown>) => toText(item.subtitle) || toText(item.description);
 
 // ====== 状态 ======
 const modules = ref<PageModule[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
-const currentType = ref('ingredient');
+const currentType = ref('recipe');
 const currentFilter = ref('recommend');
 const currentCategoryId = ref<number | undefined>(undefined);
 const bannerCurrent = ref(0);
@@ -212,11 +250,33 @@ const bannerCurrent = ref(0);
 // ====== 派生数据 ======
 const topNavItems = computed(() => extractTopNavItems(modules.value));
 const filterItems = computed(() => extractFilterItems(modules.value));
-const bannerItems = computed(() => extractBannerItems(modules.value));
-const gridItems = computed(() => extractGridItems(modules.value));
 const contentModules = computed(() => extractContentModules(modules.value));
 const searchConfig = computed(() => extractSearchConfig(modules.value));
-const activeFilterKey = computed(() => extractActiveFilterKey(modules.value));
+const activeFilterKey = computed(() => currentFilter.value);
+const renderableContentModules = computed(() =>
+  contentModules.value
+    .filter((mod) => isSupportedContentModule(mod) && mod.items.length > 0)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+);
+const contentSections = computed<ContentSection[]>(() => {
+  if (!currentCategoryId.value) {
+    const recommendedModules = renderableContentModules.value.filter((mod) => !mod.categoryId);
+    return recommendedModules.length
+      ? [{ key: 'recommend', anchorId: 'section-recommend', title: '', modules: recommendedModules }]
+      : [];
+  }
+
+  const categoryModules = renderableContentModules.value.filter((mod) => mod.categoryId === currentCategoryId.value);
+
+  return categoryModules.length
+    ? [{
+        key: String(currentCategoryId.value),
+        anchorId: `section-category-${currentCategoryId.value}`,
+        title: '',
+        modules: categoryModules
+      }]
+    : [];
+});
 
 // ====== 底部导航 ======
 const bottomTabs = ref<HomeTab[]>([
@@ -262,13 +322,8 @@ const handleTopNavTap = (item: PageModuleTopNavItem) => {
 
 // ====== 分类筛选点击 ======
 const handleFilterTap = (item: PageModuleCategoryFilterItem) => {
-  if (item.type === 'system') {
-    currentFilter.value = 'recommend';
-    currentCategoryId.value = undefined;
-  } else {
-    currentFilter.value = item.key;
-    currentCategoryId.value = item.categoryId;
-  }
+  currentFilter.value = item.type === 'system' ? 'recommend' : item.key;
+  currentCategoryId.value = item.type === 'category' ? item.categoryId : undefined;
   void fetchModules();
 };
 
@@ -278,28 +333,38 @@ const handleBannerSwiperChange = (e: { detail: { current: number } }) => {
 };
 
 // ====== Banner 点击 ======
-const handleBannerTap = (banner: PageModuleBanner) => {
-  if (banner.link) {
-    if (banner.link.startsWith('/pages/')) {
-      uni.navigateTo({ url: banner.link });
+const handleBannerTap = (banner: TapTarget) => {
+  const link = banner.link ?? (banner.jumpType === 'EXTERNAL_LINK' ? banner.jumpTarget : null);
+  if (typeof link === 'string' && link) {
+    if (link.startsWith('/pages/')) {
+      uni.navigateTo({ url: link });
       return;
     }
-    uni.navigateTo({ url: `/pages/recommendations/index?url=${encodeURIComponent(banner.link)}` });
+    uni.navigateTo({ url: `/pages/recommendations/index?url=${encodeURIComponent(link)}` });
     return;
   }
-  if (banner.targetType === 'RECIPE' && banner.targetId) {
-    uni.navigateTo({ url: `/pages/recipe-detail/index?id=${banner.targetId}` });
-  } else if (banner.targetType === 'INGREDIENT' && banner.targetId) {
-    uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${banner.targetId}` });
-  } else if (banner.targetType === 'CATEGORY' && banner.targetId) {
-    currentCategoryId.value = Number(banner.targetId);
-    void fetchModules();
+
+  const targetType = banner.targetType ?? banner.jumpType;
+  const targetId = banner.targetId ?? banner.jumpTarget ?? banner.id;
+  if ((targetType === 'RECIPE' || banner.type === 'recipe') && targetId) {
+    uni.navigateTo({ url: `/pages/recipe-detail/index?id=${targetId}` });
+  } else if ((targetType === 'INGREDIENT' || banner.type === 'ingredient') && targetId) {
+    uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${targetId}` });
+  } else if ((targetType === 'CONTENT_DETAIL') && targetId) {
+    const type = toText(banner.type);
+    uni.navigateTo({ url: type === 'recipe' ? `/pages/recipe-detail/index?id=${targetId}` : `/pages/ingredient-detail/index?id=${targetId}` });
+  } else if ((targetType === 'CATEGORY' || targetType === 'CATEGORY_PAGE') && targetId) {
+    const categoryId = toNullableNumber(targetId);
+    const item = filterItems.value.find((filter) => filter.categoryId === categoryId);
+    if (item) handleFilterTap(item);
+  } else if (targetType === 'BASKET') {
+    uni.switchTab({ url: '/pages/basket/index' });
   }
 };
 
 // ====== 四宫格点击 ======
-const handleGridTap = (item: PageModuleCategoryFilterItem) => {
-  handleFilterTap(item);
+const handleGridTap = (item: Record<string, unknown>) => {
+  handleBannerTap(item as TapTarget);
 };
 
 // ====== 搜索 ======
@@ -468,6 +533,22 @@ onPullDownRefresh(() => {
   color: var(--text-white);
 }
 
+// ====== 内容分组 ======
+.category-section {
+  scroll-margin-top: 24rpx;
+}
+
+.category-section__header {
+  padding: 24rpx 32rpx 4rpx;
+}
+
+.category-section__title {
+  color: var(--text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+}
+
 // ====== 大矩形图片模块 ======
 .category-banner {
   margin: 20rpx 32rpx 24rpx;
@@ -602,10 +683,9 @@ onPullDownRefresh(() => {
 
 .category-grid__card {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 120rpx;
-  padding: 16rpx 8rpx;
+  flex-direction: column;
+  min-height: 188rpx;
+  overflow: hidden;
   border-radius: 24rpx;
   background: var(--app-surface-strong);
   border: 1px solid var(--app-border);
@@ -616,9 +696,20 @@ onPullDownRefresh(() => {
   opacity: 0.7;
 }
 
-.category-grid__card--system {
-  background: var(--app-accent-soft);
-  border-color: transparent;
+.category-grid__image {
+  width: 100%;
+  height: 92rpx;
+  background: var(--app-surface);
+}
+
+.category-grid__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: 12rpx 10rpx;
 }
 
 .category-grid__name {
@@ -626,6 +717,19 @@ onPullDownRefresh(() => {
   font-size: var(--font-size-caption);
   font-weight: var(--font-medium);
   line-height: var(--line-caption);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-grid__subtitle {
+  display: block;
+  margin-top: 4rpx;
+  color: var(--text-placeholder);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-regular);
+  line-height: var(--line-tabbar);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;

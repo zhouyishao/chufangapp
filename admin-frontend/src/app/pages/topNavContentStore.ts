@@ -28,18 +28,9 @@ type TopNavContentConfig = {
 
 const keyFor = (navId: string) => `homeTopNavContentConfig:${navId}`;
 
-export const defaultCarouselItems = (): CarouselItem[] => [
-  { id: 'carousel_1', title: '今日家常好菜', jumpType: '菜谱详情', relation: '番茄牛腩', sort: 1, status: 'online' },
-  { id: 'carousel_2', title: '一周晚餐推荐', jumpType: '专题页', relation: '一周晚餐不重样', sort: 2, status: 'online' },
-  { id: 'carousel_3', title: '下饭菜合集', jumpType: '分类页', relation: '下饭菜', sort: 3, status: 'draft' }
-];
+export const defaultCarouselItems = (): CarouselItem[] => [];
 
-export const defaultModuleItems = (nav: HomeTopNav): ModuleItem[] => [
-  { id: 'module_main', name: `${nav.name}菜单`, type: '菜谱列表模块', source: nav.relations?.[0]?.relationName ?? '未配置', count: nav.contentRule?.displayCount ?? 6, sort: 1, status: nav.status },
-  { id: 'module_today', name: '今日推荐', type: '推荐位模块', source: '推荐内容池', count: 6, sort: 2, status: nav.status },
-  { id: 'module_season', name: '时令食材', type: '食材模块', source: '当季食材', count: 4, sort: 3, status: nav.status },
-  { id: 'module_topic', name: '精选专题', type: '专题模块', source: '专题列表', count: 2, sort: 4, status: 'draft' }
-];
+export const defaultModuleItems = (_nav: HomeTopNav): ModuleItem[] => [];
 
 const normalizeSort = <T extends { sort: number }>(rows: T[]) =>
   [...rows].sort((a, b) => a.sort - b.sort).map((row, index) => ({ ...row, sort: index + 1 }));

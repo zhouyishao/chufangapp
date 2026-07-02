@@ -108,7 +108,10 @@ export const TagsPage = () => {
 
   const openCreate = () => { navigate('/taxonomies/tags/create'); };
   const openEdit = (item: TagItem) => { navigate(`/taxonomies/tags/${item.id}/edit`); };
-  const openDetail = (item: TagItem) => { setSelected(item); setDetailOpen(true); };
+  const openDetail = (item: TagItem) => {
+    setSelected(item);
+    setDetailOpen(true);
+  };
   const handleSearch = () => { setPage(1); setAppliedQ(q); };
   const handleReset = () => { setPage(1); setQ(''); setAppliedQ(''); setScopeFilter('all'); setObjectFilter('all'); setStatusFilter(''); };
 

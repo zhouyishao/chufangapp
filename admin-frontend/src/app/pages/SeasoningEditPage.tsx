@@ -1,3 +1,3 @@
-import { IngredientFormPage } from './IngredientFormPage';
+import { SeasoningFormPage } from './SeasoningFormPage';
 
-export const SeasoningEditPage = () => <IngredientFormPage mode="edit" forcedCreateType="seasoning" />;
+export const SeasoningEditPage = () => <SeasoningFormPage mode="edit" />;

@@ -7,7 +7,11 @@ import type {
   AdminResourceItem,
   LoginResult,
   PageResult,
-  Recipe
+  Recipe,
+  ResourceAppItem,
+  ResourceApiKeyItem,
+  ResourcePermissionItem,
+  ResourceLogItem
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api/admin';
@@ -173,6 +177,8 @@ export const listUsers = async (params: {
   status?: AdminUserListItem['status'];
   registerSource?: AdminUserListItem['registerSource'];
   familyCount?: 'NONE' | 'ONE' | 'MULTIPLE';
+  source?: string;
+  role?: string;
   startDate?: string;
   endDate?: string;
 } = {}) => {
@@ -181,9 +187,35 @@ export const listUsers = async (params: {
   setParam(qs, 'status', params.status);
   setParam(qs, 'registerSource', params.registerSource);
   setParam(qs, 'familyCount', params.familyCount);
+  setParam(qs, 'source', params.source);
+  setParam(qs, 'role', params.role);
   setParam(qs, 'startDate', params.startDate);
   setParam(qs, 'endDate', params.endDate);
   return request<PageResult<AdminUserListItem>>(`/users?${qs.toString()}`);
+};
+
+export const getUser = async (id: string | number) => {
+  return request<AdminUserListItem>(`/users/${id}`);
+};
+
+export const createUser = async (payload: Record<string, unknown>) => {
+  return request<AdminUserListItem>('/users', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const updateUser = async (id: string | number, payload: Record<string, unknown>) => {
+  return request<AdminUserListItem>(`/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const deleteUser = async (id: string | number) => {
+  return request<{ success: boolean; message: string; id: string }>(`/users/${id}`, {
+    method: 'DELETE'
+  });
 };
 
 export const setUserStatus = async (id: string | number, status: AdminUserListItem['status']) => {
@@ -218,38 +250,6 @@ export const createCategory = async (payload: {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-};
-
-const defaultIngredientCategories = [
-  { name: '蔬菜', sort: 100 },
-  { name: '水果', sort: 90 },
-  { name: '生禽', sort: 80 },
-  { name: '水产', sort: 70 },
-  { name: '调料', sort: 60 },
-  { name: '酒水饮品', sort: 50 }
-];
-
-export const ensureDefaultIngredientCategories = async () => {
-  const current = await listCategories({ page: 1, pageSize: 100, type: 'INGREDIENT' });
-  const currentNames = new Set(current.list.map((item) => item.name));
-  const missing = defaultIngredientCategories.filter((item) => !currentNames.has(item.name));
-
-  if (missing.length > 0) {
-    await Promise.all(
-      missing.map((item) =>
-        createCategory({
-          name: item.name,
-          type: 'INGREDIENT',
-          sort: item.sort,
-          status: 'ACTIVE',
-          isPublish: true
-        })
-      )
-    );
-    return listCategories({ page: 1, pageSize: 100, type: 'INGREDIENT' });
-  }
-
-  return current;
 };
 
 export const updateCategory = async (
@@ -313,6 +313,10 @@ export const listTags = async (params: {
   setParam(qs, 'status', params.status);
   setParam(qs, 'scope', params.scope);
   return request<PageResult<TagItem>>(`/tags?${qs.toString()}`);
+};
+
+export const getTag = async (id: number | string) => {
+  return request<TagItem>(`/tags/${id}`);
 };
 
 export const createTag = async (payload: { name: string; scope: TagItem['scope']; sort: number; status: TagItem['status']; isPublish: boolean }) => {
@@ -1171,3 +1175,276 @@ export const listFamilyInvites = async (params: {
 
 export const createFamilyInvite = async (payload: { familyId: number; inviterId?: number; inviteMethod?: FamilyInviteMethod; inviteName?: string }) =>
   request<FamilyInvite>('/families/invites', { method: 'POST', body: JSON.stringify(payload) });
+
+// ==========================================
+// 资源接口管理 (Resource Apps, Keys, Permissions, Logs)
+// ==========================================
+
+export const listResourceApps = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourceAppItem['status'];
+  appType?: ResourceAppItem['appType'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'appType', params.appType);
+  return request<PageResult<ResourceAppItem>>(`/resource-apps?${qs.toString()}`);
+};
+
+export const getResourceApp = async (id: number | string) => {
+  return request<ResourceAppItem>(`/resource-apps/${id}`);
+};
+
+export const createResourceApp = async (payload: {
+  name: string;
+  appId: string;
+  appType: ResourceAppItem['appType'];
+  owner: string;
+  status: ResourceAppItem['status'];
+}) => {
+  return request<ResourceAppItem>('/resource-apps', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const updateResourceApp = async (
+  id: number | string,
+  payload: {
+    name: string;
+    appId: string;
+    appType: ResourceAppItem['appType'];
+    owner: string;
+    status: ResourceAppItem['status'];
+  }
+) => {
+  return request<ResourceAppItem>(`/resource-apps/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const setResourceAppStatus = async (id: number | string, status: ResourceAppItem['status']) => {
+  return request<ResourceAppItem>(`/resource-apps/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+};
+
+export const deleteResourceApp = async (id: number | string) => {
+  return request<ResourceAppItem>(`/resource-apps/${id}`, {
+    method: 'DELETE'
+  });
+};
+
+// --- API Keys ---
+
+export const listResourceApiKeys = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourceApiKeyItem['status'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<ResourceApiKeyItem>>(`/resource-api-keys?${qs.toString()}`);
+};
+
+export const createResourceApiKey = async (payload: {
+  name: string;
+  appId: number;
+  permissionScope: string;
+  status: ResourceApiKeyItem['status'];
+  expiresAt: string | null;
+}) => {
+  return request<ResourceApiKeyItem>('/resource-api-keys', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const resetResourceApiKey = async (id: number | string) => {
+  return request<ResourceApiKeyItem>(`/resource-api-keys/${id}/reset`, {
+    method: 'POST'
+  });
+};
+
+export const setResourceApiKeyStatus = async (id: number | string, status: ResourceApiKeyItem['status']) => {
+  return request<ResourceApiKeyItem>(`/resource-api-keys/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+};
+
+export const deleteResourceApiKey = async (id: number | string) => {
+  return request<ResourceApiKeyItem>(`/resource-api-keys/${id}`, {
+    method: 'DELETE'
+  });
+};
+
+// --- Permissions ---
+
+export const listResourcePermissions = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourcePermissionItem['status'];
+  module?: ResourcePermissionItem['module'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'module', params.module);
+  return request<PageResult<ResourcePermissionItem>>(`/resource-permissions?${qs.toString()}`);
+};
+
+export const createResourcePermission = async (payload: {
+  name: string;
+  code: string;
+  path: string;
+  method: string;
+  module: ResourcePermissionItem['module'];
+  authRequired: boolean;
+  status: ResourcePermissionItem['status'];
+}) => {
+  return request<ResourcePermissionItem>('/resource-permissions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const updateResourcePermission = async (
+  id: number | string,
+  payload: {
+    name: string;
+    code: string;
+    path: string;
+    method: string;
+    module: ResourcePermissionItem['module'];
+    authRequired: boolean;
+    status: ResourcePermissionItem['status'];
+  }
+) => {
+  return request<ResourcePermissionItem>(`/resource-permissions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const setResourcePermissionStatus = async (
+  id: number | string,
+  status: ResourcePermissionItem['status']
+) => {
+  return request<ResourcePermissionItem>(`/resource-permissions/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+};
+
+export const deleteResourcePermission = async (id: number | string) => {
+  return request<ResourcePermissionItem>(`/resource-permissions/${id}`, {
+    method: 'DELETE'
+  });
+};
+
+// --- Call Logs ---
+
+export const listResourceLogs = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  method?: string;
+  statusCode?: number | string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'method', params.method);
+  setParam(qs, 'statusCode', params.statusCode);
+  return request<PageResult<ResourceLogItem>>(`/resource-logs?${qs.toString()}`);
+};
+
+export const getResourceLog = async (id: number | string) => {
+  return request<ResourceLogItem>(`/resource-logs/${id}`);
+};
+
+// --- Resource Imports ---
+
+import type { ResourceImportBatchItem, ResourceImportStagedItem } from './types';
+
+export const createImportBatch = async (payload: {
+  fileName: string;
+  sourceType: string;
+  items: Array<{ resourceType: string; name: string; content: Record<string, any> }>;
+}) => {
+  return request<{ batch: ResourceImportBatchItem; items: ResourceImportStagedItem[] }>('/resource-imports/batches', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const listImportBatches = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourceImportBatchItem['status'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<ResourceImportBatchItem>>(`/resource-imports/batches?${qs.toString()}`);
+};
+
+export const getImportBatchesStats = async () => {
+  return request<{ total: number; pending: number; completed: number; failed: number }>('/resource-imports/batches/stats');
+};
+
+export const listImportItems = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourceImportStagedItem['status'];
+  batchId?: number;
+  resourceType?: ResourceImportStagedItem['resourceType'];
+  isDuplicate?: boolean;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'batchId', params.batchId);
+  setParam(qs, 'resourceType', params.resourceType);
+  if (typeof params.isDuplicate === 'boolean') {
+    qs.set('isDuplicate', String(params.isDuplicate));
+  }
+  return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
+};
+
+export const updateImportItem = async (
+  id: number | string,
+  payload: { name: string; content: Record<string, any> }
+) => {
+  return request<ResourceImportStagedItem>(`/resource-imports/items/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const setImportItemStatus = async (
+  id: number | string,
+  status: ResourceImportStagedItem['status']
+) => {
+  return request<ResourceImportStagedItem>(`/resource-imports/items/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+};
+
+export const confirmImportBatch = async (payload: { itemIds: Array<number | string> }) => {
+  return request<{ successCount: number; failCount: number }>('/resource-imports/items/batch-confirm', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
