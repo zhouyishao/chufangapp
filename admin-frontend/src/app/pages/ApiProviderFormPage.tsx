@@ -29,15 +29,6 @@ const emptyDraft: Draft = {
   description: '', status: '启用'
 };
 
-const mockDrafts: Record<string, Draft> = {
-  '1': { ...emptyDraft, name: '菜谱资源接口', type: '菜谱', provider: '官方数据', baseUrl: 'https://api.example.com/v2/recipes', appKey: 'recipe_app', dailyLimit: 10000, defaultHeaders: '{"Content-Type":"application/json"}', defaultParams: '{"page":1,"pageSize":20}', description: '同步菜谱列表、详情、步骤和食材清单。' },
-  '2': { ...emptyDraft, name: '食材数据库接口', type: '食材', provider: '官方数据', baseUrl: 'https://api.example.com/v1/ingredients', appKey: 'ingredient_app', dailyLimit: 5000, dataPath: 'data.items', description: '同步食材基础信息、营养和价格。' },
-  '3': { ...emptyDraft, name: '水果营养接口', type: '水果', provider: '第三方', baseUrl: 'https://nutrition-api.io/fruits', appKey: 'fruit_app', dailyLimit: 20000, description: '获取水果营养、时令和挑选信息。' },
-  '4': { ...emptyDraft, name: '调料库导入接口', type: '调料', provider: '第三方', method: 'POST', baseUrl: 'https://seasoning-db.com/import', status: '禁用', appKey: 'seasoning_app', dailyLimit: 3000, description: '导入调料规格、用法和替代调料。' },
-  '5': { ...emptyDraft, name: '酒水百科接口', type: '酒水', provider: '第三方', baseUrl: 'https://beverage-wiki.org/api', appKey: 'beverage_app', dailyLimit: 8000, description: '同步酒水百科和搭配建议。' },
-  '6': { ...emptyDraft, name: '价格行情接口', type: '价格', provider: '市场数据', method: 'POST', baseUrl: 'https://market-price.cn/api/v1', appKey: 'price_app', dailyLimit: 50000, description: '同步食材市场价格行情。' }
-};
-
 type Props = { mode: 'create' | 'edit' };
 
 export const ApiProviderFormPage = ({ mode }: Props) => {
@@ -55,22 +46,22 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
   const canSave = draft.name.trim() && draft.baseUrl.trim() && !saving;
 
   useEffect(() => {
-    if (mode === 'edit' && id) setDraft(mockDrafts[id] ?? { ...emptyDraft, name: `接口 ${id}`, baseUrl: 'https://api.example.com' });
+    if (mode === 'edit' && id) {
+      setError('资源接口详情接口未接入后端，无法加载真实配置');
+    }
   }, [id, mode]);
 
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true); setError(null);
-    await new Promise(r => setTimeout(r, 300)); // mock API call
-    setNotice('保存成功');
+    setError('资源接口保存接口未接入后端，暂不能保存配置');
+    setNotice(null);
     setSaving(false);
-    setTimeout(() => navigate('/resources/api-providers', { replace: true }), 400);
   };
 
   const handleTest = async () => {
     setTesting(true); setTestResult(null); setError(null);
-    await new Promise(r => setTimeout(r, 800)); // mock test
-    setTestResult(`测试连接成功 — 延迟 42ms，状态码 200`);
+    setError('资源接口测试接口未接入后端，暂不能发起真实测试');
     setTesting(false);
   };
 

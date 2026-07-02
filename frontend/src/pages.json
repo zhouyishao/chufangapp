@@ -25,7 +25,31 @@
       }
     },
     {
+      "path": "pages/fruit-detail/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/seasoning-detail/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/beverage-detail/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/recipe-detail/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/cooking/index",
       "style": {
         "navigationStyle": "custom"
       }
@@ -44,6 +68,12 @@
     },
     {
       "path": "pages/search/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/scan/index",
       "style": {
         "navigationStyle": "custom"
       }
@@ -145,6 +175,12 @@
       }
     },
     {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/profile-edit/index",
       "style": {
         "navigationStyle": "custom"
@@ -158,6 +194,18 @@
     },
     {
       "path": "pages/family/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/family-create/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/family-preferences/index",
       "style": {
         "navigationStyle": "custom"
       }

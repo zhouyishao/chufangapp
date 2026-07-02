@@ -10,6 +10,19 @@ import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
 
+/** 从 description 字段提取可读文本（可能是纯文本或 JSON） */
+const extractDescription = (raw: string | null): string | null => {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed.descriptionText || parsed.description || null;
+  } catch {
+    return trimmed;
+  }
+};
+
 export const BeveragesPage = () => {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
@@ -49,17 +62,30 @@ export const BeveragesPage = () => {
       key: 'beverage',
       title: '酒水',
       render: (item) => (
-        <button type="button" className="flex min-w-[220px] items-center gap-3 text-left" onClick={() => navigate(`/content/beverages/${item.id}/edit`)}>
+        <button type="button" className="flex min-w-[180px] max-w-[280px] items-center gap-3 text-left" onClick={() => navigate(`/content/beverages/${item.id}`)}>
           <ImagePreview src={item.coverImage} alt={item.name} />
           <span className="min-w-0">
-            <span className="block font-medium text-[#2f2f2f]">{item.name}</span>
-            <span className="mt-1 block text-xs font-normal text-[#8c8c8c]">{item.description ?? '未填写别名'}</span>
+            <span className="block font-medium text-[#2f2f2f] truncate">{item.name}</span>
+            {extractDescription(item.description) ? (
+              <span className="mt-1 block text-xs font-normal text-[#8c8c8c] truncate max-w-[200px]">{extractDescription(item.description)}</span>
+            ) : (
+              <span className="mt-1 block text-xs font-normal text-[#B7AEA1]">未填写描述</span>
+            )}
           </span>
         </button>
       )
     },
-    { key: 'category', title: '分类', render: (item) => item.category?.name ?? item.beverageType ?? '-' },
-    { key: 'alias', title: '别名', render: (item) => item.description ?? '-' },
+    { key: 'category', title: '分类', render: (item) => item.category?.name ?? '-' },
+    { key: 'beverageType', title: '类型', render: (item) => item.beverageType ?? '-' },
+    {
+      key: 'alcoholic',
+      title: '含酒精',
+      render: (item) => (
+        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${item.isAlcoholic ? 'bg-amber-50 text-amber-700' : 'bg-zinc-100 text-zinc-500'}`}>
+          {item.isAlcoholic ? '是' : '否'}
+        </span>
+      )
+    },
     { key: 'status', title: '状态', render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={item.status === 'ACTIVE' ? 'green' : 'gray'} /> },
     { key: 'sort', title: '排序', render: (item) => item.sortOrder ?? item.sort ?? '-' },
     { key: 'createdAt', title: '创建时间', render: (item) => new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) },

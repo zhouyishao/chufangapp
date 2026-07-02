@@ -1,5 +1,5 @@
 import { ArrowLeft, Eye, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -8,17 +8,21 @@ import {
   getHomeTopNav,
   listContentModules,
   listHeroBanners,
+  updateContentModule,
   updateContentModuleStatus,
   updateHeroBannerStatus,
   updateHomeTopNav,
   resolveAssetUrl,
+  listCategories,
   type BannerStatus,
   type ContentModule,
+  type ContentModulePayload,
   type ContentModuleStatus,
   type HeroBanner,
   type HomeTopNav,
   type HomeTopNavPayload
 } from '../api';
+import type { IngredientCategory } from '../types';
 import { Button } from '../components/Button';
 import { StatusTag } from '../components/StatusTag';
 
@@ -89,6 +93,23 @@ const toPayload = (item: HomeTopNav): HomeTopNavPayload => ({
   }
 });
 
+const toModulePayload = (item: ContentModule, sortOrder = item.sortOrder): ContentModulePayload => ({
+  title: item.title,
+  subtitle: item.subtitle,
+  displayStyle: item.displayStyle,
+  contentType: item.contentType,
+  contentSource: item.contentSource,
+  displayCount: item.displayCount,
+  showMore: item.showMore,
+  showTitle: item.showTitle,
+  moreLink: item.moreLink,
+  sortOrder,
+  status: item.status,
+  items: item.items,
+  categoryId: item.categoryId,
+  tagId: item.tagId
+});
+
 export const TopNavContentConfigPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -101,9 +122,12 @@ export const TopNavContentConfigPage = () => {
   const [carouselLoading, setCarouselLoading] = useState(false);
   const [moduleItems, setModuleItems] = useState<ContentModule[]>([]);
   const [moduleLoading, setModuleLoading] = useState(false);
+  const [moduleSorting, setModuleSorting] = useState(false);
+  const [categories, setCategories] = useState<IngredientCategory[]>([]);
 
   const selectedRelation = draft?.relations[0] ?? null;
   const carouselApiNavId = nav?.legacyId ? String(nav.legacyId) : id;
+  const showCarouselSettings = false;
 
   const loadNav = async () => {
     if (!id) return;
@@ -136,6 +160,28 @@ export const TopNavContentConfigPage = () => {
   useEffect(() => {
     if (carouselApiNavId) void loadCarousels();
   }, [carouselApiNavId, loadCarousels]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const result = await listCategories({ page: 1, pageSize: 200 });
+        setCategories(result.list);
+      } catch (err) {
+        console.error('加载分类失败', err);
+      }
+    };
+    void fetchCategories();
+  }, []);
+
+  const categoryMap = useMemo(() => {
+    const map = new Map<number, string>();
+    categories.forEach((c) => {
+      if (c.legacyId !== undefined) {
+        map.set(c.legacyId, c.name);
+      }
+    });
+    return map;
+  }, [categories]);
 
   const saveNavConfig = async () => {
     if (!id || !draft) return;
@@ -231,6 +277,33 @@ export const TopNavContentConfigPage = () => {
     }
   };
 
+  const moveModule = async (item: ContentModule, direction: -1 | 1) => {
+    if (!id || moduleSorting) return;
+    const currentIndex = moduleItems.findIndex((moduleItem) => moduleItem.id === item.id);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= moduleItems.length) return;
+
+    const reorderedItems = [...moduleItems];
+    [reorderedItems[currentIndex], reorderedItems[targetIndex]] = [reorderedItems[targetIndex], reorderedItems[currentIndex]];
+    const normalizedItems = reorderedItems.map((moduleItem, index) => ({ ...moduleItem, sortOrder: index + 1 }));
+
+    setModuleItems(normalizedItems);
+    setModuleSorting(true);
+    setError(null);
+    try {
+      await Promise.all(
+        normalizedItems.map((moduleItem) => updateContentModule(id, moduleItem.id, toModulePayload(moduleItem)))
+      );
+      setNotice('模块排序已保存');
+      await loadModules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '排序保存失败');
+      await loadModules();
+    } finally {
+      setModuleSorting(false);
+    }
+  };
+
   const deleteModuleItem = async (item: ContentModule) => {
     if (!id) return;
     if (!window.confirm(`确认删除「${item.title}」？删除后不可恢复。`)) return;
@@ -301,6 +374,7 @@ export const TopNavContentConfigPage = () => {
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[1fr_380px]">
         <div className="space-y-5">
           {/* 轮播图设置 */}
+          {showCarouselSettings ? (
           <div className="rounded-2xl border border-[#e4ddd1] bg-[#fffdfc] p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-[#2f2f2f]">轮播图设置</h2>
@@ -380,6 +454,7 @@ export const TopNavContentConfigPage = () => {
               </table>
             )}
           </div>
+          ) : null}
 
           {/* 内容模块管理 */}
           <div className="rounded-2xl border border-[#e4ddd1] bg-[#fffdfc] p-5">
@@ -410,12 +485,12 @@ export const TopNavContentConfigPage = () => {
               <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
                 <thead className="text-[#5f5f5f]">
                   <tr>
-                    {['排序', '模块名称', '展示样式', '内容类型', '内容来源', '展示数量', '状态', '更新时间', '操作'].map((title) => (
+                    {['排序', '模块名称', '展示样式', '内容类型', '内容来源', '关联分类', '有效内容', '展示数量', '状态', '更新时间', '操作'].map((title) => (
                       <th
                         key={title}
                         className={[
                           'border-b border-[#e9e2d6] px-3 py-3 text-left whitespace-nowrap',
-                          title === '操作' ? 'sticky right-0 z-20 bg-[#fffdfc] shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.45)]' : ''
+                          title === '操作' ? 'sticky right-0 z-20 bg-[#fffdfc] shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]' : ''
                         ].join(' ')}
                       >
                         {title}
@@ -424,9 +499,33 @@ export const TopNavContentConfigPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {moduleItems.map((item) => (
+                  {moduleItems.map((item, index) => (
                     <tr key={item.id} className="transition hover:bg-[#f5f1ea]/50">
-                      <td className="border-b border-[#f0eadf] px-3 py-3">{item.sortOrder}</td>
+                      <td className="border-b border-[#f0eadf] px-3 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="min-w-5 font-medium text-[#2f2f2f]">{item.sortOrder}</span>
+                          <div className="flex flex-col leading-none text-[#8c8c8c]">
+                            <button
+                              type="button"
+                              className="h-4 text-xs hover:text-[#6f8663] disabled:cursor-not-allowed disabled:text-[#d9d2c6]"
+                              disabled={index === 0 || moduleSorting}
+                              aria-label={`上移${item.title}`}
+                              onClick={() => void moveModule(item, -1)}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              className="h-4 text-xs hover:text-[#6f8663] disabled:cursor-not-allowed disabled:text-[#d9d2c6]"
+                              disabled={index === moduleItems.length - 1 || moduleSorting}
+                              aria-label={`下移${item.title}`}
+                              onClick={() => void moveModule(item, 1)}
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="border-b border-[#f0eadf] px-3 py-3 font-medium">
                         {item.title}
                         {item.subtitle ? <div className="text-xs text-[#8c8c8c]">{item.subtitle}</div> : null}
@@ -434,6 +533,25 @@ export const TopNavContentConfigPage = () => {
                       <td className="border-b border-[#f0eadf] px-3 py-3">{item.displayStyleLabel ?? item.displayStyle}</td>
                       <td className="border-b border-[#f0eadf] px-3 py-3">{item.contentTypeLabel ?? item.contentType}</td>
                       <td className="border-b border-[#f0eadf] px-3 py-3">{item.contentSourceLabel ?? item.contentSource}</td>
+                      <td className="border-b border-[#f0eadf] px-3 py-3">
+                        {item.categoryId ? (categoryMap.get(item.categoryId) || `分类(ID:${item.categoryId})`) : '推荐'}
+                      </td>
+                      <td className="border-b border-[#f0eadf] px-3 py-3">
+                        {(() => {
+                          let validCount = 0;
+                          if (item.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
+                            const carouselItems = (item.items as unknown as { status: string; cover: string }[]) || [];
+                            validCount = carouselItems.filter(i => i.status === 'ENABLED' && i.cover).length;
+                          } else {
+                            validCount = item.items ? item.items.length : 0;
+                          }
+
+                          if (validCount === 0) {
+                            return <span className="text-[#c27b48] font-medium">0 个</span>;
+                          }
+                          return <span>{validCount} 个</span>;
+                        })()}
+                      </td>
                       <td className="border-b border-[#f0eadf] px-3 py-3">{item.displayCount}</td>
                       <td className="border-b border-[#f0eadf] px-3 py-3">
                         <StatusTag

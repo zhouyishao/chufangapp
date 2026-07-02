@@ -2,7 +2,16 @@ import type { ChangeEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { createRecipe, getRecipe, listCategories, resolveAssetUrl, submitRecipeAudit, updateRecipe, uploadMedia } from '../api';
+import {
+  createRecipe,
+  getRecipe,
+  listCategories,
+  listIngredients,
+  resolveAssetUrl,
+  submitRecipeAudit,
+  updateRecipe,
+  uploadMedia
+} from '../api';
 import { Button } from '../components/Button';
 import { ImageEditorUploader } from '../components/ImageEditorUploader';
 import { Input } from '../components/Input';
@@ -10,38 +19,132 @@ import { StatusTag } from '../components/StatusTag';
 import type { IngredientCategory, Recipe } from '../types';
 
 type RecipeFormMode = 'create' | 'edit';
-type IngredientDraft = { id: string; name: string; amount: string; unit: string; type: string; note: string; sortIndex: number };
-type StepDraft = { id: string; description: string; image: string | null; video: string | null; duration: number | null; sortIndex: number };
+type IngredientDraft = {
+  id: string;
+  name: string;
+  amount: string;
+  unit: string;
+  type: string;
+  note: string;
+  sortIndex: number;
+  ingredientId: string | null;
+};
+type StepDraft = {
+  id: string;
+  description: string;
+  image: string | null;
+  video: string | null;
+  duration: number | null;
+  sortIndex: number;
+};
+type CookingTipItem = {
+  id: string;
+  title: string;
+  description: string;
+  relatedStep: string;
+  type: string;
+  sort: number;
+  status: 'ACTIVE' | 'DISABLED';
+};
+type CustomNutritionItem = {
+  id: string;
+  name: string;
+  value: string;
+  unit: string;
+  sort: number;
+  status: 'ACTIVE' | 'DISABLED';
+};
+type RecipeNutrition = {
+  base: string;
+  calories: number | null;
+  protein: number | null;
+  fat: number | null;
+  carbohydrate: number | null;
+  dietaryFiber: number | null;
+  sodium: number | null;
+  potassium: number | null;
+  suitableCrowd: string;
+  unsuitableCrowd: string;
+  description: string;
+  customItems: CustomNutritionItem[];
+};
 
 type Draft = {
+  // 1. 基础信息
   title: string;
   subtitle: string | null;
+  categoryId: string | null;
+  difficulty: string | null;
+  cookTime: number | null;
+  calories: number | null;
+  servings: number | null;
+  description: string | null;
+
+  // 2. 封面与图文素材
   coverUrl: string | null;
   images: string[];
   video: string | null;
-  description: string | null;
-  categoryId: string | null;
-  cookTime: number | null;
-  servings: number | null;
-  calories: number | null;
-  difficulty: string | null;
   taste: string | null;
   scene: string | null;
-  visibility: string | null;
-  tips: string | null;
-  sort: number;
+
+  // 3. 食材清单 & 4. 调料清单
+  ingredients: IngredientDraft[];
+
+  // 5. 制作步骤
+  steps: StepDraft[];
+
+  // 6. 烹饪技巧
+  cookingTips: CookingTipItem[];
+
+  // 7. 营养价值
+  nutrition: RecipeNutrition;
+
+  // 8. 关联信息
+  scenes: string[];
+  keywords: string[];
+  source: string;
+  author: string;
+  auditRemark: string;
+  tipsText: string;
+  relatedTopics: string[];
+  relatedTags: string[];
+
+  // 9. 发布设置
+  visibility: string;
   status: Recipe['status'];
-  auditStatus: Recipe['auditStatus'];
+  isRecommend: boolean;
+  recommendPositions: string[];
+  sort: number;
   isDraft: boolean;
   isPublish: boolean;
-  isRecommend: boolean;
-  ingredients: IngredientDraft[];
-  steps: StepDraft[];
+  auditStatus: Recipe['auditStatus'];
+  rejectReason?: string | null;
+  code?: string | null;
+  id?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
 };
 
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-const createIngredient = (sortIndex: number): IngredientDraft => ({ id: createId(), name: '', amount: '', unit: '', type: '主料', note: '', sortIndex });
-const createStep = (sortIndex: number): StepDraft => ({ id: createId(), description: '', image: null, video: null, duration: null, sortIndex });
+const createIngredient = (sortIndex: number, type = '主料'): IngredientDraft => ({
+  id: createId(),
+  name: '',
+  amount: '',
+  unit: '',
+  type,
+  note: '',
+  sortIndex,
+  ingredientId: null
+});
+const createStep = (sortIndex: number): StepDraft => ({
+  id: createId(),
+  description: '',
+  image: null,
+  video: null,
+  duration: null,
+  sortIndex
+});
 
 const emptyDraft: Draft = {
   title: '',
@@ -57,115 +160,226 @@ const emptyDraft: Draft = {
   difficulty: null,
   taste: null,
   scene: null,
+  ingredients: [createIngredient(1, '主料')],
+  steps: [createStep(1)],
+  cookingTips: [],
+  nutrition: {
+    base: '每份',
+    calories: null,
+    protein: null,
+    fat: null,
+    carbohydrate: null,
+    dietaryFiber: null,
+    sodium: null,
+    potassium: null,
+    suitableCrowd: '',
+    unsuitableCrowd: '',
+    description: '',
+    customItems: []
+  },
+  scenes: [],
+  keywords: [],
+  source: '',
+  author: '',
+  auditRemark: '',
+  tipsText: '',
+  relatedTopics: [],
+  relatedTags: [],
+  recommendPositions: [],
   visibility: 'PUBLIC',
-  tips: null,
-  sort: 0,
   status: 'ACTIVE',
-  auditStatus: 'DRAFT',
+  isRecommend: false,
+  sort: 0,
   isDraft: true,
   isPublish: false,
-  isRecommend: false,
-  ingredients: [createIngredient(1)],
-  steps: [createStep(1)]
+  auditStatus: 'DRAFT'
 };
 
-const compactImages = (value: Recipe['images']) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []);
+const compactImages = (value: Recipe['images']) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
 
-const recipeToDraft = (recipe: Recipe): Draft => ({
-  title: recipe.title,
-  subtitle: recipe.subtitle,
-  coverUrl: recipe.cover,
-  images: compactImages(recipe.images),
-  video: recipe.video ?? null,
-  description: recipe.description,
-  categoryId: recipe.categoryId,
-  cookTime: recipe.cookTime,
-  servings: recipe.servings,
-  calories: recipe.calories,
-  difficulty: recipe.difficulty,
-  taste: recipe.taste,
-  scene: recipe.scene,
-  visibility: recipe.visibility ?? 'PUBLIC',
-  tips: recipe.tips,
-  sort: recipe.sort,
-  status: recipe.status,
-  auditStatus: recipe.auditStatus,
-  isDraft: recipe.isDraft,
-  isPublish: recipe.isPublish,
-  isRecommend: recipe.isRecommend,
-  ingredients: (recipe.ingredients?.length ? recipe.ingredients : [{ id: 0, sortIndex: 1, ingredientId: null, name: '', amount: null }]).map((item, index) => ({
-    id: String(item.id ?? createId()),
-    name: item.name,
-    amount: item.amount ?? '',
-    unit: item.unit ?? '',
-    type: item.type ?? '主料',
-    note: item.note ?? '',
-    sortIndex: index + 1
-  })),
-  steps: (recipe.steps?.length ? recipe.steps : [{ id: 0, sortIndex: 1, title: null, description: '', image: null }]).map((step, index) => ({
-    id: String(step.id ?? createId()),
-    description: step.description,
-    image: step.image,
-    video: step.video ?? null,
-    duration: step.duration ?? null,
-    sortIndex: index + 1
-  }))
-});
+const recipeToDraft = (recipe: Recipe): Draft => {
+  let tipsObj: any = {};
+  try {
+    if (recipe.tips && recipe.tips.startsWith('{')) {
+      tipsObj = JSON.parse(recipe.tips);
+    } else {
+      tipsObj = {
+        tipsText: recipe.tips || ''
+      };
+    }
+  } catch (e) {
+    console.error('Failed to parse recipe tips JSON:', e);
+    tipsObj = {
+      tipsText: recipe.tips || ''
+    };
+  }
 
-const toPayload = (draft: Draft) => ({
-  title: draft.title.trim(),
-  subtitle: draft.subtitle?.trim() ? draft.subtitle.trim() : null,
-  coverUrl: draft.coverUrl?.trim() ? draft.coverUrl.trim() : null,
-  images: draft.images.filter(Boolean),
-  video: draft.video?.trim() ? draft.video.trim() : null,
-  description: draft.description?.trim() ? draft.description.trim() : null,
-  categoryId: draft.categoryId,
-  cookTime: draft.cookTime,
-  servings: draft.servings,
-  calories: draft.calories,
-  difficulty: draft.difficulty?.trim() ? draft.difficulty.trim() : null,
-  taste: draft.taste?.trim() ? draft.taste.trim() : null,
-  scene: draft.scene?.trim() ? draft.scene.trim() : null,
-  visibility: draft.visibility,
-  tips: draft.tips?.trim() ? draft.tips.trim() : null,
-  sort: draft.sort,
-  status: draft.status,
-  auditStatus: draft.auditStatus,
-  isDraft: draft.isDraft,
-  isPublish: draft.isPublish,
-  isRecommend: draft.isRecommend,
-  steps: draft.steps
-    .filter((step) => step.description.trim())
-    .map((step, index) => ({
+  const defaultNutrition: RecipeNutrition = {
+    base: tipsObj.nutrition?.base ?? '每份',
+    calories: tipsObj.nutrition?.calories ?? recipe.calories ?? null,
+    protein: tipsObj.nutrition?.protein ?? null,
+    fat: tipsObj.nutrition?.fat ?? null,
+    carbohydrate: tipsObj.nutrition?.carbohydrate ?? null,
+    dietaryFiber: tipsObj.nutrition?.dietaryFiber ?? null,
+    sodium: tipsObj.nutrition?.sodium ?? null,
+    potassium: tipsObj.nutrition?.potassium ?? null,
+    suitableCrowd: tipsObj.nutrition?.suitableCrowd ?? '',
+    unsuitableCrowd: tipsObj.nutrition?.unsuitableCrowd ?? '',
+    description: tipsObj.nutrition?.description ?? '',
+    customItems: Array.isArray(tipsObj.nutrition?.customItems) ? tipsObj.nutrition.customItems : []
+  };
+
+  return {
+    title: recipe.title,
+    subtitle: recipe.subtitle ?? null,
+    coverUrl: recipe.cover ?? null,
+    images: compactImages(recipe.images),
+    video: recipe.video ?? null,
+    description: recipe.description ?? null,
+    categoryId: recipe.categoryId,
+    cookTime: recipe.cookTime,
+    servings: recipe.servings,
+    calories: recipe.calories,
+    difficulty: recipe.difficulty,
+    taste: recipe.taste ?? null,
+    scene: recipe.scene ?? null,
+
+    ingredients: (recipe.ingredients?.length
+      ? recipe.ingredients
+      : [{ id: 0, sortIndex: 1, ingredientId: null, name: '', amount: null, type: '主料', unit: null, note: null }]
+    ).map((item, index) => ({
+      id: String(item.id ?? createId()),
+      name: item.name,
+      amount: item.amount ?? '',
+      unit: item.unit ?? '',
+      type: item.type ?? '主料',
+      note: item.note ?? '',
       sortIndex: index + 1,
-      title: null,
-      description: step.description.trim(),
-      image: step.image,
-      video: step.video,
-      duration: step.duration
+      ingredientId: item.ingredientId ? String(item.ingredientId) : null
     })),
-  ingredients: draft.ingredients
-    .filter((item) => item.name.trim())
-    .map((item, index) => ({
-      sortIndex: index + 1,
-      ingredientId: null,
-      name: item.name.trim(),
-      amount: item.amount.trim() || null,
-      unit: item.unit.trim() || null,
-      type: item.type.trim() || null,
-      note: item.note.trim() || null
-    }))
-});
 
-type Props = { mode: RecipeFormMode };
+    steps: (recipe.steps?.length
+      ? recipe.steps
+      : [{ id: 0, sortIndex: 1, title: null, description: '', image: null, video: null, duration: null }]
+    ).map((step, index) => ({
+      id: String(step.id ?? createId()),
+      description: step.description,
+      image: step.image ?? null,
+      video: step.video ?? null,
+      duration: step.duration ?? null,
+      sortIndex: index + 1
+    })),
+
+    cookingTips: Array.isArray(tipsObj.cookingTips) ? tipsObj.cookingTips : [],
+    nutrition: defaultNutrition,
+
+    scenes: Array.isArray(tipsObj.scenes) ? tipsObj.scenes : [],
+    keywords: Array.isArray(tipsObj.keywords) ? tipsObj.keywords : [],
+    source: tipsObj.source ?? '',
+    author: tipsObj.author ?? '',
+    auditRemark: tipsObj.auditRemark ?? recipe.rejectReason ?? '',
+    tipsText: tipsObj.tipsText ?? '',
+    relatedTopics: Array.isArray(tipsObj.relatedTopics) ? tipsObj.relatedTopics : [],
+    relatedTags: Array.isArray(tipsObj.relatedTags) ? tipsObj.relatedTags : [],
+
+    visibility: recipe.visibility ?? 'PUBLIC',
+    status: recipe.status,
+    isRecommend: recipe.isRecommend,
+    recommendPositions: Array.isArray(tipsObj.recommendPositions) ? tipsObj.recommendPositions : [],
+    sort: recipe.sort,
+    isDraft: recipe.isDraft,
+    isPublish: recipe.isPublish,
+    auditStatus: recipe.auditStatus,
+    rejectReason: recipe.rejectReason ?? null,
+    code: recipe.code ?? null,
+    id: recipe.id ? String(recipe.id) : null,
+    createdAt: recipe.createdAt,
+    updatedAt: recipe.updatedAt,
+    createdBy: '管理员'
+  };
+};
+
+const serializeDraftToPayload = (draft: Draft) => {
+  const tipsObj = {
+    tipsText: draft.tipsText,
+    cookingTips: draft.cookingTips,
+    nutrition: draft.nutrition,
+    scenes: draft.scenes,
+    keywords: draft.keywords,
+    source: draft.source,
+    author: draft.author,
+    auditRemark: draft.auditRemark,
+    relatedTopics: draft.relatedTopics,
+    relatedTags: draft.relatedTags,
+    recommendPositions: draft.recommendPositions
+  };
+
+  return {
+    title: draft.title.trim(),
+    subtitle: draft.subtitle?.trim() || null,
+    coverUrl: draft.coverUrl,
+    images: draft.images.filter(Boolean),
+    video: draft.video?.trim() || null,
+    description: draft.description?.trim() || null,
+    categoryId: draft.categoryId,
+    cookTime: draft.cookTime,
+    servings: draft.servings,
+    calories: draft.calories,
+    difficulty: draft.difficulty,
+    taste: draft.taste,
+    scene: draft.scene,
+    visibility: draft.visibility,
+    tips: JSON.stringify(tipsObj),
+    sort: draft.sort,
+    status: draft.status,
+    auditStatus: draft.auditStatus,
+    isDraft: draft.isDraft,
+    isPublish: draft.isPublish,
+    isRecommend: draft.isRecommend,
+    steps: draft.steps
+      .filter((step) => step.description.trim())
+      .map((step, index) => ({
+        sortIndex: index + 1,
+        title: null,
+        description: step.description.trim(),
+        image: step.image,
+        video: step.video,
+        duration: step.duration
+      })),
+    ingredients: draft.ingredients
+      .filter((item) => item.name.trim())
+      .map((item, index) => ({
+        sortIndex: index + 1,
+        ingredientId: item.ingredientId,
+        name: item.name.trim(),
+        amount: item.amount.trim() || null,
+        unit: item.unit.trim() || null,
+        type: item.type.trim() || null,
+        note: item.note.trim() || null
+      }))
+  };
+};
+
+const TABS = [
+  '基础信息',
+  '封面与图文素材',
+  '食材配料',
+  '调料配比',
+  '制作步骤',
+  '烹饪技巧',
+  '营养价值',
+  '关联信息',
+  '发布设置'
+];
 
 const difficultyOptions = ['简单', '中等', '困难'];
 const tasteOptions = ['清淡', '香辣', '酸甜', '咸鲜', '鲜香'];
 const sceneOptions = ['炒', '煮', '蒸', '炖', '烤', '凉拌'];
 const visibilityOptions = [
-  { label: '公开', value: 'PUBLIC' },
-  { label: '私有', value: 'PRIVATE' },
-  { label: '仅自己可见', value: 'ONLY_ME' }
+  { label: '公开 (PUBLIC)', value: 'PUBLIC' },
+  { label: '私有 (PRIVATE)', value: 'PRIVATE' },
+  { label: '仅自己可见 (ONLY_ME)', value: 'ONLY_ME' }
 ];
 
 const auditLabels: Record<Recipe['auditStatus'], { label: string; tone: 'green' | 'orange' | 'red' | 'gray' }> = {
@@ -175,11 +389,12 @@ const auditLabels: Record<Recipe['auditStatus'], { label: string; tone: 'green' 
   REJECTED: { label: '审核驳回', tone: 'red' }
 };
 
-export const RecipeFormPage = ({ mode }: Props) => {
+export const RecipeFormPage = ({ mode }: { mode: RecipeFormMode }) => {
   const navigate = useNavigate();
   const params = useParams();
   const id = params.id ?? '';
 
+  const [activeTab, setActiveTab] = useState<number>(0);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [categories, setCategories] = useState<IngredientCategory[]>([]);
   const [loading, setLoading] = useState(mode === 'edit');
@@ -187,20 +402,8 @@ export const RecipeFormPage = ({ mode }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const validationError = useMemo(() => {
-    if (!draft.title.trim()) return '菜谱标题必填';
-    if (draft.categoryId === null) return '分类必选';
-    if (!draft.difficulty?.trim()) return '难度必选';
-    if (draft.ingredients.filter((item) => item.name.trim()).length < 1) return '至少添加 1 个食材';
-    if (draft.steps.filter((step) => step.description.trim()).length < 1) return '至少添加 1 个步骤';
-    if (draft.cookTime !== null && !Number.isFinite(draft.cookTime)) return '烹饪时间必须是数字';
-    if (draft.servings !== null && !Number.isFinite(draft.servings)) return '份量必须是数字';
-    if (draft.calories !== null && !Number.isFinite(draft.calories)) return '热量必须是数字';
-    if (!Number.isFinite(draft.sort)) return '排序必须是数字';
-    return null;
-  }, [draft]);
-
-  const canSave = !validationError && !saving;
+  // Tab validations errors state
+  const [tabErrors, setTabErrors] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     let alive = true;
@@ -209,12 +412,14 @@ export const RecipeFormPage = ({ mode }: Props) => {
       setError(null);
       try {
         const [categoryResult, recipe] = await Promise.all([
-          listCategories({ page: 1, pageSize: 100, type: 'RECIPE' }),
+          listCategories({ page: 1, pageSize: 100, type: 'RECIPE', status: 'ACTIVE' }),
           mode === 'edit' && id ? getRecipe(id) : Promise.resolve(null)
         ]);
         if (!alive) return;
         setCategories(categoryResult.list);
-        if (recipe) setDraft(recipeToDraft(recipe));
+        if (recipe) {
+          setDraft(recipeToDraft(recipe));
+        }
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : '加载失败');
       } finally {
@@ -227,6 +432,113 @@ export const RecipeFormPage = ({ mode }: Props) => {
     };
   }, [id, mode]);
 
+  const validateTab = (tabIndex: number, currentDraft = draft): string | null => {
+    if (tabIndex === 0) {
+      if (!currentDraft.title.trim()) return '请输入菜谱名称';
+      if (!currentDraft.categoryId) return '请选择菜谱分类';
+      if (!currentDraft.difficulty) return '请选择难度';
+      if (!currentDraft.description?.trim()) return '请输入菜谱简介';
+    }
+    if (tabIndex === 1) {
+      if (!currentDraft.coverUrl) return '请上传详情页封面图';
+    }
+    if (tabIndex === 2) {
+      const activeIngredients = currentDraft.ingredients.filter((item) => item.type !== '调料' && item.name.trim());
+      if (activeIngredients.length === 0) return '至少输入一个食材配料名称';
+    }
+    if (tabIndex === 4) {
+      const activeSteps = currentDraft.steps.filter((step) => step.description.trim());
+      if (activeSteps.length === 0) return '至少输入一个制作步骤描述';
+    }
+    return null;
+  };
+
+  const updateAllTabErrors = (currentDraft = draft) => {
+    const errors: Record<number, boolean> = {};
+    TABS.forEach((_, idx) => {
+      const err = validateTab(idx, currentDraft);
+      if (err) {
+        errors[idx] = true;
+      }
+    });
+    setTabErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleTabClick = (index: number) => {
+    setError(null);
+    setActiveTab(index);
+  };
+
+  const handlePrev = () => {
+    setError(null);
+    if (activeTab > 0) {
+      setActiveTab(activeTab - 1);
+    }
+  };
+
+  const handleNext = () => {
+    setError(null);
+    const validationErr = validateTab(activeTab, draft);
+    if (validationErr) {
+      setError(`【${TABS[activeTab]}】: ${validationErr}`);
+      return;
+    }
+    if (activeTab < TABS.length - 1) {
+      setActiveTab(activeTab + 1);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    await handleSave('draft');
+  };
+
+  const handlePublish = async () => {
+    await handleSave('submit');
+  };
+
+  const handleSave = async (intent: 'draft' | 'submit') => {
+    setError(null);
+    const finalDraft = {
+      ...draft,
+      isDraft: intent === 'draft',
+      isPublish: intent === 'submit',
+      status: intent === 'submit' ? ('ACTIVE' as const) : ('DISABLED' as const)
+    };
+
+    if (intent === 'submit') {
+      const isValid = updateAllTabErrors(finalDraft);
+      if (!isValid) {
+        let firstErrorTab = 0;
+        for (let i = 0; i < TABS.length; i++) {
+          const err = validateTab(i, finalDraft);
+          if (err) {
+            firstErrorTab = i;
+            setError(`【${TABS[i]}】: ${err}`);
+            break;
+          }
+        }
+        setActiveTab(firstErrorTab);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const payload = serializeDraftToPayload(finalDraft);
+      const saved = await (mode === 'edit' && id ? updateRecipe(id, payload) : createRecipe(payload));
+      if (intent === 'submit') {
+        await submitRecipeAudit(saved.id);
+      }
+      setNotice(intent === 'submit' ? '提交审核成功' : '草稿已保存');
+      window.setTimeout(() => navigate('/content/recipes', { replace: true }), 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const updateIngredient = (index: number, patch: Partial<IngredientDraft>) => {
     setDraft((current) => ({
       ...current,
@@ -235,7 +547,10 @@ export const RecipeFormPage = ({ mode }: Props) => {
   };
 
   const updateStep = (index: number, patch: Partial<StepDraft>) => {
-    setDraft((current) => ({ ...current, steps: current.steps.map((step, currentIndex) => (currentIndex === index ? { ...step, ...patch } : step)) }));
+    setDraft((current) => ({
+      ...current,
+      steps: current.steps.map((step, currentIndex) => (currentIndex === index ? { ...step, ...patch } : step))
+    }));
   };
 
   const moveRow = <T extends { sortIndex: number }>(items: T[], index: number, direction: -1 | 1) => {
@@ -246,234 +561,1050 @@ export const RecipeFormPage = ({ mode }: Props) => {
     return next.map((item, currentIndex) => ({ ...item, sortIndex: currentIndex + 1 }));
   };
 
-  const saveBase = async (nextDraft: Draft) => {
-    const payload = toPayload(nextDraft);
-    return mode === 'edit' && id ? updateRecipe(id, payload) : createRecipe(payload);
-  };
-
-  const handleSave = async (intent: 'draft' | 'submit') => {
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const nextDraft: Draft =
-        intent === 'submit'
-          ? { ...draft, auditStatus: 'DRAFT', isDraft: true, isPublish: false }
-          : { ...draft, auditStatus: 'DRAFT', isDraft: true, isPublish: false };
-      const saved = await saveBase(nextDraft);
-      if (intent === 'submit') await submitRecipeAudit(saved.id);
-      setNotice(intent === 'submit' ? '已提交审核' : '草稿已保存');
-      window.setTimeout(() => navigate('/content/recipes', { replace: true }), 350);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败');
-    } finally {
-      setSaving(false);
-    }
+  const moveIngredient = (index: number, direction: -1 | 1) => {
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= draft.ingredients.length) return;
+    const list = [...draft.ingredients];
+    [list[index], list[targetIdx]] = [list[targetIdx], list[index]];
+    const updated = list.map((item, idx) => ({ ...item, sortIndex: idx + 1 }));
+    setDraft((d) => ({ ...d, ingredients: updated }));
   };
 
   const audit = auditLabels[draft.auditStatus];
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <section className="min-h-screen bg-[#FAF7F2] py-6 px-4 md:px-8">
+      {/* 顶部标题区 */}
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="mt-2 text-3xl font-semibold text-[#2f2f2f]">{mode === 'edit' ? '编辑菜谱' : '新增菜谱'}</h1>
-          <p className="mt-2 text-sm text-[#8c8c8c]">结构化维护菜谱基础信息、成品媒体、食材清单和步骤，审核状态只能通过流程流转。</p>
+          <h1 className="text-2xl font-semibold text-[#2f2f2f]">
+            {mode === 'edit' ? '编辑菜谱' : '新增菜谱'}
+          </h1>
+          <p className="mt-1 text-sm text-[#B7AEA1]">
+            维护菜谱的基础信息、图文音视频素材、食材配比、烹饪步骤与营养参数
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => navigate('/content/recipes')}>返回列表</Button>
-          <Button variant="ghost" disabled={saving} onClick={() => void handleSave('draft')}>{saving ? '保存中...' : '保存草稿'}</Button>
-          <Button disabled={saving} onClick={() => void handleSave('submit')}>{saving ? '提交中...' : '提交审核'}</Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            className="border-[#cfc6b8] text-[#6f6a61] px-5 h-10 hover:bg-[#f5f1ea]"
+            onClick={() => navigate('/content/recipes')}
+          >
+            返回列表
+          </Button>
         </div>
       </div>
 
-      {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-      {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
+      {/* 错误与成功状态提示 */}
+      {error ? (
+        <div className="mb-6 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 font-bold hover:text-red-700">✕</button>
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="mb-6 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-700">
+          {notice}
+        </div>
+      ) : null}
 
-      <div>
-        {loading ? (
-          <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 text-sm text-[#8c8c8c]">加载中...</div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
-              <NumberedSection number={1} title="基础信息">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="菜谱名称 *"><Input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="请输入菜谱名称" /></Field>
-                  <Field label="菜谱副标题"><Input value={draft.subtitle ?? ''} onChange={(event) => setDraft({ ...draft, subtitle: event.target.value })} placeholder="请输入副标题" /></Field>
+      {loading ? (
+        <div className="rounded-3xl border border-[#e9e2d6] bg-white p-12 text-center text-[#B7AEA1] text-sm">
+          加载数据中...
+        </div>
+      ) : (
+        <div className="flex flex-col gap-6">
+          {/* Tab 选项栏 */}
+          <div className="overflow-x-auto rounded-2xl border border-[#e9e2d6] bg-white p-2">
+            <nav className="flex space-x-1 min-w-[800px]">
+              {TABS.map((tab, idx) => {
+                const isActive = idx === activeTab;
+                const hasErr = tabErrors[idx];
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => handleTabClick(idx)}
+                    className={[
+                      'flex-1 relative py-3 px-1 text-sm font-medium rounded-xl transition duration-150',
+                      isActive
+                        ? 'bg-[#edf5ea] text-[#6f8b62]'
+                        : 'text-[#6f6a61] hover:bg-zinc-50'
+                    ].join(' ')}
+                  >
+                    {tab}
+                    {hasErr && (
+                      <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                    )}
+                    {isActive && (
+                      <span className="absolute bottom-0 inset-x-4 h-[3px] bg-[#6f8b62] rounded-t-full" />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* 表单面板 */}
+          <div className="rounded-2xl border border-[#e9e2d6] bg-white p-6 shadow-sm min-h-[500px]">
+            {/* Tab 1: 基础信息 */}
+            {activeTab === 0 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4">
+                  <h3 className="text-lg font-semibold text-[#2f2f2f]">基础信息</h3>
+                  <p className="text-xs text-[#B7AEA1] mt-1">输入菜谱的通用基本属性，带 * 为必填项</p>
+                </div>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <Field label="菜谱名称 *">
+                    <Input
+                      value={draft.title}
+                      onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                      placeholder="请输入菜谱名称"
+                      className="h-11"
+                    />
+                  </Field>
+                  <Field label="菜谱副标题">
+                    <Input
+                      value={draft.subtitle ?? ''}
+                      onChange={(e) => setDraft({ ...draft, subtitle: e.target.value || null })}
+                      placeholder="请输入副标题，如'酸甜开胃，简单易做'"
+                      className="h-11"
+                    />
+                  </Field>
                   <Field label="菜谱分类 *">
-                    <select value={draft.categoryId ?? ''} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value ? event.target.value : null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+                    <select
+                      value={draft.categoryId ?? ''}
+                      onChange={(e) => setDraft({ ...draft, categoryId: e.target.value || null })}
+                      className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] focus:ring-1 focus:ring-[#6f8b62] outline-none"
+                    >
                       <option value="">请选择分类</option>
-                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
                     </select>
                   </Field>
                   <Field label="难度 *">
-                    <select value={draft.difficulty ?? ''} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+                    <select
+                      value={draft.difficulty ?? ''}
+                      onChange={(e) => setDraft({ ...draft, difficulty: e.target.value || null })}
+                      className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] focus:ring-1 focus:ring-[#6f8b62] outline-none"
+                    >
                       <option value="">请选择难度</option>
-                      {difficultyOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                      {difficultyOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
                     </select>
                   </Field>
-                  <Field label="烹饪时长"><Input type="number" placeholder="如：15" value={draft.cookTime ?? ''} onChange={(event) => setDraft({ ...draft, cookTime: event.target.value === '' ? null : Number(event.target.value) })} /></Field>
-                  <Field label="热量 kcal"><Input type="number" placeholder="如：320" value={draft.calories ?? ''} onChange={(event) => setDraft({ ...draft, calories: event.target.value === '' ? null : Number(event.target.value) })} /></Field>
-                  <Field label="份量 / 几人食"><Input type="number" placeholder="如：2" value={draft.servings ?? ''} onChange={(event) => setDraft({ ...draft, servings: event.target.value === '' ? null : Number(event.target.value) })} /></Field>
-                  <Field label="发布状态">
-                    <div className="flex h-10 items-center gap-4 text-sm text-[#2f2f2f]">
-                      <label className="flex items-center gap-2"><input type="radio" checked={draft.isDraft} onChange={() => setDraft({ ...draft, isDraft: true, isPublish: false })} />草稿</label>
-                      <label className="flex items-center gap-2"><input type="radio" checked={draft.isPublish} onChange={() => setDraft({ ...draft, isDraft: false, isPublish: true })} />发布</label>
-                    </div>
+                  <Field label="烹饪时长 (分钟)">
+                    <Input
+                      type="number"
+                      placeholder="如 15"
+                      value={draft.cookTime ?? ''}
+                      onChange={(e) => setDraft({ ...draft, cookTime: e.target.value === '' ? null : Number(e.target.value) })}
+                      className="h-11"
+                    />
                   </Field>
-                  <Field label="是否推荐"><label className="flex h-10 items-center gap-2 text-sm"><input type="checkbox" checked={draft.isRecommend} onChange={(event) => setDraft({ ...draft, isRecommend: event.target.checked })} />推荐到首页或频道位</label></Field>
-                  <Field label="审核状态"><div className="flex h-10 items-center gap-3"><StatusTag label={audit.label} tone={audit.tone} /><span className="text-xs text-[#8c8c8c]">通过流程流转</span></div></Field>
-                  <Field label="菜谱简介 / 描述 *" className="md:col-span-2">
-                    <textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="min-h-20 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" placeholder="简要介绍这道菜的特色、口感、适合人群或食用场景..." />
+                  <Field label="热量 (kcal)">
+                    <Input
+                      type="number"
+                      placeholder="如 320"
+                      value={draft.calories ?? ''}
+                      onChange={(e) => setDraft({ ...draft, calories: e.target.value === '' ? null : Number(e.target.value) })}
+                      className="h-11"
+                    />
                   </Field>
+                  <Field label="份量 (几人食)">
+                    <Input
+                      type="number"
+                      placeholder="如 2"
+                      value={draft.servings ?? ''}
+                      onChange={(e) => setDraft({ ...draft, servings: e.target.value === '' ? null : Number(e.target.value) })}
+                      className="h-11"
+                    />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="菜谱简介 / 描述 *">
+                      <textarea
+                        value={draft.description ?? ''}
+                        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                        className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-[#6f8b62] focus:ring-1 focus:ring-[#6f8b62] outline-none min-h-24 resize-y"
+                        placeholder="简要介绍这道菜的特色、口感、适合人群或食用场景..."
+                      />
+                    </Field>
+                  </div>
                 </div>
-              </NumberedSection>
+              </div>
+            )}
 
-              <NumberedSection number={2} title="封面与图文素材">
-                <PrototypeMediaSection
+            {/* Tab 2: 封面与图文素材 */}
+            {activeTab === 1 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4">
+                  <h3 className="text-lg font-semibold text-[#2f2f2f]">封面与图文素材</h3>
+                  <p className="text-xs text-[#B7AEA1] mt-1">上传菜谱的主封面、轮播展示图片集，以及烹饪讲解视频</p>
+                </div>
+                <ImageEditorUploader
                   coverUrl={draft.coverUrl}
                   images={draft.images}
-                  video={draft.video}
-                  tags={[draft.taste, draft.scene].filter(Boolean).join('、')}
+                  max={8}
                   onCoverChange={(coverUrl) => setDraft({ ...draft, coverUrl })}
                   onImagesChange={(images) => setDraft({ ...draft, images })}
-                  onVideoChange={(video) => setDraft({ ...draft, video })}
-                  onTagsChange={(tags) => setDraft({ ...draft, taste: tags })}
                 />
-              </NumberedSection>
-
-              <NumberedSection number={3} title="食材配料">
-                <IngredientRows
-                  items={draft.ingredients}
-                  kind="ingredient"
-                  updateIngredient={updateIngredient}
-                  remove={(index) => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}
-                />
-                <div className="mt-4 flex gap-2">
-                  <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, createIngredient(draft.ingredients.length + 1)] })}>＋ 新增食材</Button>
-                  <Button type="button" variant="ghost" onClick={() => setNotice('批量导入入口已预留')}>批量导入</Button>
-                </div>
-              </NumberedSection>
-
-              <NumberedSection number={4} title="调料配比（可选）">
-                <IngredientRows
-                  items={draft.ingredients}
-                  kind="seasoning"
-                  updateIngredient={updateIngredient}
-                  remove={(index) => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}
-                />
-                <div className="mt-4">
-                  <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { ...createIngredient(draft.ingredients.length + 1), type: '调料' }] })}>＋ 新增调料</Button>
-                </div>
-              </NumberedSection>
-
-              <NumberedSection number={5} title="制作步骤" className="2xl:col-span-2">
-                <div className="space-y-3">
-                  {draft.steps.map((step, index) => (
-                    <div key={step.id} className="grid grid-cols-[32px_1fr_116px_52px] items-center gap-3 rounded-2xl bg-[#f5f1ea] p-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sm font-semibold text-[#2f2f2f]">{index + 1}</span>
-                      <textarea value={step.description} onChange={(event) => updateStep(index, { description: event.target.value })} className="min-h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" placeholder="请输入制作步骤" />
-                      <StepImageUpload value={step.image} onChange={(image) => updateStep(index, { image })} />
-                      <Button type="button" variant="danger" onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, currentIndex) => currentIndex !== index).map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 })) })}>删除</Button>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <Field label="视频链接 / 视频上传 (可选)">
+                    <div className="grid grid-cols-[1fr_auto] gap-3">
+                      <Input
+                        value={draft.video ?? ''}
+                        onChange={(e) => setDraft({ ...draft, video: e.target.value || null })}
+                        placeholder="粘贴以 http/https 开头的视频链接，或点击右侧上传"
+                        className="h-11"
+                      />
+                      <PrototypeVideoButton
+                        onUploaded={(url) => setDraft({ ...draft, video: url })}
+                        onNotice={(msg) => setNotice(msg)}
+                      />
                     </div>
-                  ))}
+                  </Field>
+                  <Field label="核心口味属性 (选填)">
+                    <select
+                      value={draft.taste ?? ''}
+                      onChange={(e) => setDraft({ ...draft, taste: e.target.value || null })}
+                      className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] outline-none"
+                    >
+                      <option value="">选择口味</option>
+                      {tasteOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </Field>
                 </div>
-                <div className="mt-4 flex items-center gap-3">
-                  <Button type="button" variant="ghost" onClick={() => setDraft({ ...draft, steps: [...draft.steps, createStep(draft.steps.length + 1)] })}>＋ 新增步骤</Button>
-                  <span className="text-xs text-[#8c8c8c]">拖拽排序后续接入，当前可通过删除和新增调整内容。</span>
-                </div>
-              </NumberedSection>
-
-              <NumberedSection number={6} title="关联信息" className="2xl:col-span-2">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <Field label="关联食材（可多选）"><Input value={draft.ingredients.filter((item) => item.name.trim()).map((item) => item.name).join('、')} readOnly placeholder="自动来自食材配料" /></Field>
-                  <Field label="适用场景"><select value={draft.scene ?? ''} onChange={(event) => setDraft({ ...draft, scene: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value="">请选择</option>{sceneOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></Field>
-                  <Field label="关键词"><Input value={[draft.title, draft.taste, draft.scene].filter(Boolean).join('、')} onChange={(event) => setDraft({ ...draft, taste: event.target.value })} placeholder="用逗号分隔" /></Field>
-                  <Field label="来源 / 作者"><Input placeholder="如：原创 / 家庭作者 / 网络" /></Field>
-                  <Field label="审核备注" className="md:col-span-2"><Input placeholder="给审核人员看的备注信息" /></Field>
-                  <Field label="小贴士" className="md:col-span-3"><textarea value={draft.tips ?? ''} onChange={(event) => setDraft({ ...draft, tips: event.target.value })} className="min-h-20 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" /></Field>
-                </div>
-              </NumberedSection>
-            </div>
-
-            <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
-              <RecipePreview draft={draft} categoryName={categories.find((category) => category.id === draft.categoryId)?.name} />
-              <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5">
-                <h2 className="text-lg font-semibold text-[#2f2f2f]">发布提示</h2>
-                <ul className="mt-4 space-y-3 text-sm leading-6 text-[#6f6a61]">
-                  <li>• 发布后可被首页推荐、专题和频道引用</li>
-                  <li>• 请确保封面清晰、步骤完整</li>
-                  <li>• 分类与标签将影响搜索与推荐</li>
-                </ul>
               </div>
-            </aside>
+            )}
+
+            {/* Tab 3: 食材配料 */}
+            {activeTab === 2 && (
+              <IngredientRowsSection
+                items={draft.ingredients}
+                kind="ingredient"
+                updateIngredient={updateIngredient}
+                remove={(index) =>
+                  setDraft((current) => ({
+                    ...current,
+                    ingredients: current.ingredients
+                      .filter((_, currentIndex) => currentIndex !== index)
+                      .map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 }))
+                  }))
+                }
+                add={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    ingredients: [...current.ingredients, createIngredient(current.ingredients.length + 1, '主料')]
+                  }))
+                }
+                move={(index, direction) => moveIngredient(index, direction)}
+              />
+            )}
+
+            {/* Tab 4: 调料配比 */}
+            {activeTab === 3 && (
+              <IngredientRowsSection
+                items={draft.ingredients}
+                kind="seasoning"
+                updateIngredient={updateIngredient}
+                remove={(index) =>
+                  setDraft((current) => ({
+                    ...current,
+                    ingredients: current.ingredients
+                      .filter((_, currentIndex) => currentIndex !== index)
+                      .map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 }))
+                  }))
+                }
+                add={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    ingredients: [...current.ingredients, createIngredient(current.ingredients.length + 1, '调料')]
+                  }))
+                }
+                move={(index, direction) => moveIngredient(index, direction)}
+              />
+            )}
+
+            {/* Tab 5: 制作步骤 */}
+            {activeTab === 4 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#2f2f2f]">制作步骤</h3>
+                    <p className="text-xs text-[#B7AEA1] mt-1">维护烹饪过程的分步动作及引导图片，带 * 为必填项</p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        steps: [...current.steps, createStep(current.steps.length + 1)]
+                      }))
+                    }
+                    className="bg-[#6f8b62] text-white hover:bg-[#5d7552] text-xs px-3 h-9 font-semibold transition"
+                  >
+                    ＋ 新增步骤
+                  </Button>
+                </div>
+
+                {draft.steps.length === 0 ? (
+                  <div className="bg-[#FAF7F2] rounded-xl p-8 text-center text-sm text-[#B7AEA1]">
+                    暂无步骤。请点击右上角“新增步骤”按钮添加。
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {draft.steps.map((step, index) => (
+                      <div
+                        key={step.id}
+                        className="border border-[#e9e2d6] rounded-2xl p-4 bg-[#fdfcf9] grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-4 items-center"
+                      >
+                        <div className="text-center text-lg font-bold text-[#6f8b62] bg-[#edf5ea] rounded-full w-10 h-10 flex items-center justify-center">
+                          {index + 1}
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr]">
+                          <textarea
+                            value={step.description}
+                            onChange={(e) => updateStep(index, { description: e.target.value })}
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs focus:border-[#6f8b62] outline-none min-h-16 resize-y"
+                            placeholder="请输入步骤描述，如：番茄洗净切块，鸡蛋打散..."
+                          />
+                          <div className="flex flex-col gap-1.5 justify-center">
+                            <label className="text-[10px] text-[#6f6a61] font-semibold">预估用时 (秒)</label>
+                            <Input
+                              type="number"
+                              value={step.duration ?? ''}
+                              onChange={(e) =>
+                                updateStep(index, { duration: e.target.value === '' ? null : Number(e.target.value) })
+                              }
+                              placeholder="秒，如：120"
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 justify-end">
+                          <StepImageUpload value={step.image} onChange={(img) => updateStep(index, { image: img })} />
+                          <div className="inline-flex flex-col gap-1">
+                            <button
+                              type="button"
+                              disabled={index === 0}
+                              onClick={() => {
+                                const arr = moveRow(draft.steps, index, -1);
+                                setDraft((d) => ({ ...d, steps: arr }));
+                              }}
+                              className="bg-zinc-50 hover:bg-zinc-100 p-1 border rounded disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              disabled={index === draft.steps.length - 1}
+                              onClick={() => {
+                                const arr = moveRow(draft.steps, index, 1);
+                                setDraft((d) => ({ ...d, steps: arr }));
+                              }}
+                              className="bg-zinc-50 hover:bg-zinc-100 p-1 border rounded disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDraft((current) => ({
+                                ...current,
+                                steps: current.steps
+                                  .filter((_, idx) => idx !== index)
+                                  .map((next, nextIndex) => ({ ...next, sortIndex: nextIndex + 1 }))
+                              }))
+                            }
+                            className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-2.5 py-2 rounded transition"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 6: 烹饪技巧 */}
+            {activeTab === 5 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#2f2f2f]">烹饪技巧</h3>
+                    <p className="text-xs text-[#B7AEA1] mt-1">设置菜谱的实用烹饪小妙招或注意事项，帮助新手规避失败</p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const newTip: CookingTipItem = {
+                        id: createId(),
+                        title: '',
+                        description: '',
+                        relatedStep: '全局',
+                        type: '烹饪阶段',
+                        sort: draft.cookingTips.length + 1,
+                        status: 'ACTIVE'
+                      };
+                      setDraft((d) => ({ ...d, cookingTips: [...d.cookingTips, newTip] }));
+                    }}
+                    className="bg-[#6f8b62] text-white hover:bg-[#5d7552] text-xs px-3 h-9 font-semibold transition"
+                  >
+                    ＋ 新增技巧
+                  </Button>
+                </div>
+
+                {draft.cookingTips.length === 0 ? (
+                  <div className="bg-[#FAF7F2] rounded-xl p-8 text-center text-sm text-[#B7AEA1]">
+                    暂无烹饪技巧。点击右上角“新增技巧”按钮添加。
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {draft.cookingTips.map((tip, idx) => (
+                      <div
+                        key={tip.id}
+                        className="border border-[#e9e2d6] rounded-2xl p-4 bg-[#fdfcf9] grid grid-cols-1 md:grid-cols-4 gap-4 items-center"
+                      >
+                        <div>
+                          <label className="text-xs text-[#6f6a61] block mb-1">技巧标题 *</label>
+                          <Input
+                            value={tip.title}
+                            onChange={(e) => {
+                              const list = [...draft.cookingTips];
+                              list[idx].title = e.target.value;
+                              setDraft((d) => ({ ...d, cookingTips: list }));
+                            }}
+                            placeholder="如：如何炒蛋蓬松"
+                            className="h-10 text-xs font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-[#6f6a61] block mb-1">小技巧描述 *</label>
+                          <Input
+                            value={tip.description}
+                            onChange={(e) => {
+                              const list = [...draft.cookingTips];
+                              list[idx].description = e.target.value;
+                              setDraft((d) => ({ ...d, cookingTips: list }));
+                            }}
+                            placeholder="如：加少量温水搅拌，大火下锅..."
+                            className="h-10 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-[#6f6a61] block mb-1">关联步骤</label>
+                            <select
+                              value={tip.relatedStep}
+                              onChange={(e) => {
+                                const list = [...draft.cookingTips];
+                                list[idx].relatedStep = e.target.value;
+                                setDraft((d) => ({ ...d, cookingTips: list }));
+                              }}
+                              className="text-xs h-10 w-full rounded-xl border border-zinc-200 bg-white px-2 focus:border-[#6f8b62] outline-none"
+                            >
+                              <option value="全局">全局 (整个菜谱)</option>
+                              {draft.steps.map((s, stepIdx) => (
+                                <option key={s.id} value={`步骤 ${stepIdx + 1}`}>步骤 {stepIdx + 1}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-[#6f6a61] block mb-1">技巧类型</label>
+                            <select
+                              value={tip.type}
+                              onChange={(e) => {
+                                const list = [...draft.cookingTips];
+                                list[idx].type = e.target.value;
+                                setDraft((d) => ({ ...d, cookingTips: list }));
+                              }}
+                              className="text-xs h-10 w-full rounded-xl border border-zinc-200 bg-white px-2 focus:border-[#6f8b62] outline-none"
+                            >
+                              <option value="准备阶段">准备阶段</option>
+                              <option value="烹饪阶段">烹饪阶段</option>
+                              <option value="摆盘阶段">摆盘阶段</option>
+                              <option value="其它">其它</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 pt-4 md:pt-0">
+                          <div>
+                            <label className="text-xs text-[#6f6a61] block mb-1">启用状态</label>
+                            <select
+                              value={tip.status}
+                              onChange={(e) => {
+                                const list = [...draft.cookingTips];
+                                list[idx].status = e.target.value as any;
+                                setDraft((d) => ({ ...d, cookingTips: list }));
+                              }}
+                              className="text-xs h-10 w-full rounded-xl border border-zinc-200 bg-white px-2 focus:border-[#6f8b62] outline-none"
+                            >
+                              <option value="ACTIVE">启用 (ACTIVE)</option>
+                              <option value="DISABLED">停用 (DISABLED)</option>
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDraft((d) => ({
+                                ...d,
+                                cookingTips: d.cookingTips.filter((_, i) => i !== idx)
+                              }));
+                            }}
+                            className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-2.5 py-2 rounded h-10 transition mt-4"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 7: 营养价值 */}
+            {activeTab === 6 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#2f2f2f]">营养价值</h3>
+                    <p className="text-xs text-[#B7AEA1] mt-1">设置菜谱的营养素构成以及人群膳食建议</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#6f6a61] font-semibold">营养基准:</span>
+                    <input
+                      type="text"
+                      value={draft.nutrition.base}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, base: e.target.value }
+                        })
+                      }
+                      className="w-24 border border-zinc-200 rounded-lg px-2 py-1 text-xs outline-none focus:border-[#6f8b62]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Field label="热量 (kcal)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.calories ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, calories: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="蛋白质 (g)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.protein ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, protein: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="脂肪 (g)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.fat ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, fat: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="碳水化合物 (g)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.carbohydrate ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, carbohydrate: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="膳食纤维 (g)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.dietaryFiber ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, dietaryFiber: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="钠 (mg)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.sodium ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, sodium: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="钾 (mg)">
+                    <Input
+                      type="number"
+                      value={draft.nutrition.potassium ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, potassium: e.target.value === '' ? null : Number(e.target.value) }
+                        })
+                      }
+                      placeholder="0.0"
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-zinc-100 pt-4">
+                  <Field label="适合人群">
+                    <Input
+                      value={draft.nutrition.suitableCrowd}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, suitableCrowd: e.target.value }
+                        })
+                      }
+                      placeholder="如：减脂人群、高血压患者..."
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <Field label="不适合/禁忌人群">
+                    <Input
+                      value={draft.nutrition.unsuitableCrowd}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, unsuitableCrowd: e.target.value }
+                        })
+                      }
+                      placeholder="如：肾功能不全者、糖尿病患者..."
+                      className="h-10 text-xs"
+                    />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="整体营养解读">
+                      <textarea
+                        value={draft.nutrition.description}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            nutrition: { ...draft.nutrition, description: e.target.value }
+                          })
+                        }
+                        className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs focus:border-[#6f8b62] outline-none min-h-16 resize-y"
+                        placeholder="这道菜富含优质蛋白，钠含量偏低..."
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* 自定义扩展营养素 */}
+                <div className="border-t border-zinc-100 pt-6 mt-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold text-[#2f2f2f]">自定义微量元素 / 维生素项 (选填)</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newNut: CustomNutritionItem = {
+                          id: createId(),
+                          name: '',
+                          value: '',
+                          unit: 'mg',
+                          sort: draft.nutrition.customItems.length + 1,
+                          status: 'ACTIVE'
+                        };
+                        setDraft({
+                          ...draft,
+                          nutrition: { ...draft.nutrition, customItems: [...draft.nutrition.customItems, newNut] }
+                        });
+                      }}
+                      className="text-xs font-semibold text-[#6f8b62] hover:text-[#5d7552]"
+                    >
+                      ＋ 新增自定义项
+                    </button>
+                  </div>
+
+                  {draft.nutrition.customItems.length === 0 ? (
+                    <div className="bg-[#FAF7F2] rounded-xl p-4 text-center text-xs text-[#B7AEA1]">
+                      暂无自定义元素项。
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {draft.nutrition.customItems.map((item, idx) => (
+                        <div key={item.id} className="flex flex-wrap gap-3 items-center bg-[#fdfcf9] border border-zinc-100 rounded-xl p-3">
+                          <div className="flex-1 min-w-[120px]">
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => {
+                                const list = [...draft.nutrition.customItems];
+                                list[idx].name = e.target.value;
+                                setDraft({ ...draft, nutrition: { ...draft.nutrition, customItems: list } });
+                              }}
+                              className="w-full text-xs h-9 rounded-lg border border-zinc-200 bg-white px-2 focus:border-[#6f8b62] outline-none"
+                              placeholder="名称, 如 维生素C"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-[80px]">
+                            <input
+                              type="text"
+                              value={item.value}
+                              onChange={(e) => {
+                                const list = [...draft.nutrition.customItems];
+                                list[idx].value = e.target.value;
+                                setDraft({ ...draft, nutrition: { ...draft.nutrition, customItems: list } });
+                              }}
+                              className="w-full text-xs h-9 rounded-lg border border-zinc-200 bg-white px-2 focus:border-[#6f8b62] outline-none"
+                              placeholder="值, 如 12.5"
+                            />
+                          </div>
+                          <div className="w-20">
+                            <input
+                              type="text"
+                              value={item.unit}
+                              onChange={(e) => {
+                                const list = [...draft.nutrition.customItems];
+                                list[idx].unit = e.target.value;
+                                setDraft({ ...draft, nutrition: { ...draft.nutrition, customItems: list } });
+                              }}
+                              className="w-full text-xs h-9 rounded-lg border border-zinc-200 bg-white px-2 focus:border-[#6f8b62] outline-none"
+                              placeholder="单位, 如 mg"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDraft({
+                                ...draft,
+                                nutrition: {
+                                  ...draft.nutrition,
+                                  customItems: draft.nutrition.customItems.filter((_, i) => i !== idx)
+                                }
+                              });
+                            }}
+                            className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-2.5 h-9 rounded transition"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 8: 关联与元数据 */}
+            {activeTab === 7 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4">
+                  <h3 className="text-lg font-semibold text-[#2f2f2f]">关联与元信息</h3>
+                  <p className="text-xs text-[#B7AEA1] mt-1">设置适用场景、归属出处、搜索关键词及小贴士</p>
+                </div>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <Field label="关联食材清单 (自动获取)">
+                    <Input
+                      value={draft.ingredients.filter((item) => item.type !== '调料' && item.name.trim()).map((item) => item.name).join('、')}
+                      readOnly
+                      className="h-11 bg-zinc-50 text-zinc-500 cursor-not-allowed text-xs"
+                      placeholder="来自前述食材配料列表"
+                    />
+                  </Field>
+                  <Field label="来源 / 出处">
+                    <Input
+                      value={draft.source}
+                      onChange={(e) => setDraft({ ...draft, source: e.target.value })}
+                      placeholder="如：大厨食谱 / 经典古籍 / 原创"
+                      className="h-11"
+                    />
+                  </Field>
+                  <Field label="菜谱作者">
+                    <Input
+                      value={draft.author}
+                      onChange={(e) => setDraft({ ...draft, author: e.target.value })}
+                      placeholder="如：陆羽、苏轼"
+                      className="h-11"
+                    />
+                  </Field>
+                  <Field label="适用场景">
+                    <div className="flex flex-wrap gap-4 text-xs mt-2 text-[#2f2f2f]">
+                      {sceneOptions.map((sc) => {
+                        const isSelected = draft.scenes.includes(sc);
+                        return (
+                          <label key={sc} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setDraft({ ...draft, scenes: [...draft.scenes, sc] });
+                                } else {
+                                  setDraft({ ...draft, scenes: draft.scenes.filter(s => s !== sc) });
+                                }
+                              }}
+                              className="accent-[#6f8b62] h-4 w-4"
+                            />
+                            {sc}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="搜索关键词 (英文/中文逗号回车分隔)">
+                      <div className="flex flex-wrap items-center gap-2 p-2 border border-zinc-200 rounded-xl min-h-11 bg-white">
+                        {draft.keywords.map((kw) => (
+                          <span key={kw} className="flex items-center gap-1.5 bg-[#edf5ea] text-[#6f8b62] px-2.5 py-1 text-xs rounded-full">
+                            {kw}
+                            <button
+                              type="button"
+                              onClick={() => setDraft({ ...draft, keywords: draft.keywords.filter(k => k !== kw) })}
+                              className="text-[#6f8b62] hover:text-[#5d7552] font-semibold"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          placeholder="添加关键词..."
+                          className="flex-1 outline-none text-xs px-1 min-w-[100px] h-7"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const val = e.currentTarget.value.trim();
+                              if (val && !draft.keywords.includes(val)) {
+                                setDraft({ ...draft, keywords: [...draft.keywords, val] });
+                                e.currentTarget.value = '';
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </Field>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Field label="小贴士 (烹饪避坑指南 / 储存注意)">
+                      <textarea
+                        value={draft.tipsText}
+                        onChange={(e) => setDraft({ ...draft, tipsText: e.target.value })}
+                        className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs focus:border-[#6f8b62] outline-none min-h-24 resize-y"
+                        placeholder="说明调味增减、火候控制技巧..."
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 9: 发布设置 */}
+            {activeTab === 8 && (
+              <div className="space-y-6">
+                <div className="border-b border-zinc-100 pb-4">
+                  <h3 className="text-lg font-semibold text-[#2f2f2f]">发布与权限设置</h3>
+                  <p className="text-xs text-[#B7AEA1] mt-1">控制菜谱的前端发布状态与系统排序权重</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field label="排序权重值" desc="决定 C 端展示列表排序，数值越大越靠前">
+                    <Input
+                      type="number"
+                      value={draft.sort}
+                      onChange={(e) => setDraft({ ...draft, sort: Number(e.target.value) })}
+                      className="h-11 text-xs"
+                    />
+                  </Field>
+                  <Field label="前端可见性范围">
+                    <select
+                      value={draft.visibility}
+                      onChange={(e) => setDraft({ ...draft, visibility: e.target.value })}
+                      className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] outline-none"
+                    >
+                      {visibilityOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="flex flex-col gap-3 mt-4">
+                    <label className="flex items-center gap-3 cursor-pointer text-sm font-semibold text-[#2f2f2f]">
+                      <input
+                        type="checkbox"
+                        checked={draft.status === 'ACTIVE'}
+                        onChange={(e) => setDraft({ ...draft, status: e.target.checked ? 'ACTIVE' : 'DISABLED' })}
+                        className="accent-[#6f8b62] h-4.5 w-4.5"
+                      />
+                      启用本菜谱 (设为 ACTIVE 状态)
+                    </label>
+                    <p className="text-xs text-[#B7AEA1] ml-7">禁用后本菜谱及其对应步骤在前端均不可见</p>
+                  </div>
+                  <div className="flex flex-col gap-3 mt-4">
+                    <label className="flex items-center gap-3 cursor-pointer text-sm font-semibold text-[#2f2f2f]">
+                      <input
+                        type="checkbox"
+                        checked={draft.isRecommend}
+                        onChange={(e) => setDraft({ ...draft, isRecommend: e.target.checked })}
+                        className="accent-[#6f8b62] h-4.5 w-4.5"
+                      />
+                      标记为精选推荐 (在首页或分类推荐中优先轮播显示)
+                    </label>
+                  </div>
+                </div>
+
+                {/* 详细系统元信息面板 */}
+                <div className="border-t border-zinc-100 pt-6 mt-6 bg-[#fcfbf9] rounded-2xl p-4 space-y-3">
+                  <h4 className="text-xs font-semibold text-[#6f6a61] uppercase tracking-wider">系统元数据详情</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-[#6f6a61]">
+                    <div>
+                      <span className="font-semibold">发布阶段：</span>
+                      {draft.isPublish ? (
+                        <span className="text-emerald-600 font-bold">已发布 (PUBLISHED)</span>
+                      ) : (
+                        <span className="text-amber-500 font-bold">草稿 (DRAFT)</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-semibold">内容编号 (ID)：</span>
+                      <code className="bg-zinc-100 px-1 py-0.5 rounded font-mono text-[11px] text-zinc-700">
+                        {draft.id || '系统自动生成'}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-semibold">业务内码 (Code)：</span>
+                      <code className="bg-zinc-100 px-1 py-0.5 rounded font-mono text-[11px] text-zinc-700">
+                        {draft.code || '系统自动编码'}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-semibold">审核状态：</span>
+                      <StatusTag label={audit.label} tone={audit.tone} />
+                    </div>
+                    {draft.rejectReason && (
+                      <div className="sm:col-span-3 text-red-600">
+                        <span className="font-semibold text-zinc-600">驳回原因/审核批注：</span>
+                        {draft.rejectReason}
+                      </div>
+                    )}
+                    {mode === 'edit' && (
+                      <>
+                        <div>
+                          <span className="font-semibold">创建时间：</span>
+                          {draft.createdAt ? new Date(draft.createdAt).toLocaleString() : '-'}
+                        </div>
+                        <div>
+                          <span className="font-semibold">最近更新：</span>
+                          {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '-'}
+                        </div>
+                        <div>
+                          <span className="font-semibold">创建人：</span>
+                          {draft.createdBy || '管理员'}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 底部固定操作栏 */}
+            <div className="mt-8 pt-6 border-t border-zinc-100 flex gap-4 justify-between items-center bg-white sticky bottom-0 z-10 py-3">
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={activeTab === 0}
+                  onClick={handlePrev}
+                  className="border-[#cfc6b8] text-[#6f6a61] px-5 h-10 hover:bg-[#f5f1ea] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  上一步
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={activeTab === TABS.length - 1}
+                  onClick={handleNext}
+                  className="border-[#cfc6b8] text-[#6f6a61] px-5 h-10 hover:bg-[#f5f1ea] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  下一步
+                </Button>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={saving}
+                  onClick={handleSaveDraft}
+                  className="border-[#cfc6b8] text-[#6f6a61] px-5 h-10 hover:bg-[#f5f1ea]"
+                >
+                  {saving ? '保存中...' : '保存草稿'}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={saving}
+                  onClick={handlePublish}
+                  className="bg-[#6f8b62] text-white hover:bg-[#5d7552] px-6 h-10 font-semibold transition"
+                >
+                  {saving ? '提交中...' : '提交审核'}
+                </Button>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 };
 
-const NumberedSection = ({ number, title, children, className = '' }: { number: number; title: string; children: ReactNode; className?: string }) => (
-  <section className={`rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5 shadow-sm ${className}`}>
-    <div className="mb-5 flex items-center gap-3">
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#6f8b62] text-sm font-semibold text-white">{number}</span>
-      <h2 className="text-lg font-semibold text-[#2f2f2f]">{title}</h2>
-    </div>
+const Field = ({ label, desc, children, className = '' }: { label: string; desc?: string; children: ReactNode; className?: string }) => (
+  <div className={className}>
+    <label className="block mb-1.5 text-xs font-semibold text-[#6f6a61]">
+      {label}
+    </label>
     {children}
-  </section>
+    {desc && <p className="mt-1 text-[10px] text-[#B7AEA1]">{desc}</p>}
+  </div>
 );
-
-const Field = ({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) => (
-  <label className={`block ${className}`}>
-    <div className="mb-1.5 text-xs font-medium text-[#6f6a61]">{label}</div>
-    {children}
-  </label>
-);
-
-const PrototypeMediaSection = ({
-  coverUrl,
-  images,
-  video,
-  tags,
-  onCoverChange,
-  onImagesChange,
-  onVideoChange,
-  onTagsChange
-}: {
-  coverUrl: string | null;
-  images: string[];
-  video: string | null;
-  tags: string;
-  onCoverChange: (url: string | null) => void;
-  onImagesChange: (urls: string[]) => void;
-  onVideoChange: (url: string | null) => void;
-  onTagsChange: (tags: string) => void;
-}) => {
-  const [notice, setNotice] = useState<string | null>(null);
-
-  return (
-    <div className="space-y-5">
-      {notice ? <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</div> : null}
-      <ImageEditorUploader coverUrl={coverUrl} images={images} max={8} onCoverChange={onCoverChange} onImagesChange={onImagesChange} />
-
-      <div>
-        <div className="mb-2 text-xs font-medium text-[#6f6a61]">视频链接 / 视频上传（可选）</div>
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <Input value={video ?? ''} onChange={(event) => onVideoChange(event.target.value || null)} placeholder="粘贴视频链接或上传视频文件" />
-          <PrototypeVideoButton onUploaded={onVideoChange} onNotice={setNotice} />
-        </div>
-      </div>
-
-      <Field label="标签（最多选择5个）">
-        <Input value={tags} onChange={(event) => onTagsChange(event.target.value)} placeholder="请选择或搜索标签" />
-      </Field>
-    </div>
-  );
-};
 
 const PrototypeVideoButton = ({ onUploaded, onNotice }: { onUploaded: (url: string | null) => void; onNotice: (message: string | null) => void }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -550,98 +1681,225 @@ const StepImageUpload = ({ value, onChange }: { value: string | null; onChange: 
   );
 };
 
-const IngredientRows = ({
+const IngredientAutocompleteInput = ({
+  value,
+  onChange,
+  onSelectIngredient,
+  placeholder
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  onSelectIngredient: (ing: { id: string; name: string; unit: string | null }) => void;
+  placeholder?: string;
+}) => {
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const triggerSearch = useMemo(() => {
+    let timer: any = null;
+    return (q: string) => {
+      if (timer) clearTimeout(timer);
+      if (!q.trim()) {
+        setSuggestions([]);
+        return;
+      }
+      setSearching(true);
+      timer = setTimeout(async () => {
+        try {
+          const res = await listIngredients({ q, pageSize: 8 });
+          setSuggestions(res.list);
+          setOpen(res.list.length > 0);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSearching(false);
+        }
+      }, 300);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <Input
+        value={value}
+        onChange={(e) => {
+          const val = e.target.value;
+          onChange(val);
+          triggerSearch(val);
+        }}
+        onFocus={() => {
+          if (suggestions.length > 0) setOpen(true);
+        }}
+        placeholder={placeholder}
+        className="h-10 text-xs"
+      />
+      {searching && (
+        <span className="absolute right-2 top-3 text-[10px] text-zinc-400">...</span>
+      )}
+      {open && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-zinc-100">
+          {suggestions.map((ing) => (
+            <button
+              key={ing.id}
+              type="button"
+              onClick={() => {
+                onSelectIngredient({ id: ing.id, name: ing.name, unit: ing.priceUnit });
+                setOpen(false);
+              }}
+              className="w-full text-left p-2.5 hover:bg-[#edf5ea] text-xs text-[#2f2f2f] transition flex justify-between items-center"
+            >
+              <span className="font-semibold">{ing.name}</span>
+              <span className="text-[10px] text-[#B7AEA1]">{ing.category?.name || '分类'} | {ing.priceUnit || '单位'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const IngredientRowsSection = ({
   items,
   kind,
   updateIngredient,
-  remove
+  remove,
+  add,
+  move
 }: {
   items: IngredientDraft[];
   kind: 'ingredient' | 'seasoning';
   updateIngredient: (index: number, patch: Partial<IngredientDraft>) => void;
   remove: (index: number) => void;
+  add: () => void;
+  move: (index: number, direction: -1 | 1) => void;
 }) => {
+  const isSeasoning = kind === 'seasoning';
   const rows = items
     .map((item, index) => ({ item, index }))
-    .filter(({ item }) => (kind === 'seasoning' ? item.type === '调料' : item.type !== '调料'));
-  const visibleRows = rows.length ? rows : items.slice(0, kind === 'seasoning' ? 0 : 3).map((item, index) => ({ item, index }));
+    .filter(({ item }) => (isSeasoning ? item.type === '调料' : item.type !== '调料'));
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#e9e2d6] bg-white">
-      <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.3fr_52px] border-b border-[#e9e2d6] bg-[#f5f1ea] px-3 py-2 text-xs font-semibold text-[#6f6a61]">
-        <span>{kind === 'seasoning' ? '调料名称' : '食材名称'}</span>
-        <span>用量</span>
-        <span>单位</span>
-        <span>备注</span>
-        <span className="text-right">操作</span>
+    <div className="space-y-6">
+      <div className="border-b border-zinc-100 pb-4 flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-semibold text-[#2f2f2f]">{isSeasoning ? '调料配比' : '食材配料'}</h3>
+          <p className="text-xs text-[#B7AEA1] mt-1">设置菜谱所需的{isSeasoning ? '调味辅料' : '主配食材'}，支持模糊搜索关联系统食材库</p>
+        </div>
+        <Button
+          type="button"
+          onClick={add}
+          className="bg-[#6f8b62] text-white hover:bg-[#5d7552] text-xs px-3 h-9 font-semibold transition"
+        >
+          ＋ 新增{isSeasoning ? '调料' : '食材'}
+        </Button>
       </div>
-      <div className="divide-y divide-[#f1ece4]">
-        {visibleRows.length ? visibleRows.map(({ item, index }) => (
-          <div key={item.id} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.3fr_52px] items-center gap-2 px-3 py-2">
-            <Input value={item.name} onChange={(event) => updateIngredient(index, { name: event.target.value, type: kind === 'seasoning' ? '调料' : item.type })} placeholder={kind === 'seasoning' ? '生抽' : '番茄'} />
-            <Input value={item.amount} onChange={(event) => updateIngredient(index, { amount: event.target.value })} placeholder="2" />
-            <Input value={item.unit} onChange={(event) => updateIngredient(index, { unit: event.target.value })} placeholder={kind === 'seasoning' ? '勺' : '个'} />
-            <Input value={item.note} onChange={(event) => updateIngredient(index, { note: event.target.value })} placeholder={kind === 'seasoning' ? '按口味调整' : '中等大小'} />
-            <button type="button" onClick={() => remove(index)} className="text-right text-sm text-red-500 hover:text-red-600">删除</button>
-          </div>
-        )) : (
-          <div className="px-3 py-8 text-center text-sm text-[#8c8c8c]">暂无{kind === 'seasoning' ? '调料' : '食材'}，点击下方按钮添加。</div>
-        )}
-      </div>
-    </div>
-  );
-};
 
-const RecipePreview = ({ draft, categoryName }: { draft: Draft; categoryName?: string }) => {
-  const ingredients = draft.ingredients.filter((item) => item.name.trim()).slice(0, 6);
-  const steps = draft.steps.filter((step) => step.description.trim()).slice(0, 4);
-
-  return (
-    <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-[#2f2f2f]">内容预览</h2>
-        <button type="button" className="rounded-xl border border-[#e9e2d6] bg-white px-3 py-1.5 text-xs text-[#6f8b62]">刷新预览</button>
-      </div>
-      <div className="overflow-hidden rounded-[28px] border-[10px] border-[#232323] bg-white">
-        <div className="flex items-center justify-between px-4 py-3 text-xs font-semibold text-[#2f2f2f]">
-          <span>9:41</span>
-          <span>•••</span>
+      {rows.length === 0 ? (
+        <div className="bg-[#FAF7F2] rounded-xl p-8 text-center text-sm text-[#B7AEA1]">
+          暂无记录。点击右上角“新增”按钮进行添加。
         </div>
-        <div className="h-40 bg-[#f5f1ea]">
-          {draft.coverUrl ? <img src={draft.coverUrl} alt={draft.title || '菜谱封面'} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-[#8c8c8c]">封面预览</div>}
-        </div>
-        <div className="space-y-4 p-4">
-          <div>
-            <h3 className="text-xl font-semibold text-[#2f2f2f]">{draft.title || '番茄炒蛋'}</h3>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              {[categoryName || '家常菜', draft.scene || '下饭菜', draft.difficulty || '简单'].map((tag) => <span key={tag} className="rounded-full bg-[#edf5ea] px-2.5 py-1 text-[#6f8b62]">{tag}</span>)}
-            </div>
-          </div>
-          <div className="flex gap-3 text-xs text-[#6f6a61]">
-            <span>{draft.cookTime ?? 15}分钟</span>
-            <span>{draft.calories ?? 320} kcal</span>
-            <span>{draft.servings ?? 2}人份</span>
-          </div>
-          <p className="text-sm leading-6 text-[#6f6a61]">{draft.description || '经典家常菜，酸甜开胃，营养丰富，做法简单。'}</p>
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-[#2f2f2f]">食材</h4>
-            <div className="space-y-1 text-sm text-[#6f6a61]">
-              {(ingredients.length ? ingredients : [{ name: '番茄', amount: '2', unit: '个' }, { name: '鸡蛋', amount: '3', unit: '个' }]).map((item, index) => (
-                <div key={`${item.name}-${index}`} className="flex justify-between"><span>{item.name}</span><span>{item.amount} {item.unit}</span></div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-[#e9e2d6] bg-white">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#fcfbf9] text-[#6f6a61] border-b border-[#e9e2d6] font-semibold">
+              <tr>
+                <th className="p-3 w-1/4">{isSeasoning ? '调料名称 *' : '食材名称 *'}</th>
+                <th className="p-3 w-1/6">用量</th>
+                <th className="p-3 w-1/6">单位</th>
+                <th className="p-3 w-1/4">备注</th>
+                <th className="p-3 text-center">排序</th>
+                <th className="p-3 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {rows.map(({ item, index }) => (
+                <tr key={item.id} className="hover:bg-zinc-50/50">
+                  <td className="p-2">
+                    <IngredientAutocompleteInput
+                      value={item.name}
+                      onChange={(val) => updateIngredient(index, { name: val, type: isSeasoning ? '调料' : '主料' })}
+                      onSelectIngredient={(ing) => {
+                        updateIngredient(index, {
+                          name: ing.name,
+                          ingredientId: ing.id,
+                          unit: ing.unit || item.unit,
+                          type: isSeasoning ? '调料' : '主料'
+                        });
+                      }}
+                      placeholder={isSeasoning ? '如：生抽' : '如：番茄'}
+                    />
+                  </td>
+                  <td className="p-2">
+                    <Input
+                      value={item.amount}
+                      onChange={(e) => updateIngredient(index, { amount: e.target.value })}
+                      placeholder="2"
+                      className="h-10 text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <Input
+                      value={item.unit}
+                      onChange={(e) => updateIngredient(index, { unit: e.target.value })}
+                      placeholder={isSeasoning ? '勺' : '个'}
+                      className="h-10 text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <Input
+                      value={item.note}
+                      onChange={(e) => updateIngredient(index, { note: e.target.value })}
+                      placeholder={isSeasoning ? '按口味调整' : '中等大小'}
+                      className="h-10 text-xs"
+                    />
+                  </td>
+                  <td className="p-2 text-center">
+                    <div className="inline-flex gap-1.5">
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => move(index, -1)}
+                        className="bg-zinc-50 hover:bg-zinc-100 px-2 py-1 border rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === rows.length - 1}
+                        onClick={() => move(index, 1)}
+                        className="bg-zinc-50 hover:bg-zinc-100 px-2 py-1 border rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </td>
+                  <td className="p-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => remove(index)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded transition"
+                    >
+                      删除
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
-          </div>
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-[#2f2f2f]">制作步骤</h4>
-            <div className="space-y-2 text-sm text-[#6f6a61]">
-              {(steps.length ? steps : [{ description: '番茄切块，鸡蛋打散备用。' }, { description: '热锅倒油，倒入蛋液炒至凝固。' }]).map((step, index) => (
-                <div key={`${step.description}-${index}`} className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#6f8b62] text-xs text-white">{index + 1}</span><span className="line-clamp-2">{step.description}</span></div>
-              ))}
-            </div>
-          </div>
-          <button type="button" className="h-11 w-full rounded-xl bg-[#6f8b62] text-sm font-semibold text-white">开始烹饪</button>
+            </tbody>
+          </table>
         </div>
-      </div>
+      )}
     </div>
   );
 };

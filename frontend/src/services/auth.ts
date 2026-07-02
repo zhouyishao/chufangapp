@@ -1,4 +1,7 @@
+import { loginMobileAuth } from './public-api';
+
 export interface AuthUser {
+  id?: number;
   phone: string;
   nickname: string;
   token: string;
@@ -11,13 +14,6 @@ export interface AuthAccount {
 }
 
 const AUTH_STORAGE_KEY = 'recipe-app-auth-user';
-const AUTH_ACCOUNTS_STORAGE_KEY = 'recipe-app-auth-accounts';
-
-const demoAccount: AuthAccount = {
-  phone: '13800138000',
-  password: '123456',
-  nickname: '周末小家'
-};
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
@@ -29,22 +25,25 @@ const isAuthUser = (value: unknown): value is AuthUser => {
   }
 
   return (
+    (value.id === undefined || typeof value.id === 'number') &&
     typeof value.phone === 'string' &&
     typeof value.nickname === 'string' &&
     typeof value.token === 'string'
   );
 };
 
-const isAuthAccount = (value: unknown): value is AuthAccount => {
-  if (!isRecord(value)) {
-    return false;
+const unwrapStoredValue = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    try {
+      return unwrapStoredValue(JSON.parse(value));
+    } catch {
+      return value;
+    }
   }
-
-  return (
-    typeof value.phone === 'string' &&
-    typeof value.password === 'string' &&
-    typeof value.nickname === 'string'
-  );
+  if (isRecord(value) && 'data' in value && typeof value.type === 'string') {
+    return unwrapStoredValue(value.data);
+  }
+  return value;
 };
 
 export const isValidPhone = (phone: string) => /^1[3-9]\d{9}$/.test(phone.trim());
@@ -62,7 +61,8 @@ export const maskPhone = (phone: string) => {
 
 export const loadAuthUser = (): AuthUser | null => {
   const storedUser = uni.getStorageSync(AUTH_STORAGE_KEY) as unknown;
-  return isAuthUser(storedUser) ? storedUser : null;
+  const unwrappedUser = unwrapStoredValue(storedUser);
+  return isAuthUser(unwrappedUser) ? unwrappedUser : null;
 };
 
 export const saveAuthUser = (user: AuthUser) => {
@@ -73,65 +73,22 @@ export const clearAuthUser = () => {
   uni.removeStorageSync(AUTH_STORAGE_KEY);
 };
 
-export const loadAuthAccounts = () => {
-  const storedAccounts = uni.getStorageSync(AUTH_ACCOUNTS_STORAGE_KEY) as unknown;
-  if (!Array.isArray(storedAccounts)) {
-    return [demoAccount];
-  }
-
-  const accounts = storedAccounts.filter(isAuthAccount);
-  if (accounts.some((account) => account.phone === demoAccount.phone)) {
-    return accounts;
-  }
-
-  return [demoAccount, ...accounts];
-};
-
-export const saveAuthAccounts = (accounts: AuthAccount[]) => {
-  uni.setStorageSync(AUTH_ACCOUNTS_STORAGE_KEY, accounts);
-};
-
-export const findAuthAccount = (phone: string) => {
-  const normalizedPhone = phone.trim();
-  return loadAuthAccounts().find((account) => account.phone === normalizedPhone) ?? null;
-};
-
 export const registerAuthAccount = (phone: string, password: string) => {
   const normalizedPhone = phone.trim();
-  const accounts = loadAuthAccounts();
-  const nextAccount: AuthAccount = {
+  return {
     phone: normalizedPhone,
     password: password.trim(),
     nickname: maskPhone(normalizedPhone)
-  };
-  const nextAccounts = [
-    nextAccount,
-    ...accounts.filter((account) => account.phone !== normalizedPhone)
-  ];
-  saveAuthAccounts(nextAccounts);
-  return nextAccount;
+  } satisfies AuthAccount;
 };
 
 export const resetAuthPassword = (phone: string, password: string) => {
   const normalizedPhone = phone.trim();
-  const accounts = loadAuthAccounts();
-  const existingAccount = accounts.find((account) => account.phone === normalizedPhone);
-  const nextAccount: AuthAccount = {
+  return {
     phone: normalizedPhone,
     password: password.trim(),
-    nickname: existingAccount?.nickname ?? maskPhone(normalizedPhone)
-  };
-  const nextAccounts = [
-    nextAccount,
-    ...accounts.filter((account) => account.phone !== normalizedPhone)
-  ];
-  saveAuthAccounts(nextAccounts);
-  return nextAccount;
-};
-
-export const verifyPassword = (phone: string, password: string) => {
-  const account = findAuthAccount(phone);
-  return account !== null && account.password === password.trim();
+    nickname: maskPhone(normalizedPhone)
+  } satisfies AuthAccount;
 };
 
 export const createAuthUser = (phone: string, nickname?: string): AuthUser => {
@@ -139,6 +96,24 @@ export const createAuthUser = (phone: string, nickname?: string): AuthUser => {
   return {
     phone: normalizedPhone,
     nickname: nickname?.trim() || maskPhone(normalizedPhone),
-    token: `mock-token-${Date.now()}`
+    token: ''
   };
+};
+
+export const syncAuthUserWithBackend = async (user: AuthUser | null = loadAuthUser()) => {
+  if (!user) return null;
+  if (user.id) return user;
+
+  const remoteUser = await loginMobileAuth({
+    phone: user.phone,
+    nickname: user.nickname
+  });
+  const nextUser: AuthUser = {
+    ...user,
+    id: remoteUser.id,
+    nickname: remoteUser.nickname || user.nickname,
+    token: `mobile-user-${remoteUser.id}`
+  };
+  saveAuthUser(nextUser);
+  return nextUser;
 };

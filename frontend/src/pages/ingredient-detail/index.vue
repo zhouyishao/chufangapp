@@ -1,14 +1,14 @@
 <template>
   <view class="page">
-    <view class="header-image">
+      <view class="header-image">
       <image class="header-image__bg" :src="ingredient.image" mode="aspectFill" />
       <view :class="['header-overlay', { 'is-solid': isHeaderSolid }]">
         <view class="back-button" @click="goBack">
-          <text class="back-icon">←</text>
+          <app-icon name="arrow-left" size="26rpx" />
         </view>
         <text class="header-title">{{ ingredient.name }}</text>
         <view :class="['favorite-button', { 'is-favorite': isFavorite }]" @click="toggleFavorite">
-          <text class="favorite-icon">{{ isFavorite ? '★' : '☆' }}</text>
+          <app-icon :name="isFavorite ? 'heart-filled' : 'heart'" size="28rpx" />
         </view>
       </view>
     </view>
@@ -154,50 +154,14 @@
 
       <view class="bottom-actions">
         <button class="record-bottom-button" @tap="openPricePanel">
-          <svg
-            class="bottom-button__icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
+          <app-icon class="bottom-button__icon" name="plus" size="28rpx" />
           <text>添加价格</text>
         </button>
         <button
           :class="['add-basket-button', { 'is-in-basket': isInBasket }]"
           @tap="addToBasket"
         >
-          <svg
-            v-if="!isInBasket"
-            class="bottom-button__icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="9" cy="21" r="1" />
-            <circle cx="20" cy="21" r="1" />
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-          </svg>
-          <svg
-            v-else
-            class="bottom-button__icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
+          <app-icon class="bottom-button__icon" :name="isInBasket ? 'check' : 'basket'" size="28rpx" />
           <text>{{ isInBasket ? '已在菜篮子' : '加入菜篮子' }}</text>
         </button>
       </view>
@@ -232,7 +196,7 @@
               >
                 <view class="unit-select">
                   <text>{{ selectedManualUnit }}</text>
-                  <text class="select-arrow">⌄</text>
+                  <app-icon class="select-arrow" name="chevron-down" size="20rpx" />
                 </view>
               </picker>
             </view>
@@ -247,7 +211,7 @@
             >
               <view class="field-input is-select">
                 <text>{{ selectedManualUnit }}</text>
-                <text class="select-arrow">⌄</text>
+                <app-icon class="select-arrow" name="chevron-down" size="20rpx" />
               </view>
             </picker>
             </view>
@@ -264,7 +228,7 @@
             >
               <view class="field-input is-select">
                 <text>{{ manualDate }}</text>
-                <text class="select-arrow">⌄</text>
+                <app-icon class="select-arrow" name="chevron-down" size="20rpx" />
               </view>
             </picker>
           </view>
@@ -277,8 +241,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onLoad, onPageScroll, onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import {
   addBasketItem,
   getIngredientBasketItemId,
@@ -286,14 +251,17 @@ import {
   loadBasketItems,
   removeBasketItem
 } from '../../services/basket';
-import {
-  addFavoriteIngredient,
-  loadFavoriteIngredients,
-  removeFavoriteIngredient
-} from '../../services/favorites';
+import type { BasketItem } from '../../services/basket';
+import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { addPriceRecords, getPriceRecordsByIngredient, removePriceRecord } from '../../services/price';
 import type { IngredientPriceRecord } from '../../services/price';
-import { getIngredient } from '../../services/public-api';
+import {
+  addMobileFavorite,
+  addMobileViewHistory,
+  deleteMobileFavorite,
+  getIngredient,
+  listMobileFavorites
+} from '../../services/public-api';
 
 interface BasicInfo {
   label: string;
@@ -327,71 +295,89 @@ interface Ingredient {
 type OverviewTabId = 'basic' | 'price';
 type TipsTabId = 'select' | 'storage' | 'nutrition';
 
+const readIngredientIdFromRoute = (query?: Record<string, string | undefined>) => {
+  const fromQuery = query?.id?.trim();
+  if (fromQuery) return fromQuery;
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash;
+  const queryText = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+  return new URLSearchParams(queryText).get('id')?.trim() ?? '';
+};
+
 const ingredient = ref<Ingredient>({
-  id: '1',
-  name: '芦笋',
-  subtitle: '初夏时令蔬菜，清爽脆嫩',
-  image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80',
+  id: '',
+  name: '食材详情',
+  subtitle: '正在读取后台食材资料',
+  image: '',
   seasonTag: {
     type: 'success',
-    label: '5月当季'
+    label: '时令'
   },
-  basicInfo: [
-    { label: '产地', value: '山东' },
-    { label: '季节', value: '春夏' },
-    { label: '类别', value: '蔬菜' },
-    { label: '保存', value: '冷藏3-5天' }
-  ],
-  nutrition: '芦笋富含维生素A、C、E及多种微量元素，具有较高的营养价值。其中含有的天门冬酰胺对心血管有益，叶酸含量也较为丰富。',
-  selectTips: '选择笋尖紧密、茎秆挺直、切口新鲜湿润的芦笋。颜色应呈鲜绿色，避免选择发黄或有斑点的。粗细适中的口感更佳。',
-  storageTips: '芦笋不耐储存，建议购买后尽快食用。如需保存，可将根部用湿纸巾包裹后放入保鲜袋，置于冰箱冷藏室，可保存3-5天。',
-  relatedRecipes: [
-    {
-      id: 'recipe-1',
-      name: '芦笋虾仁',
-      image: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80',
-      duration: '15分钟',
-      difficulty: '简单'
-    },
-    {
-      id: 'recipe-2',
-      name: '白灼芦笋',
-      image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
-      duration: '10分钟',
-      difficulty: '简单'
-    },
-    {
-      id: 'recipe-3',
-      name: '芦笋炒肉',
-      image: 'https://images.unsplash.com/photo-1604909052743-94e838986d24?auto=format&fit=crop&w=800&q=80',
-      duration: '20分钟',
-      difficulty: '中等'
-    }
-  ]
+  basicInfo: [],
+  nutrition: '后台暂未配置营养说明。',
+  selectTips: '后台暂未配置挑选建议。',
+  storageTips: '后台暂未配置保存建议。',
+  relatedRecipes: []
 });
 
 const remoteLoading = ref(false);
 const remoteError = ref<string | null>(null);
 const currentIngredientId = ref<number | null>(null);
 
+const normalizeTextBlock = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return trimmed || fallback;
+};
+
+const normalizeRelatedRecipes = (value: unknown): RelatedRecipe[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const record = item as Record<string, unknown>;
+      const id = record.id ?? record.recipeId;
+      const name = record.name ?? record.title;
+      if (id === undefined || typeof name !== 'string') return null;
+      return {
+        id: String(id),
+        name,
+        image: typeof record.image === 'string' ? record.image : typeof record.cover === 'string' ? record.cover : '',
+        duration: typeof record.duration === 'string' ? record.duration : typeof record.cookTime === 'number' ? `${record.cookTime}分钟` : '—',
+        difficulty: typeof record.difficulty === 'string' ? record.difficulty : '—'
+      };
+    })
+    .filter((item): item is RelatedRecipe => item !== null);
+};
+
 const loadRemoteIngredient = async (id: number) => {
   remoteLoading.value = true;
   remoteError.value = null;
   try {
     const data = await getIngredient(id);
+    const seasonText = data.seasonMonth?.trim() || '';
     ingredient.value = {
-      ...ingredient.value,
       id: String(data.id),
       name: data.name,
-      subtitle: data.seasonMonth ? `时令：${data.seasonMonth}` : ingredient.value.subtitle,
-      image:
-        data.cover ??
-        ingredient.value.image,
+      subtitle: seasonText ? `时令：${seasonText}` : '后台已配置食材资料',
+      image: data.cover ?? '',
       seasonTag: {
         type: 'success',
-        label: data.seasonMonth ? `${data.seasonMonth.split(',')[0]?.trim() ?? ''}月当季` : ingredient.value.seasonTag.label
-      }
+        label: seasonText ? `${seasonText.split(',')[0]?.trim() ?? ''}月当季` : '常备'
+      },
+      basicInfo: [
+        { label: '类别', value: data.category?.name ?? '未分类' },
+        { label: '季节', value: seasonText || '未配置' },
+        { label: '价格', value: data.currentPrice ? `¥${data.currentPrice}/${data.priceUnit ?? '斤'}` : '待补充' },
+        { label: '更新时间', value: data.updatedAt?.slice(0, 10) ?? '—' }
+      ],
+      nutrition: normalizeTextBlock(data.nutrition, '后台暂未配置营养说明。'),
+      selectTips: normalizeTextBlock(data.selectionTips, '后台暂未配置挑选建议。'),
+      storageTips: normalizeTextBlock(data.storageMethod, '后台暂未配置保存建议。'),
+      relatedRecipes: normalizeRelatedRecipes(data.relatedRecipes)
     };
+    void recordIngredientViewHistory(id);
+    void syncFavoriteState(id).catch(() => undefined);
   } catch (err) {
     remoteError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
@@ -399,128 +385,11 @@ const loadRemoteIngredient = async (id: number) => {
   }
 };
 
-const ingredientOverrides: Record<string, Partial<Ingredient>> = {
-  '1': {
-    id: '1',
-    name: '虾仁',
-    subtitle: '高蛋白低脂肪，适合快手烹饪',
-    image: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'primary', label: '高蛋白' },
-    basicInfo: [
-      { label: '类别', value: '水产' },
-      { label: '口感', value: '弹嫩' },
-      { label: '做法', value: '快炒/蒸煮' },
-      { label: '保存', value: '冷冻保存' }
-    ],
-    nutrition: '虾仁蛋白质含量高，脂肪相对较低，适合日常补充优质蛋白。',
-    selectTips: '选择颜色自然透亮、形态完整、没有明显异味的虾仁。冷冻虾仁尽量选择冰衣薄而均匀的。',
-    storageTips: '冷冻虾仁取出后建议尽快烹饪，解冻后不建议反复冷冻。'
-  },
-  '2': {
-    id: '2',
-    name: '三文鱼',
-    subtitle: '富含 Omega-3，适合轻煎和烤制',
-    image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'primary', label: '营养优选' },
-    basicInfo: [
-      { label: '类别', value: '水产' },
-      { label: '口感', value: '细嫩' },
-      { label: '做法', value: '轻煎/烤制' },
-      { label: '保存', value: '冷藏当天食用' }
-    ],
-    nutrition: '三文鱼富含优质蛋白和 Omega-3 脂肪酸，适合家庭营养餐搭配。',
-    selectTips: '选择纹理清晰、颜色自然、有光泽且无明显腥味的鱼肉。',
-    storageTips: '新鲜三文鱼建议当天食用，冷冻产品解冻后尽快烹饪。'
-  },
-  '3': {
-    id: '3'
-  },
-  '4': {
-    id: '4',
-    name: '西兰花',
-    subtitle: '营养丰富的十字花科蔬菜',
-    image: 'https://images.unsplash.com/photo-1628773822503-930a7eaecf80?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'success', label: '常备蔬菜' },
-    basicInfo: [
-      { label: '类别', value: '蔬菜' },
-      { label: '口感', value: '清脆' },
-      { label: '做法', value: '焯拌/清炒' },
-      { label: '保存', value: '冷藏3天' }
-    ],
-    nutrition: '西兰花富含膳食纤维、维生素 C 和多种矿物质，是日常餐桌常见的轻负担蔬菜。',
-    selectTips: '选择花球紧密、颜色深绿、茎部不空心的西兰花。',
-    storageTips: '用保鲜袋包好冷藏，烹饪前再清洗，避免提前受潮。'
-  },
-  '5': {
-    id: '5',
-    name: '番茄',
-    subtitle: '酸甜可口，适合炖煮和凉拌',
-    image: 'https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'success', label: '家庭常备' },
-    basicInfo: [
-      { label: '类别', value: '蔬菜' },
-      { label: '口味', value: '酸甜' },
-      { label: '做法', value: '炖煮/凉拌' },
-      { label: '保存', value: '阴凉处或冷藏' }
-    ],
-    nutrition: '番茄含有维生素 C、番茄红素和有机酸，适合做汤、炖菜和清爽凉菜。',
-    selectTips: '选择颜色均匀、表皮完整、手感有弹性的番茄。',
-    storageTips: '未完全成熟可室温放置，成熟后建议冷藏并尽快食用。'
-  },
-  '6': {
-    id: '6',
-    name: '草莓',
-    subtitle: '酸甜多汁，适合早餐和甜点',
-    image: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'danger', label: '当季水果' },
-    basicInfo: [
-      { label: '类别', value: '水果' },
-      { label: '口味', value: '酸甜' },
-      { label: '搭配', value: '酸奶/燕麦' },
-      { label: '保存', value: '冷藏1-2天' }
-    ],
-    nutrition: '草莓富含维生素 C 和果香，适合做轻早餐搭配。',
-    selectTips: '选择颜色自然鲜红、果蒂新鲜、表面无压伤的草莓。',
-    storageTips: '草莓不耐放，建议吃前再清洗，冷藏保存并尽快食用。'
-  },
-  '7': {
-    id: '7',
-    name: '苹果',
-    subtitle: '四季常备水果，适合家庭日常',
-    image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'success', label: '常备水果' },
-    basicInfo: [
-      { label: '类别', value: '水果' },
-      { label: '口感', value: '脆甜' },
-      { label: '搭配', value: '早餐/加餐' },
-      { label: '保存', value: '冷藏更久' }
-    ],
-    nutrition: '苹果含有膳食纤维和果胶，适合作为家庭日常加餐水果。',
-    selectTips: '选择表皮完整、手感结实、香气自然的苹果。',
-    storageTips: '可放阴凉处短期保存，冷藏能延长新鲜度。'
-  },
-  '8': {
-    id: '8',
-    name: '牛肉',
-    subtitle: '优质蛋白来源，适合炖煮和快炒',
-    image: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=1200&q=80',
-    seasonTag: { type: 'warning', label: '优质蛋白' },
-    basicInfo: [
-      { label: '类别', value: '肉类' },
-      { label: '口感', value: '扎实' },
-      { label: '做法', value: '炖煮/快炒' },
-      { label: '保存', value: '冷藏或冷冻' }
-    ],
-    nutrition: '牛肉富含蛋白质、铁和多种矿物质，适合家庭主菜。',
-    selectTips: '选择颜色红润、有自然肉香、纹理清晰且表面不黏手的牛肉。',
-    storageTips: '短期冷藏，长时间保存建议分装冷冻，避免反复解冻。'
-  }
-};
-
 const isHeaderSolid = ref(false);
 const priceRecords = ref<IngredientPriceRecord[]>([]);
 const basketItemIds = ref<string[]>([]);
-const favoriteIngredientIds = ref<string[]>([]);
+const favoriteRecordId = ref<number | null>(null);
+const favoriteChanging = ref(false);
 const isPricePanelVisible = ref(false);
 const manualPrice = ref('');
 const weightUnitOptions = ['g', '斤', 'kg'];
@@ -601,7 +470,8 @@ const activeTipsContent = computed(() => {
 });
 const ingredientBasketItemId = computed(() => getIngredientBasketItemId(ingredient.value.id));
 const isInBasket = computed(() => basketItemIds.value.includes(ingredientBasketItemId.value));
-const isFavorite = computed(() => favoriteIngredientIds.value.includes(ingredient.value.id));
+const basketItems = ref<BasketItem[]>([]);
+const isFavorite = ref(false);
 const estimatedPriceText = computed(() => getIngredientPurchaseText(ingredient.value.name) ?? '参考价待补充');
 const latestPriceText = computed(() => {
   const latestRecord = priceRecords.value[0];
@@ -628,22 +498,17 @@ const priceTrendLabel = computed(() => {
 });
 
 onLoad((query?: Record<string, string | undefined>) => {
-  const id = query?.id ?? '3';
-  const override = ingredientOverrides[id];
-  if (override) {
-    ingredient.value = {
-      ...ingredient.value,
-      ...override
-    };
-  }
+  const id = readIngredientIdFromRoute(query);
   const numericId = Number.parseInt(id, 10);
   if (Number.isFinite(numericId)) {
     currentIngredientId.value = numericId;
     void loadRemoteIngredient(numericId);
+  } else {
+    remoteError.value = '缺少食材 ID';
   }
-  refreshPriceRecords();
-  syncBasketState();
-  syncFavoriteState();
+  void refreshPriceRecords();
+  void syncBasketState().catch(() => undefined);
+  void syncFavoriteState().catch(() => undefined);
 });
 
 const handleRetryRemote = () => {
@@ -652,9 +517,25 @@ const handleRetryRemote = () => {
 };
 
 onShow(() => {
-  refreshPriceRecords();
-  syncBasketState();
-  syncFavoriteState();
+  if (!currentIngredientId.value) {
+    const recoveredId = Number.parseInt(readIngredientIdFromRoute(), 10);
+    if (Number.isFinite(recoveredId)) {
+      currentIngredientId.value = recoveredId;
+      void loadRemoteIngredient(recoveredId);
+    }
+  }
+  void refreshPriceRecords();
+  void syncBasketState().catch(() => undefined);
+  void syncFavoriteState().catch(() => undefined);
+});
+
+onMounted(() => {
+  if (currentIngredientId.value) return;
+  const recoveredId = Number.parseInt(readIngredientIdFromRoute(), 10);
+  if (Number.isFinite(recoveredId)) {
+    currentIngredientId.value = recoveredId;
+    void loadRemoteIngredient(recoveredId);
+  }
 });
 
 onPageScroll((event) => {
@@ -676,10 +557,13 @@ const goToRecipe = (recipeId: string) => {
   });
 };
 
-const addToBasket = () => {
+const addToBasket = async () => {
   if (isInBasket.value) {
-    removeBasketItem(ingredientBasketItemId.value);
-    syncBasketState();
+    const existing = basketItems.value.find((item) => item.ingredientId === ingredient.value.id);
+    if (existing) {
+      await removeBasketItem(existing.id);
+    }
+    await syncBasketState();
     uni.showToast({
       title: '已移出菜篮子',
       icon: 'none'
@@ -687,57 +571,99 @@ const addToBasket = () => {
     return;
   }
 
-  addBasketItem({
+  await addBasketItem({
     id: ingredientBasketItemId.value,
     recipeId: 'ingredient',
     recipeName: '单买食材',
     name: ingredient.value.name,
     amountText: '适量',
     purchaseText: getIngredientPurchaseText(ingredient.value.name),
-    checked: false
+    checked: false,
+    ingredientId: ingredient.value.id
   });
-  syncBasketState();
+  await syncBasketState();
   uni.showToast({
     title: '已加入菜篮子',
     icon: 'success'
   });
 };
 
-const toggleFavorite = () => {
-  if (isFavorite.value) {
-    removeFavoriteIngredient(ingredient.value.id);
-    syncFavoriteState();
-    uni.showToast({
-      title: '已取消收藏',
-      icon: 'none'
-    });
+const getLoggedUserId = async () => {
+  const user = await syncAuthUserWithBackend(loadAuthUser());
+  return user?.id ?? null;
+};
+
+const recordIngredientViewHistory = async (ingredientId: number) => {
+  try {
+    const userId = await getLoggedUserId();
+    if (!userId) return;
+    await addMobileViewHistory({ userId, ingredientId });
+  } catch {
+    // 浏览历史写入失败不影响食材详情阅读。
+  }
+};
+
+const toggleFavorite = async () => {
+  if (favoriteChanging.value) return;
+  const ingredientId = currentIngredientId.value;
+  if (!ingredientId) {
+    uni.showToast({ title: '真实食材加载后可收藏', icon: 'none' });
     return;
   }
-
-  addFavoriteIngredient({
-    id: ingredient.value.id,
-    name: ingredient.value.name,
-    description: ingredient.value.subtitle,
-    image: ingredient.value.image,
-    tag: ingredient.value.seasonTag.label
-  });
-  syncFavoriteState();
-  uni.showToast({
-    title: '已加入收藏',
-    icon: 'success'
-  });
+  favoriteChanging.value = true;
+  try {
+    const userId = await getLoggedUserId();
+    if (!userId) {
+      uni.showToast({ title: '请先登录后收藏', icon: 'none' });
+      return;
+    }
+    if (isFavorite.value && favoriteRecordId.value) {
+      await deleteMobileFavorite(favoriteRecordId.value);
+      isFavorite.value = false;
+      favoriteRecordId.value = null;
+      uni.showToast({ title: '已取消收藏', icon: 'none' });
+      return;
+    }
+    const record = await addMobileFavorite({ userId, ingredientId });
+    isFavorite.value = true;
+    favoriteRecordId.value = record.id;
+    uni.showToast({ title: '已加入收藏', icon: 'success' });
+  } catch (err) {
+    uni.showToast({ title: err instanceof Error ? err.message : '操作失败', icon: 'none' });
+  } finally {
+    favoriteChanging.value = false;
+  }
 };
 
-const syncBasketState = () => {
-  basketItemIds.value = loadBasketItems().map((item) => item.id);
+const syncBasketState = async () => {
+  basketItems.value = await loadBasketItems();
+  basketItemIds.value = basketItems.value.map((item) => item.ingredientId ? getIngredientBasketItemId(item.ingredientId) : item.id);
 };
 
-const syncFavoriteState = () => {
-  favoriteIngredientIds.value = loadFavoriteIngredients().map((item) => item.id);
+const syncFavoriteState = async (targetIngredientId = currentIngredientId.value) => {
+  if (!targetIngredientId) {
+    isFavorite.value = false;
+    favoriteRecordId.value = null;
+    return;
+  }
+  const userId = await getLoggedUserId();
+  if (!userId) {
+    isFavorite.value = false;
+    favoriteRecordId.value = null;
+    return;
+  }
+  const data = await listMobileFavorites({ userId, page: 1, pageSize: 100 });
+  const record = data.list.find((item) => item.ingredientId === targetIngredientId);
+  isFavorite.value = Boolean(record);
+  favoriteRecordId.value = record?.id ?? null;
 };
 
-const refreshPriceRecords = () => {
-  priceRecords.value = getPriceRecordsByIngredient(ingredient.value.name);
+const refreshPriceRecords = async () => {
+  if (!currentIngredientId.value) {
+    priceRecords.value = [];
+    return;
+  }
+  priceRecords.value = await getPriceRecordsByIngredient(currentIngredientId.value, ingredient.value.name);
   selectedPriceIndex.value = Math.max(visiblePriceRecords.value.length - 1, 0);
   isDeletePriceActionVisible.value = false;
 };
@@ -790,28 +716,33 @@ const closePricePanel = () => {
   isPricePanelVisible.value = false;
 };
 
-const saveManualPrice = () => {
+const saveManualPrice = async () => {
   const price = Number(manualPrice.value);
   if (!Number.isFinite(price) || price <= 0) {
     uni.showToast({ title: '请输入有效价格', icon: 'none' });
     return;
   }
 
-  addPriceRecords([
-    {
-      id: `${ingredient.value.id}-${Date.now()}`,
-      ingredientName: ingredient.value.name,
-      price: normalizePriceToJin(price, selectedManualUnit.value, Number(manualSpecAmount.value)),
-      unit: getNormalizedUnit(selectedManualUnit.value),
-      date: manualDate.value.trim() || new Date().toISOString().slice(0, 10)
-    }
-  ]);
-  refreshPriceRecords();
-  closePricePanel();
-  uni.showToast({ title: '价格已记录', icon: 'success' });
+  try {
+    await addPriceRecords([
+      {
+        id: `${ingredient.value.id}-${Date.now()}`,
+        ingredientId: Number(ingredient.value.id),
+        ingredientName: ingredient.value.name,
+        price: normalizePriceToJin(price, selectedManualUnit.value, Number(manualSpecAmount.value)),
+        unit: getNormalizedUnit(selectedManualUnit.value),
+        date: manualDate.value.trim() || new Date().toISOString().slice(0, 10)
+      }
+    ]);
+    await refreshPriceRecords();
+    closePricePanel();
+    uni.showToast({ title: '价格已记录', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' });
+  }
 };
 
-const deleteSelectedPriceRecord = () => {
+const deleteSelectedPriceRecord = async () => {
   const record = selectedPriceRecord.value;
   if (!record) {
     return;
@@ -822,18 +753,22 @@ const deleteSelectedPriceRecord = () => {
     content: `确认删除 ${formatPriceDate(record.date)} 的 ¥${record.price}/${record.unit}？`,
     confirmText: '删除',
     confirmColor: '#7a8b6f',
-    success: (result) => {
+    success: async (result) => {
       if (!result.confirm) {
         return;
       }
 
-      removePriceRecord(record.id);
-      refreshPriceRecords();
-      isDeletePriceActionVisible.value = false;
-      uni.showToast({
-        title: '已删除',
-        icon: 'none'
-      });
+      try {
+        await removePriceRecord(record.id);
+        await refreshPriceRecords();
+        isDeletePriceActionVisible.value = false;
+        uni.showToast({
+          title: '已删除',
+          icon: 'none'
+        });
+      } catch (error) {
+        uni.showToast({ title: error instanceof Error ? error.message : '删除失败', icon: 'none' });
+      }
     }
   });
 };

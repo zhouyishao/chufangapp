@@ -68,11 +68,22 @@ const resolveCategoryId = async (value: number | string | null | undefined) => {
   return item.id;
 };
 
+const resolveCategoryIds = async (value: string | undefined) => {
+  if (!value?.trim()) return [];
+  const rawValues = value.split(',').map((item) => item.trim()).filter(Boolean);
+  const ids: number[] = [];
+  for (const rawValue of rawValues) {
+    const categoryId = await resolveCategoryId(rawValue);
+    if (categoryId) ids.push(categoryId);
+  }
+  return ids;
+};
+
 adminIngredientsRouter.get('/', requireAdminAuth, async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const { page, pageSize, q, status, isPublish, isRecommend } = parsed.data;
-  const categoryId = await resolveCategoryId(parsed.data.categoryId);
+  const categoryIds = await resolveCategoryIds(parsed.data.categoryId);
   const skip = (page - 1) * pageSize;
 
   const where = {
@@ -80,7 +91,7 @@ adminIngredientsRouter.get('/', requireAdminAuth, async (req, res) => {
     ...(status ? { status } : {}),
     ...(typeof isPublish === 'boolean' ? { isPublish } : {}),
     ...(typeof isRecommend === 'boolean' ? { isRecommend } : {}),
-    ...(categoryId ? { categoryId } : {}),
+    ...(categoryIds.length ? { categoryId: { in: categoryIds } } : {}),
     ...(q ? { name: { contains: q, mode: 'insensitive' as const } } : {})
   };
 
@@ -114,17 +125,24 @@ adminIngredientsRouter.post('/', requireAdminAuth, async (req, res) => {
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const { categoryId: _categoryId, ...payload } = parsed.data;
   const codes = await prisma.ingredient.findMany({ select: { code: true } });
-  const created = await prisma.ingredient.create({
-    data: {
-      ...payload,
-      categoryId,
-      bizId: createBusinessId('ingredient'),
-      code: nextCodeFromItems('ingredient', codes),
-      sortOrder: parsed.data.sort
-    },
-    include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
-  });
-  res.json(ok(serializeIngredient(created)));
+  try {
+    const created = await prisma.ingredient.create({
+      data: {
+        ...payload,
+        categoryId,
+        bizId: createBusinessId('ingredient'),
+        code: nextCodeFromItems('ingredient', codes),
+        sortOrder: parsed.data.sort
+      },
+      include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+    });
+    res.json(ok(serializeIngredient(created)));
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      throw new HttpError(`名称「${parsed.data.name}」已存在，请使用其他名称`, 422, 422);
+    }
+    throw err;
+  }
 });
 
 adminIngredientsRouter.put('/:id', requireAdminAuth, async (req, res) => {
@@ -135,12 +153,19 @@ adminIngredientsRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const { categoryId: _categoryId, ...payload } = parsed.data;
 
-  const updated = await prisma.ingredient.update({
-    where: { id: existing.id },
-    data: { ...payload, categoryId, sortOrder: parsed.data.sort },
-    include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
-  });
-  res.json(ok(serializeIngredient(updated)));
+  try {
+    const updated = await prisma.ingredient.update({
+      where: { id: existing.id },
+      data: { ...payload, categoryId, sortOrder: parsed.data.sort },
+      include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+    });
+    res.json(ok(serializeIngredient(updated)));
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      throw new HttpError(`名称「${parsed.data.name}」已存在，请使用其他名称`, 422, 422);
+    }
+    throw err;
+  }
 });
 
 adminIngredientsRouter.delete('/:id', requireAdminAuth, async (req, res) => {

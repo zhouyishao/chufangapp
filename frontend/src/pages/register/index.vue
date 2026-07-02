@@ -1,7 +1,9 @@
 <template>
   <view class="auth-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <text class="top-title">注册</text>
     </view>
 
@@ -63,13 +65,15 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import AppIcon from '../../components/app/app-icon.vue';
 import {
   createAuthUser,
   isValidPassword,
   isValidPhone,
   maskPhone,
   registerAuthAccount,
-  saveAuthUser
+  saveAuthUser,
+  syncAuthUserWithBackend
 } from '../../services/auth';
 import { saveUserProfile } from '../../services/profile';
 
@@ -172,10 +176,11 @@ const finishRegister = async () => {
 
   const account = registerAuthAccount(phone.value, password.value);
   const user = createAuthUser(account.phone, account.nickname);
-  saveAuthUser(user);
+  const remoteUser = await syncAuthUserWithBackend(user);
+  saveAuthUser(remoteUser ?? user);
   saveUserProfile({
-    nickname: user.nickname,
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+    nickname: remoteUser?.nickname ?? user.nickname,
+    avatarUrl: '',
     bio: '正在整理自己的家庭菜谱'
   });
   uni.showToast({ title: '注册成功', icon: 'success' });

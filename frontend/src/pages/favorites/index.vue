@@ -1,7 +1,9 @@
 <template>
   <view class="app-page list-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <view>
         <text class="eyebrow">个人菜谱库</text>
         <text class="page-title">我的收藏</text>
@@ -14,49 +16,46 @@
       <text class="summary-count">{{ totalCount }} 项</text>
     </view>
 
-    <view v-if="favoriteIngredients.length" class="section-block">
-      <text class="section-title">收藏的食材</text>
-      <view class="recipe-list">
-        <view
-          v-for="ingredient in favoriteIngredients"
-          :key="ingredient.id"
-          class="recipe-card glass-card"
-          @tap="goToIngredient(ingredient.id)"
-        >
-          <image class="recipe-image" :src="ingredient.image" mode="aspectFill" />
-          <view class="recipe-body">
-            <text class="recipe-name">{{ ingredient.name }}</text>
-            <text class="recipe-desc">{{ ingredient.description }}</text>
-            <view class="recipe-meta">
-              <text>{{ ingredient.tag }}</text>
-              <text>食材</text>
-            </view>
-          </view>
-          <text class="heart">★</text>
-        </view>
-      </view>
+    <view v-if="loading" class="state-card glass-card">
+      <text class="state-title">正在加载收藏</text>
+      <text class="state-desc">从后端同步你的菜谱和食材收藏。</text>
     </view>
 
-    <view class="section-block">
-      <text class="section-title">收藏的菜谱</text>
+    <view v-else-if="needsLogin" class="state-card glass-card">
+      <text class="state-title">登录后查看收藏</text>
+      <text class="state-desc">收藏会写入后端，换设备也能继续使用。</text>
+      <button class="state-action" @tap="goToLogin">去登录</button>
+    </view>
+
+    <view v-else-if="error" class="state-card glass-card">
+      <text class="state-title">收藏加载失败</text>
+      <text class="state-desc">{{ error }}</text>
+      <button class="state-action" @tap="loadFavorites">重试</button>
+    </view>
+
+    <view v-else-if="!favorites.length" class="state-card glass-card">
+      <text class="state-title">暂无收藏</text>
+      <text class="state-desc">在菜谱或食材详情里点收藏后，会出现在这里。</text>
+    </view>
+
+    <view v-else class="section-block">
+      <text class="section-title">全部收藏</text>
       <view class="recipe-list">
         <view
-          v-for="recipe in recipes"
-          :key="recipe.id"
+          v-for="item in favorites"
+          :key="item.id"
           class="recipe-card glass-card"
-          @tap="goToRecipe(recipe.id)"
+          @tap="goToItem(item)"
         >
-          <image class="recipe-image" :src="recipe.image" mode="aspectFill" />
+          <image class="recipe-image" :src="item.image" mode="aspectFill" />
           <view class="recipe-body">
-            <text class="recipe-name">{{ recipe.name }}</text>
-            <text class="recipe-desc">{{ recipe.description }}</text>
+            <text class="recipe-name">{{ item.name }}</text>
+            <text class="recipe-desc">{{ item.description }}</text>
             <view class="recipe-meta">
-              <text>{{ recipe.duration }}</text>
-              <text>{{ recipe.difficulty }}</text>
-              <text>{{ recipe.tag }}</text>
+              <text v-for="meta in item.meta" :key="meta">{{ meta }}</text>
             </view>
           </view>
-          <text class="heart">♥</text>
+          <text class="favorite-badge">已收藏</text>
         </view>
       </view>
     </view>
@@ -66,57 +65,98 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { loadFavoriteIngredients } from '../../services/favorites';
-import type { FavoriteIngredient } from '../../services/favorites';
+import AppIcon from '../../components/app/app-icon.vue';
+import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
+import { listMobileFavorites } from '../../services/public-api';
+import type { ApiMobileFavorite } from '../../services/public-api';
 
-interface FavoriteRecipe {
-  id: string;
+interface FavoriteItem {
+  id: number;
+  targetType: 'recipe' | 'ingredient';
+  targetId: number;
   name: string;
   description: string;
   image: string;
-  duration: string;
-  difficulty: string;
-  tag: string;
+  meta: string[];
 }
 
-const recipes: FavoriteRecipe[] = [
-  {
-    id: 'recipe-1',
-    name: '芦笋虾仁',
-    description: '清爽快手，适合工作日晚餐',
-    image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80',
-    duration: '15 分钟',
-    difficulty: '简单',
-    tag: '清淡'
-  },
-  {
-    id: 'recipe-2',
-    name: '番茄牛腩',
-    description: '番茄酸香，适合全家分食',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
-    duration: '60 分钟',
-    difficulty: '中等',
-    tag: '家常'
-  }
-];
+const favorites = ref<FavoriteItem[]>([]);
+const loading = ref(false);
+const error = ref('');
+const needsLogin = ref(false);
+const totalCount = computed(() => favorites.value.length);
 
-const favoriteIngredients = ref<FavoriteIngredient[]>([]);
-const totalCount = computed(() => recipes.length + favoriteIngredients.value.length);
+const toFavoriteItem = (record: ApiMobileFavorite): FavoriteItem | null => {
+  if (record.recipe) {
+    return {
+      id: record.id,
+      targetType: 'recipe',
+      targetId: record.recipe.id,
+      name: record.recipe.title,
+      description: record.recipe.subtitle || record.recipe.description || '家庭常做菜谱',
+      image: record.recipe.cover || '',
+      meta: [
+        record.recipe.cookTime ? `${record.recipe.cookTime} 分钟` : '菜谱',
+        record.recipe.difficulty || '难度待补充'
+      ]
+    };
+  }
+  if (record.ingredient) {
+    return {
+      id: record.id,
+      targetType: 'ingredient',
+      targetId: record.ingredient.id,
+      name: record.ingredient.name,
+      description: record.ingredient.seasonMonth ? `时令：${record.ingredient.seasonMonth}` : '家庭常备食材',
+      image: record.ingredient.cover || '',
+      meta: [
+        '食材',
+        record.ingredient.currentPrice ? `¥${record.ingredient.currentPrice}/${record.ingredient.priceUnit || '斤'}` : '价格待补充'
+      ]
+    };
+  }
+  return null;
+};
+
+const loadFavorites = async () => {
+  loading.value = true;
+  error.value = '';
+  needsLogin.value = false;
+  try {
+    const user = await syncAuthUserWithBackend(loadAuthUser());
+    if (!user?.id) {
+      favorites.value = [];
+      needsLogin.value = true;
+      return;
+    }
+    const data = await listMobileFavorites({ userId: user.id, page: 1, pageSize: 50 });
+    favorites.value = data.list.map(toFavoriteItem).filter((item): item is FavoriteItem => item !== null);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '请稍后再试';
+    favorites.value = [];
+  } finally {
+    loading.value = false;
+  }
+};
 
 const goBack = () => {
   uni.navigateBack();
 };
 
-const goToRecipe = (recipeId: string) => {
-  uni.navigateTo({ url: `/pages/recipe-detail/index?id=${recipeId}` });
+const goToLogin = () => {
+  uni.navigateTo({ url: '/pages/login/index' });
 };
 
-const goToIngredient = (ingredientId: string) => {
-  uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${ingredientId}` });
+const goToItem = (item: FavoriteItem) => {
+  if (item.targetType === 'recipe') {
+    uni.navigateTo({ url: `/pages/recipe-detail/index?id=${item.targetId}` });
+    return;
+  }
+  uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${item.targetId}` });
 };
 
 onShow(() => {
-  favoriteIngredients.value = loadFavoriteIngredients();
+  void loadFavorites();
 });
 </script>
 
@@ -266,11 +306,51 @@ onShow(() => {
   font-size: var(--font-size-tabbar);
 }
 
-.heart {
+.favorite-badge {
   position: absolute;
   top: 24rpx;
   right: 28rpx;
-  color: var(--app-danger);
-  font-size: var(--font-size-card-title);
+  color: #7a8b6f;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.state-card {
+  margin-top: 28rpx;
+  padding: 34rpx;
+}
+
+.state-title,
+.state-desc {
+  display: block;
+}
+
+.state-title {
+  color: var(--app-text);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
+}
+
+.state-desc {
+  margin-top: 12rpx;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-body-sm);
+}
+
+.state-action {
+  margin-top: 24rpx;
+  width: 180rpx;
+  height: 64rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: #7a8b6f;
+  color: #fffdfc;
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.state-action::after {
+  border: 0;
 }
 </style>

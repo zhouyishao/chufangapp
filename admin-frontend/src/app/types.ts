@@ -30,6 +30,7 @@ export type IngredientCategory = {
   status: 'ACTIVE' | 'DISABLED';
   isPublish: boolean;
   isRecommend: boolean;
+  relatedCount?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -52,6 +53,7 @@ export type Ingredient = {
   currentPrice: number | null;
   priceUnit: string | null;
   priceSource: string | null;
+  priceDate?: string | null;
   isPublish: boolean;
   isRecommend: boolean;
   status: 'ACTIVE' | 'DISABLED';
@@ -86,6 +88,7 @@ export type Recipe = {
   isPublish: boolean;
   isRecommend: boolean;
   auditStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejectReason?: string | null;
   status: 'ACTIVE' | 'DISABLED';
   sort: number;
   viewCount: number;
@@ -155,6 +158,11 @@ export type AdminUserListItem = {
   nickname: string | null;
   avatar: string | null;
   gender: string | null;
+  email: string | null;
+  role: string;
+  source: string;
+  birthday: string | null;
+  region: string | null;
   status: 'ACTIVE' | 'DISABLED';
   registerSource: 'WECHAT' | 'PHONE';
   joinedFamilyCount: number;
@@ -163,8 +171,114 @@ export type AdminUserListItem = {
   favoriteCount: number;
   recentViewCount: number;
   recipeCount: number;
+  postCount?: number;
+  commentCount?: number;
+  submissionCount?: number;
   priceRecordCount: number;
   lastActiveAt: string;
+  lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AdminUserActivityItem = {
+  id: number;
+  userId: number;
+  userCode: string;
+  userName: string | null;
+  phone: string | null;
+  avatar: string | null;
+  targetType: 'RECIPE' | 'INGREDIENT';
+  targetId: number | null;
+  targetTitle: string;
+  targetCover: string | null;
+  targetStatus: 'ACTIVE' | 'DISABLED' | null;
+  isPublish: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResourceAppItem = {
+  id: number;
+  name: string;
+  appId: string;
+  appType: 'ADMIN' | 'APP' | 'THIRD_PARTY';
+  owner: string;
+  status: 'ACTIVE' | 'DISABLED';
+  apiKeyCount: number;
+  todayCallCount: number;
+  lastCalledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResourceApiKeyItem = {
+  id: number;
+  name: string;
+  appId: number;
+  appName: string;
+  keyPrefix: string;
+  permissionScope: string;
+  status: 'ACTIVE' | 'DISABLED' | 'EXPIRED';
+  expiresAt: string | null;
+  todayCallCount: number;
+  createdAt: string;
+  updatedAt: string;
+  rawKey?: string;
+};
+
+export type ResourcePermissionItem = {
+  id: number;
+  name: string;
+  code: string;
+  path: string;
+  method: string;
+  module: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE' | 'PRICE' | 'CATEGORY';
+  authRequired: boolean;
+  status: 'ACTIVE' | 'DISABLED';
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResourceLogItem = {
+  id: number;
+  calledAt: string;
+  appId: number;
+  appName: string;
+  apiKeyPrefix: string | null;
+  path: string;
+  method: string;
+  statusCode: number;
+  durationMs: number;
+  ip: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+};
+
+export type ResourceImportBatchItem = {
+  id: number;
+  importType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  sourceType: string;
+  fileName: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  totalCount: number;
+  successCount: number;
+  failedCount: number;
+  errorMessage: string | null;
+  createdBy: string;
+  createdAt: string;
+  finishedAt: string | null;
+};
+
+export type ResourceImportStagedItem = {
+  id: number;
+  importId: number;
+  importType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  rowIndex: number;
+  rawData: Record<string, any>;
+  mappedData: Record<string, any>;
+  status: 'PENDING' | 'IMPORTED' | 'FAILED' | 'IGNORED';
+  errorMessage: string | null;
+  targetId: number | null;
+  createdAt: string;
 };

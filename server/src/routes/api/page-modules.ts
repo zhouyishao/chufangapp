@@ -14,7 +14,8 @@ apiPageModulesRouter.get('/page-modules', async (req, res) => {
   const pageParam = typeof req.query.page === 'string' ? req.query.page.trim() : 'home';
   const typeParam = typeof req.query.type === 'string' ? req.query.type.trim() : 'ingredient';
   const filterParam = typeof req.query.filter === 'string' ? req.query.filter.trim() : 'recommend';
-  const categoryIdParam = typeof req.query.categoryId === 'string' ? Number(req.query.categoryId) : undefined;
+  const rawCategoryId = typeof req.query.categoryId === 'string' ? Number(req.query.categoryId) : undefined;
+  const categoryIdParam = Number.isFinite(rawCategoryId) && rawCategoryId && rawCategoryId > 0 ? rawCategoryId : undefined;
 
   const displayPosition = pageParam === 'category' ? 'category_top' : 'home_top';
   const contentType = categoryContentTypeValues.includes(typeParam as typeof categoryContentTypeValues[number]) ? typeParam : 'ingredient';
@@ -98,11 +99,15 @@ apiPageModulesRouter.get('/page-modules', async (req, res) => {
     });
   }
 
+  const activeFilterKey = categoryIdParam
+    ? (dbCategories.find((cat) => cat.id === categoryIdParam)?.name ?? filterParam)
+    : filterParam;
+
   modules.push({
     moduleType: 'category_filter',
     sortOrder: 3,
     data: {
-      activeKey: filterParam,
+      activeKey: activeFilterKey,
       items: categoryFilterItems
     }
   });
@@ -146,8 +151,12 @@ apiPageModulesRouter.get('/page-modules', async (req, res) => {
       }
     });
 
+    const contentModuleWhere = categoryIdParam
+      ? { navId: activeNav.id, status: 'ENABLED' as const, categoryId: categoryIdParam }
+      : { navId: activeNav.id, status: 'ENABLED' as const, categoryId: null };
+
     const contentModules = await prisma.contentModule.findMany({
-      where: { navId: activeNav.id, status: 'ENABLED' },
+      where: contentModuleWhere,
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
     });
 
@@ -176,25 +185,6 @@ apiPageModulesRouter.get('/page-modules', async (req, res) => {
       sortOrder: 5,
       data: []
     });
-  }
-
-  // 6. category_grid — 仅当后台配置了 FOUR_CARD_GRID 内容模块且来源为分类管理时才返回真实分类
-  if (activeNav) {
-    const gridModules = await prisma.contentModule.findMany({
-      where: { navId: activeNav.id, status: 'ENABLED', displayStyle: 'FOUR_CARD_GRID' },
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
-    });
-    if (gridModules.length > 0) {
-      // 只返回真实分类，不含「推荐」系统项
-      const gridItems = categoryFilterItems.filter(item => item.type === 'category');
-      modules.push({
-        moduleType: 'category_grid',
-        sortOrder: 6,
-        data: {
-          items: gridItems
-        }
-      });
-    }
   }
 
   res.json(ok(modules));

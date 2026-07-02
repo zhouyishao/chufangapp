@@ -17,7 +17,17 @@ type PageModule = {
   moduleType: string;
   sortOrder: number;
   config?: Record<string, unknown>;
-  data?: Record<string, unknown>;
+  data?: unknown;
+};
+
+type CategoryFilterData = {
+  activeKey: string;
+  items: Array<{ name: string; key: string; type: string; categoryId?: number }>;
+};
+
+type ContentModuleData = {
+  id: number;
+  categoryId: number | null;
 };
 
 async function get(path: string): Promise<ApiResponse> {
@@ -120,6 +130,45 @@ const expectedModules = [...baseModules]; // category_grid is optional
       }
       const allCategory = afterSystem.every(item => item.type === 'category');
       if (!allCategory) throw new Error('「推荐」后面的 item type 不是 category');
+    });
+
+    await test(`GET /page-modules?page=category&type=${type} 推荐只返回未绑定分类的内容模块`, async () => {
+      const res = await get(`/api/app/page-modules?page=category&type=${type}&filter=recommend`);
+      const modules = res.data as PageModule[];
+      const contentModule = modules.find(m => m.moduleType === 'content_module');
+      const data = (contentModule?.data ?? []) as ContentModuleData[];
+      if (!Array.isArray(data)) throw new Error('content_module.data 不是数组');
+      const wrongModule = data.find((mod) => mod.categoryId !== null);
+      if (wrongModule) {
+        throw new Error(`推荐返回了已绑定分类的模块: ${JSON.stringify(wrongModule)}`);
+      }
+    });
+
+    await test(`GET /page-modules?page=category&type=${type} 选择分类时只返回对应分类内容模块`, async () => {
+      const recommendRes = await get(`/api/app/page-modules?page=category&type=${type}&filter=recommend`);
+      const recommendModules = recommendRes.data as PageModule[];
+      const catFilter = recommendModules.find(m => m.moduleType === 'category_filter');
+      const filterData = catFilter?.data as CategoryFilterData | undefined;
+      const firstCategory = filterData?.items.find((item) => item.type === 'category' && item.categoryId);
+      if (!firstCategory?.categoryId) {
+        console.log(`    ⚠️  type=${type} 暂无可测分类数据（需先运行 seed）`);
+        return;
+      }
+
+      const res = await get(`/api/app/page-modules?page=category&type=${type}&filter=${encodeURIComponent(firstCategory.key)}&categoryId=${firstCategory.categoryId}`);
+      const modules = res.data as PageModule[];
+      const selectedFilterData = modules.find(m => m.moduleType === 'category_filter')?.data as CategoryFilterData | undefined;
+      if (selectedFilterData?.activeKey !== firstCategory.key) {
+        throw new Error(`category_filter.activeKey 期望 ${firstCategory.key}，实际 ${selectedFilterData?.activeKey}`);
+      }
+
+      const contentModule = modules.find(m => m.moduleType === 'content_module');
+      const data = (contentModule?.data ?? []) as ContentModuleData[];
+      if (!Array.isArray(data)) throw new Error('content_module.data 不是数组');
+      const wrongModule = data.find((mod) => mod.categoryId !== firstCategory.categoryId);
+      if (wrongModule) {
+        throw new Error(`分类返回了其他分类内容模块: ${JSON.stringify(wrongModule)}`);
+      }
     });
   }
 

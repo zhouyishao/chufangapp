@@ -5,6 +5,7 @@
 - [ ] 已阅读 `AGENTS.md`。
 - [ ] 已阅读 `docs/codex/coding-rules.md`。
 - [ ] 已按任务类型阅读相关 skill。
+- [ ] 执行 shell 命令前，已按 `docs/codex/headroom.md` 调用 Headroom 查看/压缩规则或限制输出范围。
 - [ ] 已确认本次允许修改的目录。
 - [ ] 已确认不会触碰 `admin-backend/` 和 `backend/`。
 

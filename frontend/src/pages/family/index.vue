@@ -1,8 +1,12 @@
 <template>
   <view class="app-page family-page">
     <view class="topbar">
-      <button class="nav-button" @tap="goBack">←</button>
-      <button class="nav-button" @tap="createAndOpen">＋</button>
+      <button class="nav-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
+      <button class="nav-button" @tap="createAndOpen">
+        <app-icon name="plus" size="26rpx" />
+      </button>
     </view>
 
     <text class="page-title">家庭管理</text>
@@ -18,19 +22,20 @@
           <text class="family-card__name">{{ family.name }}</text>
           <text class="family-card__desc">{{ family.members.length }} 位成员 · {{ family.commonRecipes }} 道常做菜</text>
         </view>
-        <text class="family-card__arrow">›</text>
+        <app-icon class="family-card__arrow" name="chevron-right" size="22rpx" />
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createFamily, loadFamilies } from '../../services/family';
+import AppIcon from '../../components/app/app-icon.vue';
+import { loadFamilies } from '../../services/family';
 import type { FamilyProfile } from '../../types/family';
 
-const families = ref<FamilyProfile[]>(loadFamilies());
+const families = ref<FamilyProfile[]>([]);
 
 const goBack = () => {
   uni.navigateBack();
@@ -41,13 +46,23 @@ const openFamily = (familyId: string) => {
 };
 
 const createAndOpen = () => {
-  const family = createFamily('新的家庭');
-  families.value = loadFamilies();
-  openFamily(family.id);
+  uni.navigateTo({ url: '/pages/family-create/index' });
 };
 
+const refreshFamilies = async () => {
+  try {
+    families.value = await loadFamilies();
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '家庭加载失败', icon: 'none' });
+  }
+};
+
+onMounted(() => {
+  void refreshFamilies();
+});
+
 onShow(() => {
-  families.value = loadFamilies();
+  void refreshFamilies();
 });
 </script>
 

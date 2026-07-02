@@ -140,6 +140,8 @@ export const TopNavModuleFormPage = () => {
   const [tagOptions, setTagOptions] = useState<TagItem[]>([]);
   const [contentPage, setContentPage] = useState(1);
   const [contentTotal, setContentTotal] = useState(0);
+  const [contentKeyword, setContentKeyword] = useState('');
+  const [selectedContentById, setSelectedContentById] = useState<Record<string, ContentSelectorItem>>({});
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
 
@@ -154,6 +156,37 @@ export const TopNavModuleFormPage = () => {
   const isLargeImage = displayStyle === 'LARGE_IMAGE_CAROUSEL';
   const isFourCardGrid = displayStyle === 'FOUR_CARD_GRID';
   const isLegacyStyle = !isLargeImage && !isFourCardGrid;
+  const selectedItemIds = useMemo(() => new Set(items.map(item => item.id)), [items]);
+  const navName = nav?.name ?? '当前导航';
+  const navContentTypeMap: Record<string, ContentModuleContentType> = {
+    recipe: 'RECIPE',
+    ingredient: 'INGREDIENT',
+    fruit: 'FRUIT',
+    seasoning: 'SEASONING',
+    beverage: 'BEVERAGE'
+  };
+  const effectiveContentType = useMemo(
+    () => (isLargeImage ? (navContentTypeMap[nav?.contentType ?? ''] ?? contentType) : contentType),
+    [contentType, isLargeImage, nav?.contentType]
+  );
+
+  const navContentType = useMemo(
+    () => (navContentTypeMap[nav?.contentType ?? ''] ?? 'RECIPE') as ContentModuleContentType,
+    [nav?.contentType]
+  );
+
+  const selectedCategoryName = useMemo(() => {
+    if (!categoryId) return '推荐';
+    const cat = categoryOptions.find(c => c.id === categoryId);
+    return cat ? cat.name : '推荐';
+  }, [categoryId, categoryOptions]);
+
+  const placementTipText = useMemo(() => {
+    if (!categoryId) {
+      return `该模块将展示在 C 端「${navName} > 推荐」下`;
+    }
+    return `该模块将展示在 C 端「${navName} > ${selectedCategoryName}」下`;
+  }, [navName, categoryId, selectedCategoryName]);
 
   // ====== 加载导航 ======
   const loadNav = async () => {
@@ -204,7 +237,7 @@ export const TopNavModuleFormPage = () => {
   };
 
   // ====== 内容选项加载 ======
-  const loadContentOptions = async (page = 1) => {
+  const loadContentOptions = async (page = 1, keyword = contentKeyword) => {
     if (!['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'].includes(contentType)) return;
     setContentLoading(true);
     setContentError(null);
@@ -212,8 +245,13 @@ export const TopNavModuleFormPage = () => {
       const selectorTypeByContentType: Record<ContentModuleContentType, string> = {
         RECIPE: 'recipe', INGREDIENT: 'ingredient', FRUIT: 'fruit', SEASONING: 'seasoning', BEVERAGE: 'beverage'
       };
-      const result = await listContentSelector({ type: selectorTypeByContentType[contentType], page, pageSize: 50 });
+      const result = await listContentSelector({ type: selectorTypeByContentType[contentType], keyword, page, pageSize: 20 });
       if (page === 1) { setContentOptions(result.list); } else { setContentOptions(prev => [...prev, ...result.list]); }
+      setSelectedContentById(prev => {
+        const next = { ...prev };
+        for (const item of result.list) next[item.id] = item;
+        return next;
+      });
       setContentPage(page);
       setContentTotal(result.total);
     } catch (err) {
@@ -225,10 +263,10 @@ export const TopNavModuleFormPage = () => {
   };
 
   const loadCategoryOptions = async () => {
+    if (!nav) return;
     try {
-      // 按当前 contentType 自动映射到对应的 CategoryType 进行筛选
-      const result = await listCategoriesByContentType(contentType);
-      setCategoryOptions(result.list.map(c => ({ id: Number(c.id), name: c.name })));
+      const result = await listCategoriesByContentType(navContentType);
+      setCategoryOptions(result.list.map(c => ({ id: c.legacyId ?? Number(c.id), name: c.name })));
     } catch { /* silent */ }
   };
 
@@ -241,10 +279,12 @@ export const TopNavModuleFormPage = () => {
 
   useEffect(() => { void loadNav(); }, [id]);
   useEffect(() => { if (nav && moduleId) void loadModule(); }, [nav, moduleId]);
+  useEffect(() => { void loadCategoryOptions(); }, [navContentType, nav]);
   useEffect(() => {
     if (!isLargeImage) {
-      if (contentSource === 'MANUAL') void loadContentOptions(1);
-      if (contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') void loadCategoryOptions();
+      if (contentSource === 'MANUAL') {
+        void loadContentOptions(1);
+      }
       if (contentSource === 'TAG') void loadTagOptions();
       // CATEGORY_GROUP 不需要加载任何选择列表
     }
@@ -306,6 +346,7 @@ export const TopNavModuleFormPage = () => {
   // ====== 手动选择内容（旧样式） ======
   const addManualItem = (item: ContentSelectorItem) => {
     if (items.some(i => i.id === item.id)) return;
+    setSelectedContentById(prev => ({ ...prev, [item.id]: item }));
     setItems(prev => [...prev, { id: item.id, type: item.type, sortOrder: prev.length }]);
   };
 
@@ -342,7 +383,7 @@ export const TopNavModuleFormPage = () => {
     } else {
       if (!contentSource) return '请选择内容来源';
       if (contentSource === 'MANUAL' && items.length === 0) return '手动选择模式下请至少选择一项内容';
-      if ((contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && !categoryId) return '请选择分类';
+      if ((contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && !categoryId) return '请选择C端二级分类/展示位置';
       if (contentSource === 'TAG' && !tagId) return '请选择标签';
       // CATEGORY_GROUP 不需要选择分类
     }
@@ -373,7 +414,7 @@ export const TopNavModuleFormPage = () => {
         title: title.trim(),
         subtitle: subtitle.trim() || null,
         displayStyle,
-        contentType: isLargeImage ? 'RECIPE' : contentType,
+        contentType: effectiveContentType,
         contentSource: isLargeImage ? 'MANUAL' : contentSource,
         displayCount: isLargeImage ? imageItems.length : Number(displayCount),
         showMore: isLargeImage ? false : showMore,
@@ -382,7 +423,7 @@ export const TopNavModuleFormPage = () => {
         sortOrder: Number(sortOrder),
         status,
         items: payloadItems as ContentModuleItem[],
-        categoryId: isLargeImage ? null : (contentSource === 'CATEGORY' ? categoryId : null),
+        categoryId,
         tagId: isLargeImage ? null : (contentSource === 'TAG' ? tagId : null)
       };
 
@@ -409,17 +450,120 @@ export const TopNavModuleFormPage = () => {
     if (contentOptions.length < contentTotal) void loadContentOptions(contentPage + 1);
   };
 
+  const searchContentOptions = () => {
+    void loadContentOptions(1, contentKeyword.trim());
+  };
+
+  const getSelectedContentName = (item: ContentModuleItem) => selectedContentById[item.id]?.name ?? item.id;
+
   if (loading) {
     return <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-8 text-sm text-[#8c8c8c]">加载中...</section>;
   }
 
-  const navName = nav?.name ?? '当前导航';
+
 
   // ====== 预览项 ======
   const previewImages = imageItems.filter(i => i.status === 'ENABLED' && i.cover);
   const previewCount = Number(displayCount) || 4;
 
   // ====== Content config sub-components ======
+  const renderManualContentSelector = () => (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <span className={fieldLabel}>选择内容</span>
+          <p className="mt-1 text-xs text-[#8c8c8c]">适合大量内容：先搜索或分页加载，再加入右侧已选排序。</p>
+        </div>
+        <span className="rounded-lg bg-[#eef3ea] px-3 py-1.5 text-xs font-medium text-[#5f7f56]">已选 {items.length} 项</span>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+        <div className="rounded-xl border border-[#e4ddd1] bg-[#fffdfc]">
+          <div className="flex gap-2 border-b border-[#eee7db] p-3">
+            <div className="relative min-w-0 flex-1">
+              <span className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 bg-[#b7aea1]" style={{ WebkitMask: `url(${searchIconUrl}) center / contain no-repeat`, mask: `url(${searchIconUrl}) center / contain no-repeat` }} aria-hidden="true" />
+              <input
+                className="h-10 w-full rounded-lg border border-[#d9d2c6] bg-[#fffdfc] pl-9 pr-3 text-sm text-[#2f2f2f] outline-none transition focus:border-[#7a8b6f]"
+                value={contentKeyword}
+                placeholder={`搜索${contentTypeOptions.find(item => item.value === contentType)?.label ?? '内容'}名称`}
+                onChange={(event) => setContentKeyword(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') searchContentOptions();
+                }}
+              />
+            </div>
+            <Button variant="ghost" className="h-10 rounded-lg border-[#7a8b6f] bg-[#fffdfc] text-[#6f8663]" disabled={contentLoading} onClick={searchContentOptions}>搜索</Button>
+          </div>
+
+          <div className="max-h-[360px] overflow-y-auto">
+            {contentLoading && contentOptions.length === 0 ? (
+              <div className="p-8 text-center text-sm text-[#8c8c8c]">加载中...</div>
+            ) : contentError ? (
+              <div className="p-8 text-center text-sm text-red-500">{contentError}</div>
+            ) : contentOptions.length === 0 ? (
+              <div className="p-8 text-center text-sm text-[#8c8c8c]">暂无可选内容</div>
+            ) : (
+              contentOptions.map((opt) => {
+                const isSelected = selectedItemIds.has(opt.id);
+                return (
+                  <div key={opt.id} className={['grid grid-cols-[1fr_auto] items-center gap-3 border-b border-[#f0eadf] px-4 py-3 text-sm last:border-b-0', isSelected ? 'bg-[#f6faf3]' : ''].join(' ')}>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-[#2f2f2f]">{opt.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-[#9a9287]">{opt.code ?? opt.id}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={['h-8 rounded-lg px-3 text-xs font-medium transition', isSelected ? 'bg-[#f5eeee] text-red-500' : 'bg-[#eef3ea] text-[#5f7f56] hover:bg-[#e3eddd]'].join(' ')}
+                      onClick={() => isSelected ? removeManualItem(opt.id) : addManualItem(opt)}
+                    >
+                      {isSelected ? '移除' : '选择'}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[#eee7db] px-4 py-3 text-xs text-[#8c8c8c]">
+            <span>已加载 {contentOptions.length} / {contentTotal}</span>
+            {contentOptions.length < contentTotal ? (
+              <Button variant="ghost" className="h-8 rounded-lg border-[#d9d2c6] bg-[#fffdfc] text-xs text-[#6f8663]" disabled={contentLoading} onClick={loadMoreContentOptions}>
+                {contentLoading ? '加载中...' : '加载更多'}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#e4ddd1] bg-[#faf9f6]">
+          <div className="border-b border-[#eee7db] px-4 py-3">
+            <p className="text-sm font-semibold text-[#2f2f2f]">已选内容排序</p>
+            <p className="mt-1 text-xs text-[#8c8c8c]">C 端按这里的顺序展示，支持上下移动。</p>
+          </div>
+          {items.length === 0 ? (
+            <div className="p-8 text-center text-sm text-[#8c8c8c]">尚未选择内容</div>
+          ) : (
+            <div className="max-h-[360px] overflow-y-auto p-3">
+              {items.map((item, idx) => (
+                <div key={item.id} className="mb-2 grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-lg border border-[#e4ddd1] bg-[#fffdfc] px-3 py-2 text-sm last:mb-0">
+                  <span className="text-xs font-semibold text-[#7a8b6f]">{idx + 1}</span>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[#2f2f2f]">{getSelectedContentName(item)}</p>
+                    <p className="mt-0.5 truncate text-xs text-[#9a9287]">{item.id}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button type="button" className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === 0} onClick={() => moveItem(item.id, 'up')}>上移</button>
+                    <button type="button" className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === items.length - 1} onClick={() => moveItem(item.id, 'down')}>下移</button>
+                    <button type="button" className="ml-1 text-xs text-red-500" onClick={() => removeManualItem(item.id)}>删除</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderLargeImageCarouselConfig = () => (<div className="space-y-4">
     <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs text-[#5f7f56] leading-relaxed"><p className="font-medium mb-1">📐 C端展示尺寸</p><p>展示宽度：361pt | 展示高度：124pt | 圆角：16pt</p><p>推荐上传尺寸：1083 × 372 px | 图片比例：约 2.91 : 1</p><p className="mt-1 text-[#8c8c8c]">如果只有1张图片，C端展示为单张大图；2张及以上展示为轮播图。</p></div>
     <div className="flex items-center justify-between"><span className={fieldLabel}>图片列表（{imageItems.length}张，启用 {imageItems.filter(i => i.status === 'ENABLED').length}张）</span><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs text-[#5f5f5f]">显示模块标题</span><Toggle checked={showTitle} onChange={setShowTitle} /></div><Button className="h-9 rounded-lg bg-[#6f8663] text-xs" onClick={addImageItem}><span className="mr-1 h-3.5 w-3.5 bg-current" style={{ WebkitMask: `url(${plusIconUrl}) center / contain no-repeat`, mask: `url(${plusIconUrl}) center / contain no-repeat` }} aria-hidden="true" />添加图片</Button></div></div>
@@ -428,8 +572,12 @@ export const TopNavModuleFormPage = () => {
 
   const renderFourCardGridModuleConfig = () => (<div className="space-y-4">
     <div><span className={fieldLabel}>内容来源 <span className="text-red-500">*</span></span><div className="mt-2 flex flex-wrap gap-6">{contentSourceOptions.map((cs) => (<label key={cs.value} className="inline-flex items-center gap-2 text-sm text-[#2f2f2f]"><input type="radio" checked={contentSource === cs.value} onChange={() => { setContentSource(cs.value); setItems([]); }} />{cs.label}</label>))}</div></div>
-    {contentSource === 'MANUAL' && (<div><div className="flex items-center justify-between mb-2"><span className={fieldLabel}>选择内容（已选 {items.length} 项）</span></div><div className="max-h-[300px] overflow-y-auto rounded-lg border border-[#d9d2c6]">{contentLoading ? <div className="p-6 text-center text-sm text-[#8c8c8c]">加载中...</div> : contentError ? <div className="p-6 text-center text-sm text-red-500">{contentError}</div> : contentOptions.length === 0 ? <div className="p-6 text-center text-sm text-[#8c8c8c]">暂无内容</div> : contentOptions.map((opt) => { const isSelected = items.some(i => i.id === opt.id); return (<div key={opt.id} className={`flex items-center justify-between border-b border-[#f0eadf] px-4 py-2.5 text-sm ${isSelected ? 'bg-[#eef3ea]' : ''}`}><span>{opt.name}</span><button className={`text-xs ${isSelected ? 'text-red-500' : 'text-[#6f8663]'}`} onClick={() => isSelected ? removeManualItem(opt.id) : addManualItem(opt)}>{isSelected ? '移除' : '选择'}</button></div>); })}{contentOptions.length < contentTotal && (<div className="p-3 text-center"><Button variant="ghost" className="text-xs text-[#6f8663]" onClick={loadMoreContentOptions}>加载更多</Button></div>)}</div>{items.length > 0 && (<div className="mt-3 rounded-lg border border-[#d9d2c6] bg-[#f5f1ea] p-3"><p className="mb-2 text-xs font-medium text-[#5f5f5f]">已选内容排序：</p>{items.map((item, idx) => (<div key={item.id} className="flex items-center justify-between py-1 text-sm"><span className="text-[#2f2f2f]">{idx + 1}. {item.id}</span><div className="flex gap-1"><button className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === 0} onClick={() => moveItem(item.id, 'up')}>↑</button><button className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === items.length - 1} onClick={() => moveItem(item.id, 'down')}>↓</button><button className="text-xs text-red-500 ml-2" onClick={() => removeManualItem(item.id)}>×</button></div></div>))}</div>)}</div>)}
-    {contentSource === 'CATEGORY' && (<label><span className={fieldLabel}>选择分类 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2 max-w-[400px]`} value={categoryId ?? ''} onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择分类</option>{categoryOptions.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}</select></label>)}
+    {contentSource === 'MANUAL' && renderManualContentSelector()}
+    {(contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && (
+      <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs leading-relaxed text-[#5f7f56]">
+        当前内容来源会使用基础信息里的“C端二级分类 / 展示位置”自动读取内容。
+      </div>
+    )}
     {contentSource === 'TAG' && (<label><span className={fieldLabel}>选择标签 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2 max-w-[400px]`} value={tagId ?? ''} onChange={(e) => setTagId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择标签</option>{tagOptions.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></label>)}
     <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs text-[#5f7f56]"><p className="font-medium">ℹ️ 四宫格规则</p><p className="mt-1">每行固定 4 个，不允许运营修改列数。</p><p>点击卡片跳转详情页由前端根据内容类型自动处理。</p></div>
     <div className="grid gap-4 md:grid-cols-2"><label><span className={fieldLabel}>展示数量 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2`} value={displayCount} onChange={(e) => setDisplayCount(e.target.value)}><option value="4">4</option><option value="8">8</option><option value="12">12</option></select></label><div><span className={fieldLabel}>显示更多入口</span><div className="mt-2 flex items-center gap-3"><Toggle checked={showMore} onChange={setShowMore} /><span className="text-sm text-[#5f5f5f]">{showMore ? '是' : '否'}</span></div></div><div><span className={fieldLabel}>显示模块标题</span><div className="mt-2 flex items-center gap-3"><Toggle checked={showTitle} onChange={setShowTitle} /><span className="text-sm text-[#5f5f5f]">{showTitle ? '是' : '否'}</span></div></div></div>
@@ -438,8 +586,12 @@ export const TopNavModuleFormPage = () => {
 
   const renderLegacyModuleConfig = () => (<div className="space-y-4">
     <div><span className={fieldLabel}>内容来源 <span className="text-red-500">*</span></span><div className="mt-2 flex flex-wrap gap-6">{contentSourceOptions.map((cs) => (<label key={cs.value} className="inline-flex items-center gap-2 text-sm text-[#2f2f2f]"><input type="radio" checked={contentSource === cs.value} onChange={() => { setContentSource(cs.value); setItems([]); }} />{cs.label}</label>))}</div></div>
-    {contentSource === 'MANUAL' && (<div><div className="flex items-center justify-between mb-2"><span className={fieldLabel}>选择内容（已选 {items.length} 项）</span></div><div className="max-h-[300px] overflow-y-auto rounded-lg border border-[#d9d2c6]">{contentLoading ? <div className="p-6 text-center text-sm text-[#8c8c8c]">加载中...</div> : contentError ? <div className="p-6 text-center text-sm text-red-500">{contentError}</div> : contentOptions.length === 0 ? <div className="p-6 text-center text-sm text-[#8c8c8c]">暂无内容</div> : contentOptions.map((opt) => { const isSelected = items.some(i => i.id === opt.id); return (<div key={opt.id} className={`flex items-center justify-between border-b border-[#f0eadf] px-4 py-2.5 text-sm ${isSelected ? 'bg-[#eef3ea]' : ''}`}><span>{opt.name}</span><button className={`text-xs ${isSelected ? 'text-red-500' : 'text-[#6f8663]'}`} onClick={() => isSelected ? removeManualItem(opt.id) : addManualItem(opt)}>{isSelected ? '移除' : '选择'}</button></div>); })}{contentOptions.length < contentTotal && (<div className="p-3 text-center"><Button variant="ghost" className="text-xs text-[#6f8663]" onClick={loadMoreContentOptions}>加载更多</Button></div>)}</div>{items.length > 0 && (<div className="mt-3 rounded-lg border border-[#d9d2c6] bg-[#f5f1ea] p-3"><p className="mb-2 text-xs font-medium text-[#5f5f5f]">已选内容排序：</p>{items.map((item, idx) => (<div key={item.id} className="flex items-center justify-between py-1 text-sm"><span className="text-[#2f2f2f]">{idx + 1}. {item.id}</span><div className="flex gap-1"><button className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === 0} onClick={() => moveItem(item.id, 'up')}>↑</button><button className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === items.length - 1} onClick={() => moveItem(item.id, 'down')}>↓</button><button className="text-xs text-red-500 ml-2" onClick={() => removeManualItem(item.id)}>×</button></div></div>))}</div>)}</div>)}
-    {contentSource === 'CATEGORY' && (<label><span className={fieldLabel}>选择分类 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2 max-w-[400px]`} value={categoryId ?? ''} onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择分类</option>{categoryOptions.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}</select></label>)}
+    {contentSource === 'MANUAL' && renderManualContentSelector()}
+    {(contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && (
+      <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs leading-relaxed text-[#5f7f56]">
+        当前内容来源会使用基础信息里的“C端二级分类 / 展示位置”自动读取内容。
+      </div>
+    )}
     {contentSource === 'TAG' && (<label><span className={fieldLabel}>选择标签 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2 max-w-[400px]`} value={tagId ?? ''} onChange={(e) => setTagId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择标签</option>{tagOptions.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></label>)}
     <div className="grid gap-4 md:grid-cols-2"><label><span className={fieldLabel}>展示数量 <span className="text-red-500">*</span></span><input className={`${fieldInput} mt-2`} type="number" min={1} max={50} value={displayCount} onChange={(e) => setDisplayCount(e.target.value)} /></label><div><span className={fieldLabel}>显示更多入口</span><div className="mt-2 flex items-center gap-3"><Toggle checked={showMore} onChange={setShowMore} /><span className="text-sm text-[#5f5f5f]">{showMore ? '是' : '否'}</span></div></div></div>
     {showMore && (<label><span className={fieldLabel}>更多入口跳转</span><input className={`${fieldInput} mt-2 max-w-[400px]`} value={moreLink} placeholder="如 /pages/recipes/index" onChange={(e) => setMoreLink(e.target.value)} /></label>)}
@@ -473,11 +625,48 @@ export const TopNavModuleFormPage = () => {
 
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[1fr_380px]">
         <div className="space-y-5">
-          {/* ====== 1. 基础信息 ====== */}
+          {/* ====== 1. 添加位置 ====== */}
           <div className={sectionClass}>
             <h2 className="mb-5 flex items-center gap-3 text-xl font-semibold text-[#2f2f2f]">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">1</span>
-              基础信息
+              添加位置
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label>
+                <span className={fieldLabel}>所属导航</span>
+                <input className={`${fieldInput} mt-2 bg-[#f5f1ea]`} value={navName} readOnly />
+              </label>
+              <label>
+                <span className={fieldLabel}>C端二级分类</span>
+                <select 
+                  className={`${fieldInput} mt-2`} 
+                  value={categoryId ?? ''} 
+                  onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">推荐</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="md:col-span-2 rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs leading-relaxed text-[#5f7f56]">
+                <p className="font-semibold mb-1">📍 模块展示位置规则说明：</p>
+                <ul className="list-disc list-inside space-y-1 text-[#425e3b]">
+                  <li>选择「推荐」：该模块展示在 C 端「{navName} {'>'} 推荐」下</li>
+                  <li>选择其他分类：该模块展示在 C 端「{navName} {'>'} 分类名」下</li>
+                </ul>
+                <p className="mt-2 font-semibold border-t border-[#c5d3ba] pt-2 text-[#2f2f2f]">
+                  提示：{placementTipText}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ====== 2. 模块信息 ====== */}
+          <div className={sectionClass}>
+            <h2 className="mb-5 flex items-center gap-3 text-xl font-semibold text-[#2f2f2f]">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">2</span>
+              模块信息
             </h2>
             <div className="grid gap-4 md:grid-cols-2">
               <label>
@@ -496,29 +685,23 @@ export const TopNavModuleFormPage = () => {
                 </div>
               </div>
               <label>
-                <span className={fieldLabel}>所属导航</span>
-                <input className={`${fieldInput} mt-2 bg-[#f5f1ea]`} value={navName} readOnly />
-              </label>
-              <label>
                 <span className={fieldLabel}>排序 <span className="text-red-500">*</span></span>
                 <input className={`${fieldInput} mt-2`} type="number" min={1} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
               </label>
-              {!isLargeImage ? (
-                <label>
-                  <span className={fieldLabel}>状态 <span className="text-red-500">*</span></span>
-                  <select className={`${fieldInput} mt-2`} value={status} onChange={(e) => setStatus(e.target.value as ContentModuleStatus)}>
-                    <option value="ENABLED">启用</option>
-                    <option value="DISABLED">停用</option>
-                  </select>
-                </label>
-              ) : null}
+              <label>
+                <span className={fieldLabel}>状态 <span className="text-red-500">*</span></span>
+                <select className={`${fieldInput} mt-2`} value={status} onChange={(e) => setStatus(e.target.value as ContentModuleStatus)}>
+                  <option value="ENABLED">启用</option>
+                  <option value="DISABLED">停用</option>
+                </select>
+              </label>
             </div>
           </div>
 
-          {/* ====== 2. 展示样式 ====== */}
+          {/* ====== 3. 展示样式 ====== */}
           <div className={sectionClass}>
             <h2 className="mb-5 flex items-center gap-3 text-xl font-semibold text-[#2f2f2f]">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">2</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">3</span>
               展示样式
             </h2>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -568,10 +751,10 @@ export const TopNavModuleFormPage = () => {
             ) : null}
           </div>
 
-          {/* ====== 3. 内容配置 ====== */}
+          {/* ====== 4. 内容配置 ====== */}
           <div className={sectionClass}>
             <h2 className="mb-5 flex items-center gap-3 text-xl font-semibold text-[#2f2f2f]">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">3</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">4</span>
               内容配置
             </h2>
 

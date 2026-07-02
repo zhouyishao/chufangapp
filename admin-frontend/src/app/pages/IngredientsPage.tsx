@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createIngredient, deleteIngredient, ensureDefaultIngredientCategories, listIngredients, setIngredientStatus, updateIngredient } from '../api';
+import { createIngredient, deleteIngredient, listCategories, listIngredients, setIngredientStatus, updateIngredient } from '../api';
 import type { Ingredient, IngredientCategory } from '../types';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -41,7 +41,7 @@ const pageConfigs: Record<
     noun: string;
     description: string;
     createPath: string;
-    categoryNames?: string[];
+    categoryType: IngredientCategory['type'];
     showMonth: boolean;
   }
 > = {
@@ -50,6 +50,7 @@ const pageConfigs: Record<
     noun: '食材',
     description: '管理平台食材信息，支持新增、编辑、删除、启用/停用与批量操作。',
     createPath: '/content/ingredients/create',
+    categoryType: 'INGREDIENT',
     showMonth: true
   },
   fruit: {
@@ -57,7 +58,7 @@ const pageConfigs: Record<
     noun: '水果',
     description: '管理平台水果信息，支持新增、编辑、删除、启用/停用与批量操作。',
     createPath: '/content/fruits/create',
-    categoryNames: ['水果'],
+    categoryType: 'FRUIT',
     showMonth: true
   },
   seasoning: {
@@ -65,7 +66,7 @@ const pageConfigs: Record<
     noun: '调料',
     description: '管理平台调料信息，支持新增、编辑、删除、启用/停用与批量操作。',
     createPath: '/content/seasonings/create',
-    categoryNames: ['调料'],
+    categoryType: 'SEASONING',
     showMonth: false
   }
 };
@@ -132,9 +133,8 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
   const canPrev = page > 1;
   const canNext = page * pageSize < total;
   const visibleCategories = useMemo(() => {
-    if (!pageConfig.categoryNames?.length) return categories;
-    return categories.filter((category) => pageConfig.categoryNames?.includes(category.name));
-  }, [categories, pageConfig.categoryNames]);
+    return categories.filter((category) => category.type === pageConfig.categoryType);
+  }, [categories, pageConfig.categoryType]);
   const visibleItems = useMemo(() => {
     if (seasonMonthFilter === 'all') return items;
     return items.filter((item) => (item.seasonMonth ?? '').split(/[,，/\s]+/).includes(seasonMonthFilter));
@@ -145,13 +145,11 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
     setError(null);
     setNotice(null);
     try {
-      const cats = await ensureDefaultIngredientCategories();
+      const cats = await listCategories({ page: 1, pageSize: 100, type: pageConfig.categoryType, status: 'ACTIVE' });
       setCategories(cats.list);
 
-      const scopedCategories = pageConfig.categoryNames?.length
-        ? cats.list.filter((category) => pageConfig.categoryNames?.includes(category.name))
-        : cats.list;
-      if (pageConfig.categoryNames?.length && scopedCategories.length === 0) {
+      const scopedCategories = cats.list.filter((category) => category.type === pageConfig.categoryType);
+      if (scopedCategories.length === 0) {
         setItems([]);
         setTotal(0);
         setSelectedIds([]);
@@ -165,7 +163,7 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
         status: statusFilter === '' ? undefined : statusFilter,
         isPublish: publishFilter === 'all' ? undefined : publishFilter === 'published',
         isRecommend: recommendFilter === 'all' ? undefined : recommendFilter === 'recommended',
-        categoryId: categoryFilter === 'all' ? (pageConfig.categoryNames?.length ? scopedCategories[0]?.id : undefined) : categoryFilter
+        categoryId: categoryFilter === 'all' ? scopedCategories.map((category) => category.id).join(',') : categoryFilter
       });
       setItems(list.list);
       setTotal(list.total);
@@ -194,6 +192,12 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
     if (variant === 'fruit') navigate(`/content/fruits/${item.id}/edit`);
     else if (variant === 'seasoning') navigate(`/content/seasonings/${item.id}/edit`);
     else navigate(`/content/ingredients/${item.id}/edit`);
+  };
+
+  const openDetail = (item: Ingredient) => {
+    if (variant === 'fruit') navigate(`/content/fruits/${item.id}`);
+    else if (variant === 'seasoning') navigate(`/content/seasonings/${item.id}`);
+    else navigate(`/content/ingredients/${item.id}`);
   };
 
   const handleSave = async () => {
@@ -301,7 +305,7 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
       key: 'item',
       title: pageConfig.noun,
       render: (item) => (
-        <button type="button" className="flex min-w-[220px] items-center gap-3 text-left" onClick={() => navigate(`/content/ingredients/${item.id}`)}>
+        <button type="button" className="flex min-w-[220px] items-center gap-3 text-left" onClick={() => openDetail(item)}>
           <ImagePreview src={item.cover} alt={item.name} />
           <span className="min-w-0">
             <span className="block font-medium text-[#2f2f2f]">{item.name}</span>
@@ -323,7 +327,7 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
       title: '操作',
       render: (item) => (
         <div className="flex min-w-[180px] justify-end gap-3">
-          <Button variant="ghost" onClick={() => navigate(`/content/ingredients/${item.id}/edit`)}>编辑</Button>
+          <Button variant="ghost" onClick={() => openEdit(item)}>编辑</Button>
           <Button variant="ghost" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{item.status === 'ACTIVE' ? '停用' : '启用'}</Button>
           <Button variant="danger" onClick={() => setDeleting(item)}>删除</Button>
         </div>

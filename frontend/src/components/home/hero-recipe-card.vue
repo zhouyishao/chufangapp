@@ -33,9 +33,7 @@
             <text class="hero-card__summary">{{ currentRecipe?.summary }}</text>
           </view>
           <view class="hero-card__footer" @tap.stop="handleMoreClick">
-            <svg class="hero-card__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m9 18 6-6-6-6" />
-            </svg>
+            <app-icon class="hero-card__arrow" name="chevron-right" size="24rpx" />
           </view>
         </view>
       </view>
@@ -45,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import AppIcon from '../app/app-icon.vue';
 import type { RecipeCard } from '../../types/home';
 
 const props = defineProps<{

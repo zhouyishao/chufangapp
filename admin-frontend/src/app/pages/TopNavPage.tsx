@@ -339,11 +339,6 @@ export const TopNavPage = () => {
                   <tr key={item.id} className="transition hover:bg-[#f5f1ea]/55">
                     <td className="border-b border-[#f0eadf] px-6 py-5">
                       <div className="flex items-center gap-5">
-                        <div className="flex flex-col gap-[2px] text-[#2f2f2f]" aria-hidden="true">
-                          <span className="leading-none">••</span>
-                          <span className="leading-none">••</span>
-                          <span className="leading-none">••</span>
-                        </div>
                         <div className="font-medium text-[#2f2f2f]">{item.sortOrder}</div>
                         <div className="flex flex-col text-[#8c8c8c]">
                           <button className="cursor-pointer hover:text-[#7a8b6f]" onClick={() => void move(item, -1)}>⌃</button>

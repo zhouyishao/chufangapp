@@ -1,250 +1,247 @@
-import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { Button } from '../components/Button';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
+import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import { listImportBatches, getImportBatchesStats, retryFailedImport } from '../api';
+import type { ResourceImportBatchItem } from '../types';
 
-type ResourceType = '蔬菜' | '水果' | '调料' | '酒水' | '肉类' | '菜谱';
-type RecordSource = '第三方API' | 'Mock' | '手动导入';
-type ImportResult = '导入成功' | '导入失败' | '重复' | '已忽略';
-type ImportMode = '单个导入' | '批量导入';
-type Operator = '张小北' | '李思思' | '王建国';
-
-type ImportRecord = {
-  id: string;
-  imageMark: string;
-  name: string;
-  type: ResourceType;
-  source: RecordSource;
-  result: ImportResult;
-  mode: ImportMode;
-  operator: Operator;
-  importedAt: string;
-  errorReason: string;
-};
-
-const initialRecords: ImportRecord[] = [
-  {
-    id: 'IMP20250524001',
-    imageMark: '🍅',
-    name: '番茄',
-    type: '蔬菜',
-    source: '第三方API',
-    result: '导入成功',
-    mode: '单个导入',
-    operator: '张小北',
-    importedAt: '2025-05-24 14:32:18',
-    errorReason: '—'
-  },
-  {
-    id: 'IMP20250524002',
-    imageMark: '🍎',
-    name: '苹果',
-    type: '水果',
-    source: 'Mock',
-    result: '导入失败',
-    mode: '批量导入',
-    operator: '李思思',
-    importedAt: '2025-05-24 14:28:47',
-    errorReason: '图片地址失败，封面下载失败'
-  },
-  {
-    id: 'IMP20250524003',
-    imageMark: '✴️',
-    name: '八角',
-    type: '调料',
-    source: '第三方API',
-    result: '重复',
-    mode: '批量导入',
-    operator: '王建国',
-    importedAt: '2025-05-24 14:15:03',
-    errorReason: '已存在相同资源'
-  },
-  {
-    id: 'IMP20250524004',
-    imageMark: '🍷',
-    name: '红酒',
-    type: '酒水',
-    source: '第三方API',
-    result: '导入成功',
-    mode: '单个导入',
-    operator: '张小北',
-    importedAt: '2025-05-24 13:58:21',
-    errorReason: '—'
-  },
-  {
-    id: 'IMP20250524005',
-    imageMark: '🍗',
-    name: '鸡胸肉',
-    type: '肉类',
-    source: '手动导入',
-    result: '导入失败',
-    mode: '单个导入',
-    operator: '李思思',
-    importedAt: '2025-05-24 13:35:42',
-    errorReason: '字段缺失：营养成分'
-  },
-  {
-    id: 'IMP20250524006',
-    imageMark: '🐟',
-    name: '清蒸鲈鱼',
-    type: '菜谱',
-    source: 'Mock',
-    result: '已忽略',
-    mode: '批量导入',
-    operator: '王建国',
-    importedAt: '2025-05-24 13:20:11',
-    errorReason: '用户选择忽略（不符合要求）'
-  }
-];
-
-const resourceTypeOptions = ['全部', '蔬菜', '水果', '调料', '酒水', '肉类', '菜谱'] as const;
-const sourceOptions = ['全部', '第三方API', 'Mock', '手动导入'] as const;
-const resultOptions = ['全部', '导入成功', '导入失败', '重复', '已忽略'] as const;
-const duplicateOptions = ['全部', '正常', '重复'] as const;
-const modeOptions = ['全部', '单个导入', '批量导入'] as const;
-const operatorOptions = ['全部', '张小北', '李思思', '王建国'] as const;
+const statusOptions = [
+  { label: '全部状态', value: '' },
+  { label: '处理中/待确认', value: 'PENDING' },
+  { label: '导入完成', value: 'COMPLETED' },
+  { label: '导入失败', value: 'FAILED' }
+] as const;
 
 const selectClass =
-  'h-11 rounded-xl border border-[#e9e2d6] bg-white px-3 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10';
+  'h-11 w-full rounded-xl border border-[#e9e2d6] bg-white px-3 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10';
 
-const typeTone: Record<ResourceType, string> = {
-  蔬菜: 'border-[#d8e9d1] bg-[#edf5ea] text-[#6ba368]',
-  水果: 'border-[#f4dcc5] bg-[#fff3e8] text-[#c27b48]',
-  调料: 'border-purple-100 bg-purple-50 text-purple-700',
-  酒水: 'border-sky-100 bg-sky-50 text-sky-700',
-  肉类: 'border-red-100 bg-red-50 text-red-700',
-  菜谱: 'border-[#ead3be] bg-[#fbf1e7] text-[#c27b48]'
+const statusTone: Record<ResourceImportBatchItem['status'], 'green' | 'orange' | 'red' | 'gray'> = {
+  PENDING: 'orange',
+  COMPLETED: 'green',
+  FAILED: 'red'
 };
 
-const resultTone: Record<ImportResult, 'green' | 'orange' | 'red' | 'gray'> = {
-  导入成功: 'green',
-  导入失败: 'red',
-  重复: 'orange',
-  已忽略: 'gray'
+const statusLabels: Record<ResourceImportBatchItem['status'], string> = {
+  PENDING: '处理中',
+  COMPLETED: '已完成',
+  FAILED: '失败'
 };
 
-type FieldRowProps = {
-  label: string;
-  children: ReactNode;
-  className?: string;
+const resourceTypeLabels: Record<string, string> = {
+  RECIPE: '菜谱',
+  INGREDIENT: '食材',
+  FRUIT: '水果',
+  SEASONING: '调料',
+  BEVERAGE: '酒水'
 };
-
-const FieldRow = ({ label, children, className }: FieldRowProps) => (
-  <label className={['grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3', className ?? ''].join(' ')}>
-    <span className="whitespace-nowrap text-sm font-semibold text-[#2f2f2f]">{label}</span>
-    {children}
-  </label>
-);
 
 export const ResourceImportRecordsPage = () => {
-  const [records, setRecords] = useState(initialRecords);
-  const [keyword, setKeyword] = useState('');
-  const [resourceType, setResourceType] = useState<(typeof resourceTypeOptions)[number]>('全部');
-  const [source, setSource] = useState<(typeof sourceOptions)[number]>('全部');
-  const [result, setResult] = useState<(typeof resultOptions)[number]>('全部');
-  const [duplicate, setDuplicate] = useState<(typeof duplicateOptions)[number]>('全部');
-  const [mode, setMode] = useState<(typeof modeOptions)[number]>('全部');
-  const [operator, setOperator] = useState<(typeof operatorOptions)[number]>('全部');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const navigate = useNavigate();
+  const [batches, setBatches] = useState<ResourceImportBatchItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [retryLoading, setRetryLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const filteredRecords = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-    return records.filter((record) => {
-      const keywordMatched =
-        !normalizedKeyword ||
-        [record.id, record.name, record.source, record.operator].some((value) => value.toLowerCase().includes(normalizedKeyword));
-      const typeMatched = resourceType === '全部' || record.type === resourceType;
-      const sourceMatched = source === '全部' || record.source === source;
-      const resultMatched = result === '全部' || record.result === result;
-      const duplicateMatched = duplicate === '全部' || (duplicate === '重复' ? record.result === '重复' : record.result !== '重复');
-      const modeMatched = mode === '全部' || record.mode === mode;
-      const operatorMatched = operator === '全部' || record.operator === operator;
-      const itemDate = record.importedAt.slice(0, 10);
-      const startMatched = !startDate || itemDate >= startDate;
-      const endMatched = !endDate || itemDate <= endDate;
-      return keywordMatched && typeMatched && sourceMatched && resultMatched && duplicateMatched && modeMatched && operatorMatched && startMatched && endMatched;
-    });
-  }, [duplicate, endDate, keyword, mode, operator, records, resourceType, result, source, startDate]);
+  // Statistics State
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    completed: 0,
+    failed: 0
+  });
 
-  const resetFilters = () => {
-    setKeyword('');
-    setResourceType('全部');
-    setSource('全部');
-    setResult('全部');
-    setDuplicate('全部');
-    setMode('全部');
-    setOperator('全部');
-    setStartDate('');
-    setEndDate('');
+  // Query Filters
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [q, setQ] = useState('');
+  const [appliedQ, setAppliedQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ResourceImportBatchItem['status'] | ''>('');
+
+  // Selected batch for drawer details
+  const [detailBatch, setDetailBatch] = useState<ResourceImportBatchItem | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Fetch batches listing
+  const fetchBatches = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listImportBatches({
+        page,
+        pageSize,
+        q: appliedQ.trim() || undefined,
+        status: statusFilter || undefined
+      });
+      setBatches(data.list);
+      setTotal(data.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '获取导入历史失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch stats count
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const data = await getImportBatchesStats();
+      setStats(data);
+    } catch {
+      // Gracefully ignore stats fetch failure
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchBatches();
+  }, [page, pageSize, appliedQ, statusFilter]);
+
+  useEffect(() => {
+    void fetchStats();
+  }, []);
+
+  const handleSearch = () => {
+    setPage(1);
+    setAppliedQ(q);
+  };
+
+  const handleReset = () => {
+    setPage(1);
+    setQ('');
+    setAppliedQ('');
+    setStatusFilter('');
     setNotice('筛选条件已重置');
+    setTimeout(() => setNotice(null), 3000);
   };
 
-  const retryRecord = (id: string) => {
-    setRecords((current) =>
-      current.map((record) => (record.id === id ? { ...record, result: '导入成功', errorReason: '—' } : record))
-    );
-    setNotice(`已重新导入记录：${id}`);
+  const openDetails = (batch: ResourceImportBatchItem) => {
+    setDetailBatch(batch);
+    setDrawerOpen(true);
   };
 
-  const columns: DataTableColumn<ImportRecord>[] = [
+  const handleRetry = async () => {
+    if (!detailBatch) return;
+    setRetryLoading(true);
+    setError(null);
+    try {
+      const res = await retryFailedImport(detailBatch.id);
+      setNotice(`重试成功！成功重新导入 ${res.successCount} 项，失败 ${res.failCount} 项`);
+      await fetchBatches();
+      await fetchStats();
+      setDetailBatch(res.batch);
+      setTimeout(() => setNotice(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '重新导入重试失败');
+    } finally {
+      setRetryLoading(false);
+    }
+  };
+
+  const columns: DataTableColumn<ResourceImportBatchItem>[] = [
     {
-      key: 'selection',
-      title: '',
-      render: () => <input type="checkbox" className="h-4 w-4 rounded border-[#d8d0c4] text-[#7a8b6f] focus:ring-[#7a8b6f]" />
+      key: 'id',
+      title: '批次 ID',
+      render: (batch) => <span className="font-mono text-sm text-[#2f2f2f]">#{batch.id}</span>
     },
-    { key: 'id', title: '记录ID', render: (record) => <span className="font-medium text-[#2f2f2f]">{record.id}</span> },
     {
-      key: 'name',
-      title: '资源名称',
-      render: (record) => (
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#e9e2d6] bg-[#f5f1ea] text-2xl">{record.imageMark}</div>
-          <span className="font-semibold text-[#2f2f2f]">{record.name}</span>
-        </div>
-      )
-    },
-    {
-      key: 'type',
-      title: '资源类型',
-      render: (record) => (
-        <span className={`inline-flex min-w-[64px] items-center justify-center rounded-lg border px-2.5 py-1 text-sm font-medium ${typeTone[record.type]}`}>
-          {record.type}
+      key: 'fileName',
+      title: '文件名称',
+      render: (batch) => (
+        <span className="font-semibold text-[#2f2f2f] truncate max-w-[240px] block" title={batch.fileName}>
+          {batch.fileName}
         </span>
       )
     },
-    { key: 'source', title: '数据来源', render: (record) => record.source },
-    { key: 'result', title: '导入结果', render: (record) => <StatusTag label={record.result} tone={resultTone[record.result]} /> },
-    { key: 'mode', title: '导入方式', render: (record) => record.mode },
-    { key: 'operator', title: '操作人', render: (record) => record.operator },
-    { key: 'importedAt', title: '导入时间', render: (record) => <span className="leading-6">{record.importedAt}</span> },
     {
-      key: 'errorReason',
-      title: '错误原因',
-      widthClassName: 'min-w-[220px]',
-      render: (record) => <span className="block max-w-[240px] whitespace-normal leading-6">{record.errorReason}</span>
+      key: 'importType',
+      title: '导入类型',
+      render: (batch) => (
+        <span className="inline-flex items-center rounded-md bg-zinc-50 border border-zinc-150 px-2 py-0.5 text-xs font-semibold text-zinc-600">
+          {resourceTypeLabels[batch.importType] || batch.importType}
+        </span>
+      )
+    },
+    {
+      key: 'sourceType',
+      title: '数据格式',
+      render: (batch) => (
+        <span className="inline-flex items-center rounded-md bg-zinc-50 border border-zinc-150 px-2 py-0.5 text-xs font-semibold text-zinc-600">
+          {batch.sourceType}
+        </span>
+      )
+    },
+    {
+      key: 'status',
+      title: '导入状态',
+      render: (batch) => (
+        <StatusTag label={statusLabels[batch.status]} tone={statusTone[batch.status]} />
+      )
+    },
+    {
+      key: 'totalCount',
+      title: '总数',
+      render: (batch) => <span className="font-medium text-zinc-800">{batch.totalCount}</span>
+    },
+    {
+      key: 'successCount',
+      title: '成功导入',
+      render: (batch) => <span className="font-semibold text-emerald-600">{batch.successCount}</span>
+    },
+    {
+      key: 'failedCount',
+      title: '失败数',
+      render: (batch) => (
+        <span className={batch.failedCount > 0 ? 'font-semibold text-red-500' : 'text-zinc-400'}>
+          {batch.failedCount}
+        </span>
+      )
+    },
+    {
+      key: 'createdBy',
+      title: '操作人',
+      render: (batch) => <span className="text-[#2f2f2f] text-sm">{batch.createdBy}</span>
+    },
+    {
+      key: 'createdAt',
+      title: '导入时间',
+      render: (batch) => (
+        <span className="text-zinc-500 text-xs whitespace-nowrap">
+          {new Date(batch.createdAt).toLocaleString()}
+        </span>
+      )
     },
     {
       key: 'actions',
       title: '操作',
-      render: (record) => (
+      render: (batch) => (
         <div className="flex items-center gap-2 text-sm">
-          <button type="button" className="text-[#7a8b6f] hover:underline" onClick={() => setNotice(`查看详情：${record.id}`)}>
+          <button
+            type="button"
+            className="text-[#7a8b6f] hover:underline font-semibold"
+            onClick={() => navigate(`/resource-management/access-center?batchId=${batch.id}`)}
+          >
+            明细
+          </button>
+          <span className="text-[#d8d0c4]">|</span>
+          <button
+            type="button"
+            className="text-zinc-600 hover:underline font-semibold"
+            onClick={() => openDetails(batch)}
+          >
             详情
           </button>
-          {record.result === '导入失败' ? (
-            <>
-              <span className="text-[#d8d0c4]">|</span>
-              <button type="button" className="text-[#c27b48] hover:underline" onClick={() => retryRecord(record.id)}>
-                重试
-              </button>
-            </>
-          ) : null}
         </div>
       )
     }
@@ -254,135 +251,216 @@ export const ResourceImportRecordsPage = () => {
     <div className="mx-auto w-full max-w-[1480px] space-y-6">
       <PageHeader
         title="导入记录"
-        description="记录所有资源的导入历史，包括成功、失败、重复和忽略的情况，便于问题排查与追溯。"
+        description="记录每次文件导入的数据批次，包括处理状态、成功/失败数量及导入日志明细，支持点击明细查看待确认与忽略的子记录项。"
       />
+
+      {error ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
 
       {notice ? (
         <div className="rounded-2xl border border-[#d8e9d1] bg-[#edf5ea] px-5 py-3 text-sm text-[#5f7f59]">{notice}</div>
       ) : null}
 
-      <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6">
-        <div className="grid gap-4 xl:grid-cols-[240px_240px_240px_240px_minmax(360px,1fr)_auto_auto_auto] xl:items-center">
-          <FieldRow label="资源类型">
-            <select className={selectClass} value={resourceType} onChange={(event) => setResourceType(event.target.value as typeof resourceType)}>
-              {resourceTypeOptions.map((option) => (
-                <option key={option}>{option}</option>
+      {/* Filter Panel */}
+      <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
+        <div className="grid gap-4 xl:grid-cols-[1.5fr_2.5fr_auto] items-end">
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">导入状态</span>
+            <select
+              className={selectClass}
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as ResourceImportBatchItem['status'] | '');
+                setPage(1);
+              }}
+            >
+              {statusOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
-          </FieldRow>
-          <FieldRow label="数据来源">
-            <select className={selectClass} value={source} onChange={(event) => setSource(event.target.value as typeof source)}>
-              {sourceOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </FieldRow>
-          <FieldRow label="导入结果">
-            <select className={selectClass} value={result} onChange={(event) => setResult(event.target.value as typeof result)}>
-              {resultOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </FieldRow>
-          <FieldRow label="去重结果">
-            <select className={selectClass} value={duplicate} onChange={(event) => setDuplicate(event.target.value as typeof duplicate)}>
-              {duplicateOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </FieldRow>
-          <FieldRow label="关键词">
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">关键词</span>
             <Input
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="请输入资源名称、来源ID、操作人"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSearch();
+              }}
+              placeholder="请输入文件名称、操作人检索批次记录..."
               className="h-11 rounded-xl border-[#e9e2d6]"
             />
-          </FieldRow>
-          <Button className="h-11 bg-[#7a8b6f] px-7 hover:bg-[#6d7f63]" onClick={() => setNotice(`查询到 ${filteredRecords.length} 条导入记录`)}>
-            查询
-          </Button>
-          <Button variant="ghost" className="h-11 px-7" onClick={resetFilters}>
-            重置
-          </Button>
-          <Button className="h-11 bg-[#c27b48] px-7 hover:bg-[#ad6c3e]" onClick={() => setNotice('导出任务已创建')}>
-            导出记录
-          </Button>
-        </div>
-
-        <div className="mt-8 grid gap-4 lg:grid-cols-[240px_minmax(420px,1fr)_240px] lg:items-center">
-          <FieldRow label="导入方式">
-            <select className={selectClass} value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
-              {modeOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </FieldRow>
-          <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3">
-            <span className="whitespace-nowrap text-sm font-semibold text-[#2f2f2f]">时间范围</span>
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-              <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="h-11 rounded-xl border-[#e9e2d6]" />
-              <span className="text-center text-[#8c8c8c]">~</span>
-              <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="h-11 rounded-xl border-[#e9e2d6]" />
-            </div>
           </div>
-          <FieldRow label="操作人">
-            <select className={selectClass} value={operator} onChange={(event) => setOperator(event.target.value as typeof operator)}>
-              {operatorOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </FieldRow>
+
+          <div className="flex items-center gap-2">
+            <Button className="h-11 bg-[#7a8b6f] px-7 hover:bg-[#6d7f63]" onClick={handleSearch} disabled={loading}>
+              查询
+            </Button>
+            <Button variant="ghost" className="h-11 px-6" onClick={handleReset} disabled={loading}>
+              重置
+            </Button>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-5">
+      {/* Statistics Cards */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ['全部记录', '2,856 条', 'gray'],
-          ['导入成功', '1,920 条 · 67.3%', 'green'],
-          ['导入失败', '528 条 · 18.5%', 'red'],
-          ['重复记录', '368 条 · 12.9%', 'orange'],
-          ['已忽略', '40 条 · 1.4%', 'gray']
-        ].map(([label, value, tone]) => (
-          <div key={label} className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-5">
-            <StatusTag label={label} tone={tone as 'green' | 'orange' | 'red' | 'gray'} />
-            <div className="mt-4 text-2xl font-semibold text-[#2f2f2f]">{value}</div>
+          { label: '全部导入批次', value: stats.total, tone: 'gray' as const },
+          { label: '处理中/待确认', value: stats.pending, tone: 'orange' as const },
+          { label: '导入完成批次', value: stats.completed, tone: 'green' as const },
+          { label: '导入失败批次', value: stats.failed, tone: 'red' as const }
+        ].map((card) => (
+          <div key={card.label} className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-[#8b8577] font-semibold">{card.label}</span>
+              <StatusTag label="实时" tone={card.tone} />
+            </div>
+            <div className="mt-4 text-3xl font-semibold text-[#2f2f2f]">
+              {statsLoading ? '...' : `${card.value} 个`}
+            </div>
           </div>
         ))}
       </section>
 
-      <DataTable columns={columns} data={filteredRecords} rowKey={(record) => record.id} emptyTitle="暂无导入记录" emptyDescription="调整筛选条件后重新查询。" />
-      <div className="flex flex-col gap-3 rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] px-6 py-4 text-sm text-[#8c8c8c] md:flex-row md:items-center md:justify-between">
-        <span>共 2,856 条</span>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="rounded-lg border border-[#e9e2d6] px-3 py-2 text-[#b7aea1]" type="button">
-            ‹
-          </button>
-          {[1, 2, 3, 4, 5].map((page) => (
-            <button
-              key={page}
-              className={`rounded-lg border px-3 py-2 ${page === 1 ? 'border-[#7a8b6f] bg-[#edf5ea] text-[#5f7f59]' : 'border-[#e9e2d6] text-[#2f2f2f]'}`}
-              type="button"
+      {/* Data Table */}
+      <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] shadow-sm overflow-hidden">
+        <DataTable
+          columns={columns}
+          data={batches}
+          rowKey={(batch) => batch.id}
+          emptyTitle="暂无导入日志"
+          emptyDescription="请在“资源接入中心”上传并确认导入第一批资源数据。"
+        />
+
+        {/* Pagination Footer */}
+        <div className="flex items-center justify-between gap-4 border-t border-[#f1ece4] px-5 py-4 text-sm text-[#8c8c8c]">
+          <span>共 {total} 个批次</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
+              上一页
+            </Button>
+            <span className="rounded-lg bg-[#6f8b62] px-3 py-1.5 text-white font-medium">
               {page}
-            </button>
-          ))}
-          <span>...</span>
-          <button className="rounded-lg border border-[#e9e2d6] px-3 py-2 text-[#2f2f2f]" type="button">
-            286
-          </button>
-          <button className="rounded-lg border border-[#e9e2d6] px-3 py-2 text-[#2f2f2f]" type="button">
-            ›
-          </button>
-          <select className={selectClass}>
-            <option>10 条/页</option>
-            <option>20 条/页</option>
-          </select>
-          <span>跳至</span>
-          <Input className="h-10 w-20 rounded-xl border-[#e9e2d6] text-center" defaultValue="1" />
-          <span>页</span>
+            </span>
+            <span>/ {totalPages}</span>
+            <Button
+              variant="ghost"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              下一页
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Batch Details Drawer */}
+      <Drawer
+        title="导入批次详情"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        widthClassName="max-w-xl"
+      >
+        {detailBatch && (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-[#e9e2d6] bg-[#fcfbfa] p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">批次 ID</span>
+                  <span className="font-semibold text-zinc-800">#{detailBatch.id}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">文件格式</span>
+                  <span className="font-semibold text-zinc-800">{detailBatch.sourceType}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-zinc-400 block mb-0.5">文件名称</span>
+                  <span className="font-semibold text-zinc-800 break-all">{detailBatch.fileName}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">导入类型</span>
+                  <span className="font-semibold text-zinc-800">{resourceTypeLabels[detailBatch.importType] || detailBatch.importType}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">导入状态</span>
+                  <StatusTag label={statusLabels[detailBatch.status]} tone={statusTone[detailBatch.status]} />
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">操作人</span>
+                  <span className="font-semibold text-zinc-800">{detailBatch.createdBy}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">总数据项数</span>
+                  <span className="font-semibold text-zinc-800">{detailBatch.totalCount} 项</span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">成功导入正式表</span>
+                  <span className="font-semibold text-emerald-600">{detailBatch.successCount} 项</span>
+                </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">写入失败数</span>
+                  <span className="font-semibold text-red-500">{detailBatch.failedCount} 项</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-zinc-400 block mb-0.5">导入时间</span>
+                  <span className="font-semibold text-zinc-800 text-xs">
+                    {new Date(detailBatch.createdAt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Error Message Details */}
+            {detailBatch.errorMessage && (
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-red-600 block">批次执行错误日志</span>
+                <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 font-mono text-xs text-red-700 whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+                  {detailBatch.errorMessage}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 pt-4 border-t border-[#f1ece4]">
+              <div className="flex gap-2">
+                {detailBatch.failedCount > 0 && (
+                  <Button
+                    className="flex-1 bg-[#c27b48] hover:bg-[#ad6c3e] h-11"
+                    disabled={retryLoading}
+                    onClick={handleRetry}
+                  >
+                    {retryLoading ? '正在重新导入...' : '🔄 重新导入失败项'}
+                  </Button>
+                )}
+                <Button
+                  className="flex-1 bg-[#7a8b6f] hover:bg-[#6d7f63] h-11"
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    navigate(`/resource-management/access-center?batchId=${detailBatch.id}`);
+                  }}
+                >
+                  🔍 查看批次明细
+                </Button>
+              </div>
+              <Button
+                variant="ghost"
+                className="w-full h-11"
+                onClick={() => setDrawerOpen(false)}
+              >
+                关闭
+              </Button>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 };

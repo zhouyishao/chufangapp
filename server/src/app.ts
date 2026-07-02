@@ -32,8 +32,10 @@ import { adminTagsRouter } from './routes/admin/tags';
 import { adminSeasonalFoodsRouter } from './routes/admin/seasonal-foods';
 import { adminUploadRouter } from './routes/admin/upload';
 import { adminUsersRouter } from './routes/admin/users';
+import { adminResourcesRouter } from './routes/admin/resources';
 import { apiHomeRouter } from './routes/api/home';
 import { apiAppHomeRouter } from './routes/api/app-home';
+import { apiBeveragesRouter } from './routes/api/beverages';
 import { apiPageModulesRouter } from './routes/api/page-modules';
 import { apiIngredientsRouter } from './routes/api/ingredients';
 import { apiMobileRouter } from './routes/api/mobile';
@@ -94,10 +96,12 @@ export const createApp = () => {
   app.use('/api/admin/home/top-navs', adminHomeTopNavsRouter);
   app.use('/api/admin/home/top-navs/:navId/hero-banners', adminTopNavHeroBannersRouter);
   app.use('/api/admin/home/top-navs/:navId/modules', adminContentModulesRouter);
+  app.use('/api/admin', adminResourcesRouter);
 
   app.use('/api/home', apiHomeRouter);
   app.use('/api/app/home', apiAppHomeRouter);
   app.use('/api/app', apiPageModulesRouter);
+  app.use('/api/beverages', apiBeveragesRouter);
   app.use('/api/ingredients', apiIngredientsRouter);
   app.use('/api/recipes', apiRecipesRouter);
   app.use('/api/mobile', apiMobileRouter);

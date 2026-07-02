@@ -50,11 +50,11 @@
       <!-- 搜索框悬浮层 -->
       <view class="home-hero__search">
         <view class="hero-search-bar" @tap="handleSearchTap">
-          <text class="hero-search-icon" />
+          <app-icon class="hero-search-icon" name="search" size="18px" />
           <text class="hero-search-placeholder">搜索菜谱、食材、做法</text>
         </view>
         <button class="hero-add-btn" @tap="openHeroActionSheet">
-          <text class="hero-add-icon" />
+          <app-icon class="hero-add-icon" name="plus" size="22px" />
         </button>
       </view>
 
@@ -211,13 +211,7 @@
         <view class="add-action-list">
           <view class="add-action" @tap="scanCode">
             <view class="add-action__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 7V5a1 1 0 0 1 1-1h2" />
-                <path d="M17 4h2a1 1 0 0 1 1 1v2" />
-                <path d="M20 17v2a1 1 0 0 1-1 1h-2" />
-                <path d="M7 20H5a1 1 0 0 1-1-1v-2" />
-                <path d="M8 8h8v8H8z" />
-              </svg>
+              <app-icon name="scan" size="28rpx" />
             </view>
             <view>
               <text class="add-action__title">扫一扫</text>
@@ -225,10 +219,7 @@
           </view>
           <view class="add-action" @tap="addRecipe">
             <view class="add-action__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
-              </svg>
+              <app-icon name="plus" size="28rpx" />
             </view>
             <view>
               <text class="add-action__title">添加菜谱</text>
@@ -243,26 +234,40 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { onPageScroll } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import SectionBlock from '../../components/home/section-block.vue';
-import { ingredientCatalog } from '../../constants/ingredients';
-import {
-  featuredRecipes,
-  homeCategoryRecipes,
-  homeTabs,
-  quickActions
-} from '../../constants/home';
-import { getHome, getHomeHeroBanners, getHomeModules, getHomeTopNavContents, getHomeTopNavs, type ApiHomeHeroBanner, type HomeModule } from '../../services/public-api';
-import type { RecipeCard } from '../../types/home';
+import { getHome, getHomeHeroBanners, getHomeModules, getHomeTopNavContents, getHomeTopNavs, listMobileBasketItems, listMobileViewHistories, type ApiHomeHeroBanner, type HomeModule } from '../../services/public-api';
+import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
+import type { HomeTab, QuickAction, RecipeCard } from '../../types/home';
 import type { Ingredient } from '../../types/ingredient';
 
 const activeCategoryId = ref('recommend');
 const isScrolled = ref(false);
 const headerScrollProgress = ref(0);
 let scrollFallbackTimer: ReturnType<typeof setInterval> | undefined;
-const currentMonth = new Date().getMonth() + 1;
 const isActionSheetVisible = ref(false);
+const homeTabs: HomeTab[] = [
+  { id: 'home', label: '首页', active: true },
+  { id: 'ingredients', label: '食材', active: false },
+  { id: 'basket', label: '菜篮子', active: false },
+  { id: 'mine', label: '我的', active: false }
+];
+const baseQuickActions: QuickAction[] = [
+  {
+    id: 'basket',
+    title: '菜篮子',
+    subtitle: '整理当前后端菜篮子',
+    badge: '0 项'
+  },
+  {
+    id: 'browse',
+    title: '最近浏览',
+    subtitle: '查看账号浏览记录',
+    badge: '0 条'
+  }
+];
 
 const categoryMeta: Record<string, { title: string; subtitle: string }> = {
   recommend: {
@@ -300,14 +305,24 @@ const homeHeroBanners = ref<ApiHomeHeroBanner[]>([]);
 const remoteTopNavs = ref<{ id: string; label: string }[]>([]);
 const remoteTopNavRecipes = ref<Record<string, RecipeCard[]>>({});
 const remoteTopNavMeta = ref<Record<string, { label: string; moreButtonText?: string }>>({});
+const quickActionStats = ref<{ basketCount: number; browseCount: number }>({ basketCount: 0, browseCount: 0 });
 // categoryId → 实际 navId（用于轮播图 API 请求）
 const navIdMap = ref<Record<string, string>>({});
 const currentNavModules = ref<HomeModule[]>([]);
+const quickActions = computed(() => baseQuickActions.map((action) => {
+  if (action.id === 'basket') {
+    return { ...action, badge: `${quickActionStats.value.basketCount} 项` };
+  }
+  if (action.id === 'browse') {
+    return { ...action, badge: `${quickActionStats.value.browseCount} 条` };
+  }
+  return action;
+}));
 
 const currentRecipes = computed(() => {
   if (activeCategoryId.value === 'recommend' && remoteRecipes.value) return remoteRecipes.value;
   if (remoteTopNavRecipes.value[activeCategoryId.value]) return remoteTopNavRecipes.value[activeCategoryId.value];
-  return homeCategoryRecipes[activeCategoryId.value] ?? featuredRecipes;
+  return [];
 });
 const currentMenuTitle = computed(() => remoteTopNavMeta.value[activeCategoryId.value]?.label ?? categoryMeta[activeCategoryId.value]?.title ?? '家常菜单');
 const currentMenuSubtitle = computed(() => (
@@ -317,8 +332,7 @@ const currentMenuSubtitle = computed(() => (
 ));
 const seasonalIngredients = computed(() => {
   if (remoteSeasonalIngredients.value) return remoteSeasonalIngredients.value;
-  const monthlyIngredients = ingredientCatalog.filter((ingredient) => ingredient.month === currentMonth);
-  return monthlyIngredients.length > 0 ? monthlyIngredients : ingredientCatalog.slice(0, 8);
+  return [];
 });
 const isRecommendCategory = computed(() => activeCategoryId.value === 'recommend');
 const homeHeaderCategories = computed(() => {
@@ -390,7 +404,7 @@ const centerActiveTab = async (type: 'top' | 'sticky') => {
 
 // ====== 搜索 ======
 const handleSearchTap = () => {
-  uni.showToast({ title: '搜索功能开发中', icon: 'none' });
+  uni.navigateTo({ url: '/pages/search/index' });
 };
 
 const openHeroActionSheet = () => {
@@ -403,7 +417,7 @@ const closeActionSheet = () => {
 
 const scanCode = () => {
   closeActionSheet();
-  uni.showToast({ title: '扫一扫功能开发中', icon: 'none' });
+  uni.navigateTo({ url: '/pages/scan/index' });
 };
 
 const addRecipe = () => {
@@ -449,6 +463,10 @@ const goToHeroBannerTarget = (banner: ApiHomeHeroBanner) => {
   }
   if (banner.targetType === 'INGREDIENT' && banner.targetId) {
     uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${banner.targetId}` });
+    return;
+  }
+  if (banner.targetType === 'BEVERAGE' && banner.targetId) {
+    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${banner.targetId}` });
     return;
   }
   if (banner.targetType === 'CATEGORY' && banner.targetId) {
@@ -551,9 +569,7 @@ const mapRecipeCard = (item: {
     difficulty: item.difficulty ?? '—',
     calories: '',
     tag: '推荐',
-    image:
-      item.cover ??
-      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
+    image: item.cover ?? '',
     summary: item.description ?? ''
   } satisfies RecipeCard;
 };
@@ -573,9 +589,7 @@ const mapTopNavRecipeCard = (item: {
     difficulty: item.difficulty ?? '—',
     calories: item.calorie ?? '',
     tag: '导航内容',
-    image:
-      item.coverUrl ??
-      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
+    image: item.coverUrl ?? '',
     summary: ''
   } satisfies RecipeCard;
 };
@@ -590,9 +604,7 @@ const mapIngredientCard = (item: { id: number; name: string; cover: string | nul
     id: String(item.id),
     name: item.name,
     description: item.seasonMonth ? `时令：${item.seasonMonth}` : '时令食材',
-    image:
-      item.cover ??
-      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+    image: item.cover ?? '',
     tags: ['推荐'],
     category: 'recommend',
     month
@@ -622,6 +634,19 @@ const loadHome = async () => {
     if (defaultNav) activeCategoryId.value = defaultNav.isDefault ? 'recommend' : defaultNav.id;
     if (defaultNav) void loadTopNavContents(defaultNav.id, defaultNav.isDefault);
     if (defaultNav) void loadCurrentModules(defaultNav.id);
+    const user = await syncAuthUserWithBackend(loadAuthUser());
+    if (user?.id) {
+      const [basketData, viewData] = await Promise.all([
+        listMobileBasketItems({ userId: user.id, page: 1, pageSize: 1 }),
+        listMobileViewHistories({ userId: user.id, page: 1, pageSize: 1 })
+      ]);
+      quickActionStats.value = {
+        basketCount: basketData.total ?? basketData.list.length,
+        browseCount: viewData.total ?? viewData.list.length
+      };
+    } else {
+      quickActionStats.value = { basketCount: 0, browseCount: 0 };
+    }
   } catch (err) {
     homeError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
@@ -819,14 +844,8 @@ void loadHome();
 }
 
 .hero-search-icon {
-  display: block;
-  width: 18px;
-  height: 18px;
   margin-right: 8px;
-  background: currentColor;
   color: rgba(47, 47, 47, 0.42);
-  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
   transition: color 180ms ease;
 }
 
@@ -860,12 +879,7 @@ void loadHome();
 }
 
 .hero-add-icon {
-  display: block;
-  width: 22px;
-  height: 22px;
-  background: currentColor;
-  -webkit-mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
+  color: currentColor;
 }
 
 /* ====== Tab 悬浮层 ====== */
@@ -947,14 +961,8 @@ void loadHome();
 }
 
 .sticky-search-icon {
-  display: block;
-  width: 16px;
-  height: 16px;
   margin-right: 6px;
-  background: currentColor;
   color: rgba(47, 47, 47, 0.46);
-  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
   transition: color 180ms ease;
 }
 
@@ -986,12 +994,7 @@ void loadHome();
 }
 
 .sticky-add-icon {
-  display: block;
-  width: 20px;
-  height: 20px;
-  background: currentColor;
-  -webkit-mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
+  color: currentColor;
 }
 
 .sticky-tabs-scroll {

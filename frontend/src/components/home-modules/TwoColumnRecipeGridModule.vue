@@ -32,12 +32,14 @@
       class="hm-grid__more"
       @tap="handleMore"
     >
-      <text>更多 ›</text>
+      <text>更多</text>
+      <app-icon name="chevron-right" size="20rpx" />
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
+import AppIcon from '../app/app-icon.vue';
 import type { HomeModule } from '../../services/public-api';
 import { resolveAssetUrl } from '../../services/public-api';
 

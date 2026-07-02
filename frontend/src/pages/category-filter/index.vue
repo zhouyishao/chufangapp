@@ -3,7 +3,7 @@
     <!-- 搜索框 -->
     <view class="category-search" v-if="searchConfig">
       <view class="category-search__bar" @tap="handleSearchTap">
-        <text class="category-search__icon" />
+        <app-icon class="category-search__icon" name="search" size="18px" />
         <text class="category-search__placeholder">{{ searchConfig.placeholder ?? '搜索' }}</text>
       </view>
     </view>
@@ -109,6 +109,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import {
   getPageModules,
   type PageModule,
@@ -190,6 +191,8 @@ const handleBannerTap = (banner: PageModuleBanner) => {
     uni.navigateTo({ url: `/pages/recipe-detail/index?id=${banner.targetId}` });
   } else if (banner.targetType === 'INGREDIENT' && banner.targetId) {
     uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${banner.targetId}` });
+  } else if (banner.targetType === 'BEVERAGE' && banner.targetId) {
+    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${banner.targetId}` });
   }
 };
 
@@ -223,14 +226,8 @@ onPullDownRefresh(() => { void fetchModules(); });
   border: 1px solid var(--app-border);
 }
 .category-search__icon {
-  display: block;
-  width: 32rpx;
-  height: 32rpx;
   margin-right: 16rpx;
-  background: currentColor;
   color: var(--text-placeholder);
-  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
 }
 .category-search__placeholder {
   color: var(--text-placeholder);

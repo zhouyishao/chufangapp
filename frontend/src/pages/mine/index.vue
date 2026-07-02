@@ -5,10 +5,16 @@
       <view class="mine-hero__shade" />
       <view class="mine-hero__content">
         <view class="hero-top">
-          <image class="profile__avatar" :src="profile.avatarUrl" mode="aspectFill" />
+          <image class="profile__avatar" :src="profileAvatarUrl" mode="aspectFill" />
           <view class="hero-actions">
-            <button class="profile__edit" @click="changeBackground">换背景</button>
-            <button class="profile__edit profile__edit--dark" @click="editProfile">编辑资料</button>
+            <button class="profile__edit" @click="changeBackground">
+              <app-icon name="edit" size="18rpx" />
+              <text>换背景</text>
+            </button>
+            <button class="profile__edit profile__edit--dark" @click="editProfile">
+              <app-icon name="edit" size="18rpx" />
+              <text>编辑资料</text>
+            </button>
           </view>
         </view>
         <text class="profile__name">{{ profile.nickname }}</text>
@@ -16,19 +22,19 @@
 
         <view class="profile-actions">
           <button class="profile-action" @click="goToFavorites">
-            <text class="profile-action__value">12</text>
+            <text class="profile-action__value">{{ favoriteCount }}</text>
             <text class="profile-action__label">收藏</text>
           </button>
           <button class="profile-action" @click="goToRecentViews">
-            <text class="profile-action__value">8</text>
+            <text class="profile-action__value">{{ recentViewCount }}</text>
             <text class="profile-action__label">浏览</text>
           </button>
           <button class="profile-action" @click="goToMyRecipes">
-            <text class="profile-action__value">5</text>
+            <text class="profile-action__value">{{ myRecipeCount }}</text>
             <text class="profile-action__label">菜谱</text>
           </button>
           <button class="profile-action" @click="goToPurchaseHistory">
-            <text class="profile-action__value">2</text>
+            <text class="profile-action__value">{{ purchaseCount }}</text>
             <text class="profile-action__label">采购</text>
           </button>
         </view>
@@ -56,7 +62,9 @@
               :src="member.avatar"
               mode="aspectFill"
             />
-            <button class="family-add-button" @click.stop="goToFamilyInvite">＋</button>
+            <button class="family-add-button" @click.stop="goToFamilyInvite">
+              <app-icon name="plus" size="24rpx" />
+            </button>
           </view>
         </view>
       </view>
@@ -77,42 +85,55 @@
         </view>
         <switch :checked="familyShareOn" color="#7a8b6f" @change="toggleFamilyShare" />
       </view>
-      <button class="logout-button" @click="logout">退出登录</button>
+      <view class="settings-item settings-item--link" @click="goToSettings">
+        <view>
+          <text class="settings-title">设置</text>
+          <text class="settings-desc">账号、家庭偏好和关于信息</text>
+        </view>
+        <app-icon name="chevron-right" size="26rpx" />
+      </view>
+      <button class="logout-button" @click="logout">
+        <app-icon name="logout" size="20rpx" />
+        <text>退出登录</text>
+      </button>
     </view>
 
     <view v-if="!isLoggedIn" class="guest-card glass-card">
       <view class="guest-header">
-        <image class="guest-avatar" src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=300&q=80" mode="aspectFill" />
+        <image class="guest-avatar" :src="avatarPlaceholderUrl" mode="aspectFill" />
         <text class="guest-title">未登录</text>
         <text class="guest-desc">登录后同步收藏、菜篮子与家庭共享</text>
       </view>
-      <button class="guest-login-button" @click="goToLogin">手机号登录 / 去登录</button>
+      <button class="guest-login-button" @click="goToLogin">
+        <app-icon name="user" size="20rpx" />
+        <text>手机号登录 / 去登录</text>
+      </button>
       <view class="guest-actions">
         <view class="guest-action" @click="goToFavorites">
-          <text class="guest-action__icon">♡</text>
+          <app-icon class="guest-action__icon" name="heart" size="30rpx" />
           <text class="guest-action__label">我的收藏</text>
         </view>
         <view class="guest-action" @click="goToRecentViews">
-          <text class="guest-action__icon">◷</text>
+          <app-icon class="guest-action__icon" name="history" size="30rpx" />
           <text class="guest-action__label">最近浏览</text>
         </view>
         <view class="guest-action" @click="goToMyRecipes">
-          <text class="guest-action__icon">📋</text>
+          <app-icon class="guest-action__icon" name="recipe" size="30rpx" />
           <text class="guest-action__label">我的菜谱</text>
         </view>
         <view class="guest-action" @click="goToPurchaseHistory">
-          <text class="guest-action__icon">📦</text>
+          <app-icon class="guest-action__icon" name="box" size="30rpx" />
           <text class="guest-action__label">采购记录</text>
         </view>
       </view>
       <view class="guest-settings">
-        <view class="guest-setting" @click="goToLogin">
+        <view class="guest-setting" @click="goToSettings">
           <text>账号设置</text>
-          <text class="guest-arrow">›</text>
+          <app-icon name="arrow-right" size="22rpx" />
         </view>
-        <view class="guest-setting">
+        <view class="guest-setting" @click="goToSettings">
           <text>关于我们</text>
-          <text class="guest-arrow">›</text>
+          <app-icon name="arrow-right" size="22rpx" />
         </view>
       </view>
     </view>
@@ -160,12 +181,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { clearAuthUser, loadAuthUser } from '../../services/auth';
-import { getDefaultFamilies, loadActiveFamilyId, loadFamilies } from '../../services/family';
+import { loadBasketItems } from '../../services/basket';
+import { loadActiveFamilyId, loadFamilies } from '../../services/family';
+import { loadMyRecipes } from '../../services/my-recipes';
 import { loadUserProfile } from '../../services/profile';
+import { listMobileFavorites, listMobileViewHistories } from '../../services/public-api';
 import type { FamilyProfile } from '../../types/family';
 import type { UserProfile } from '../../types/profile';
 
@@ -181,15 +206,31 @@ const familyShareOn = ref(false);
 const isBackgroundEditorVisible = ref(false);
 const authUser = ref(loadAuthUser());
 const profile = ref<UserProfile>(loadUserProfile());
-const profileBackgroundUrl = ref('https://images.unsplash.com/photo-1506368249639-73a05d6f6488?auto=format&fit=crop&w=1200&q=80');
+const avatarPlaceholderUrl =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22%3E%3Crect width=%22200%22 height=%22200%22 rx=%22100%22 fill=%22%23E9E2D6%22/%3E%3Ccircle cx=%22100%22 cy=%2278%22 r=%2234%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3Cpath d=%22M42 174c16-38 36-57 58-57s42 19 58 57%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3C/svg%3E';
+const profileBackgroundPlaceholderUrl =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 900 520%22%3E%3Crect width=%22900%22 height=%22520%22 fill=%22%23FFFDFC%22/%3E%3Cpath d=%22M0 338c120-66 235-94 346-84 151 13 240 99 390 86 65-6 119-25 164-58v238H0V338Z%22 fill=%22%23E9E2D6%22/%3E%3Cpath d=%22M98 144c92-48 178-52 258-12 76 39 143 39 202 2%22 fill=%22none%22 stroke=%22%237A8B6F%22 stroke-width=%2224%22 stroke-linecap=%22round%22 opacity=%22.56%22/%3E%3C/svg%3E';
+const profileBackgroundUrl = ref(profileBackgroundPlaceholderUrl);
 const backgroundDraftUrl = ref(profileBackgroundUrl.value);
 const backgroundDraftOffset = ref(0);
 const backgroundSliderValue = ref(50);
-const familyOptions = ref<FamilyProfile[]>(loadFamilies());
+const familyOptions = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
+const favoriteCount = ref(0);
+const recentViewCount = ref(0);
+const myRecipeCount = ref(0);
+const purchaseCount = ref(0);
 const isLoggedIn = computed(() => authUser.value !== null);
+const profileAvatarUrl = computed(() => profile.value.avatarUrl || avatarPlaceholderUrl);
 const currentFamily = computed<FamilyProfile>(() => {
-  return familyOptions.value.find((family) => family.id === activeFamilyId.value) ?? familyOptions.value[0] ?? getDefaultFamilies()[0];
+  return familyOptions.value.find((family) => family.id === activeFamilyId.value) ?? familyOptions.value[0] ?? {
+    id: '',
+    name: '暂未加入家庭',
+    description: '创建或加入家庭后可共享菜篮子',
+    commonRecipes: 0,
+    pendingItems: 0,
+    members: []
+  };
 });
 const familyPreviewMembers = computed(() => currentFamily.value.members.slice(0, 2));
 
@@ -211,8 +252,15 @@ const closeBackgroundEditor = () => {
 };
 
 const chooseBackgroundImage = () => {
-  backgroundDraftUrl.value = 'https://images.unsplash.com/photo-1495195134817-aeb325a55b65?auto=format&fit=crop&w=1200&q=80';
-  uni.showToast({ title: '已选择图片', icon: 'none' });
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: (result) => {
+      backgroundDraftUrl.value = result.tempFilePaths[0] ?? profileBackgroundPlaceholderUrl;
+      uni.showToast({ title: '已选择图片', icon: 'none' });
+    }
+  });
 };
 
 const changeBackgroundOffset = (event: Event) => {
@@ -244,6 +292,10 @@ const goToPurchaseHistory = () => {
   uni.navigateTo({ url: '/pages/purchase-history/index' });
 };
 
+const goToSettings = () => {
+  uni.navigateTo({ url: '/pages/settings/index' });
+};
+
 const toggleNotification = (event: Event) => {
   const detail = event as unknown as { detail?: { value?: boolean } };
   notificationOn.value = Boolean(detail.detail?.value);
@@ -257,7 +309,7 @@ const toggleFamilyShare = (event: Event) => {
 const logout = () => {
   uni.showModal({
     title: '退出登录',
-    content: '退出后将回到未登录状态，本地收藏和记录不会删除。',
+    content: '退出后将回到未登录状态，收藏和记录会继续保留在后端。',
     confirmText: '退出',
     confirmColor: '#7a8b6f',
     success: (result) => {
@@ -280,12 +332,51 @@ const goToFamilyInvite = () => {
   uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(activeFamilyId.value)}` });
 };
 
-onShow(() => {
+const refreshUserStats = async () => {
+  if (!authUser.value?.id) {
+    favoriteCount.value = 0;
+    recentViewCount.value = 0;
+    myRecipeCount.value = 0;
+    purchaseCount.value = 0;
+    return;
+  }
+  const [favorites, recentViews, basketItems, myRecipes] = await Promise.all([
+    listMobileFavorites({ userId: authUser.value.id, page: 1, pageSize: 1 }),
+    listMobileViewHistories({ userId: authUser.value.id, page: 1, pageSize: 1 }),
+    loadBasketItems(),
+    loadMyRecipes()
+  ]);
+  favoriteCount.value = favorites.total;
+  recentViewCount.value = recentViews.total;
+  myRecipeCount.value = myRecipes.length;
+  purchaseCount.value = basketItems.length;
+};
+
+const refreshMinePage = async () => {
   authUser.value = loadAuthUser();
   profile.value = loadUserProfile();
-  familyOptions.value = loadFamilies();
-  activeFamilyId.value = loadActiveFamilyId();
-  });
+  try {
+    if (authUser.value) {
+      familyOptions.value = await loadFamilies();
+      activeFamilyId.value = loadActiveFamilyId();
+      await refreshUserStats();
+    } else {
+      familyOptions.value = [];
+      activeFamilyId.value = '';
+      await refreshUserStats();
+    }
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '我的页面加载失败', icon: 'none' });
+  }
+};
+
+onMounted(() => {
+  void refreshMinePage();
+});
+
+onShow(() => {
+  void refreshMinePage();
+});
 </script>
 
 <style scoped lang="scss">
@@ -348,6 +439,7 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8rpx;
   min-width: 132rpx;
   height: 64rpx;
   margin-top: 2rpx;
@@ -588,6 +680,10 @@ onShow(() => {
 }
 
 .logout-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
   width: 100%;
   height: 82rpx;
   margin-top: 22rpx;
@@ -1027,6 +1123,10 @@ onShow(() => {
 }
 
 .guest-login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
   width: 100%;
   height: 82rpx;
   margin-top: 28rpx;

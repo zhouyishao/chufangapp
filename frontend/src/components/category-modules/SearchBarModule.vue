@@ -1,13 +1,15 @@
 <template>
   <view class="cm-searchbar" v-if="config">
     <view class="cm-searchbar__bar" @tap="emit('tap')">
-      <text class="cm-searchbar__icon" />
+      <app-icon class="cm-searchbar__icon" name="search" size="18px" />
       <text class="cm-searchbar__placeholder">{{ config.placeholder ?? '搜索' }}</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
+import AppIcon from '../app/app-icon.vue';
+
 defineProps<{
   config?: Record<string, unknown> | null;
 }>();
@@ -33,14 +35,8 @@ const emit = defineEmits<{
 }
 
 .cm-searchbar__icon {
-  display: block;
-  width: 32rpx;
-  height: 32rpx;
   margin-right: 16rpx;
-  background: currentColor;
   color: var(--text-placeholder);
-  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
 }
 
 .cm-searchbar__placeholder {

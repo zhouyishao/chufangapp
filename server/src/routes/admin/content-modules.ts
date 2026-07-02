@@ -27,6 +27,13 @@ const upsertSchema = z.object({
   items: z.array(z.object({
     id: z.union([z.string(), z.number()]).transform(String),
     type: z.string().optional().default(''),
+    cover: z.string().trim().max(255).optional(),
+    title: z.string().trim().max(80).optional(),
+    subtitle: z.string().trim().max(160).optional(),
+    buttonText: z.string().trim().max(20).optional(),
+    jumpType: z.string().trim().max(40).optional(),
+    jumpTarget: z.string().trim().max(255).optional(),
+    status: z.enum(moduleStatuses).optional(),
     sortOrder: z.coerce.number().int().min(0).default(0)
   })).optional().default([]),
   categoryId: z.coerce.number().int().nullable().optional(),

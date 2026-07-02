@@ -1,14 +1,18 @@
 <template>
   <view class="app-page family-detail-page">
     <view class="topbar">
-      <button class="nav-button" @tap="goBack">←</button>
-      <button class="nav-button" @tap="goToInvite">＋</button>
+      <button class="nav-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
+      <button class="nav-button" @tap="goToInvite">
+        <app-icon name="plus" size="26rpx" />
+      </button>
     </view>
 
     <view class="title-block" @tap="toggleFamilySelect">
       <view class="title-row">
         <text class="family-title">{{ currentFamily.name }}</text>
-        <text :class="['title-arrow', { 'is-open': isFamilySelectVisible }]">⌄</text>
+        <app-icon :class="['title-arrow', { 'is-open': isFamilySelectVisible }]" name="chevron-down" size="22rpx" />
       </view>
       <text class="family-subtitle">
         {{ currentFamily.members.length }} 位成员 · {{ currentFamily.commonRecipes }} 道常做菜
@@ -29,7 +33,7 @@
               <text class="sheet-item__name">{{ family.name }}</text>
               <text class="sheet-item__desc">{{ family.members.length }} 位成员</text>
             </view>
-            <text v-if="family.id === currentFamily.id" class="sheet-item__check">✓</text>
+            <app-icon v-if="family.id === currentFamily.id" class="sheet-item__check" name="check" size="20rpx" />
           </view>
         </view>
       </view>
@@ -46,19 +50,21 @@
         >
           <image class="cell-avatar" :src="member.avatar" mode="aspectFill" />
           <view class="cell-main">
-            <text class="cell-title">{{ formatMemberTitle(member.name) }}</text>
+            <text class="cell-title">{{ formatMemberTitle(member) }}</text>
             <text class="cell-subtitle">{{ member.role }}</text>
           </view>
-          <text class="cell-arrow">›</text>
+          <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
         </view>
 
         <view class="cell cell--invite" @tap="goToInvite">
-          <view class="cell-icon">＋</view>
+          <view class="cell-icon">
+            <app-icon name="plus" size="22rpx" />
+          </view>
           <view class="cell-main">
             <text class="cell-title">邀请家人</text>
             <text class="cell-subtitle">二维码或链接加入当前家庭</text>
           </view>
-          <text class="cell-arrow">›</text>
+          <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
         </view>
       </view>
     </view>
@@ -70,14 +76,14 @@
           <text class="cell-left">家庭名称</text>
           <view class="cell-right">
             <text class="cell-value">{{ currentFamily.name }}</text>
-            <text class="cell-arrow">›</text>
+            <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
           </view>
         </view>
-        <view class="cell" @tap="openEdit('rules')">
-          <text class="cell-left">家庭规矩</text>
+        <view class="cell" @tap="goToPreferences">
+          <text class="cell-left">家庭偏好</text>
           <view class="cell-right">
             <text class="cell-value">{{ currentFamily.rules || '未设置' }}</text>
-            <text class="cell-arrow">›</text>
+            <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
           </view>
         </view>
       </view>
@@ -117,11 +123,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
+import { loadAuthUser } from '../../services/auth';
 import {
   canCurrentUserLeaveFamily,
-  getDefaultFamilies,
   leaveFamilyAsCurrentUser,
   loadActiveFamilyId,
   loadFamilies,
@@ -132,7 +139,7 @@ import type { FamilyProfile } from '../../types/family';
 
 type EditField = 'name' | 'rules';
 
-const families = ref<FamilyProfile[]>(loadFamilies());
+const families = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
 const isFamilySelectVisible = ref(false);
 const isEditPanelVisible = ref(false);
@@ -140,7 +147,14 @@ const editingField = ref<EditField>('name');
 const editValue = ref('');
 
 const currentFamily = computed<FamilyProfile>(() => {
-  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? getDefaultFamilies()[0];
+  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? {
+    id: '',
+    name: '家庭管理',
+    description: '',
+    commonRecipes: 0,
+    pendingItems: 0,
+    members: []
+  };
 });
 
 const editTitle = computed(() => (editingField.value === 'name' ? '家庭名称' : '家庭规矩'));
@@ -164,8 +178,14 @@ const selectFamily = (familyId: string) => {
   closeFamilySelect();
 };
 
-const formatMemberTitle = (name: string) => {
-  return name === '我' ? `${name}（我）` : name;
+const isCurrentUserMember = (member: { userId?: number; accountId?: string }) => {
+  const currentUser = loadAuthUser();
+  if (!currentUser) return false;
+  return member.userId === currentUser.id || member.accountId === currentUser.phone;
+};
+
+const formatMemberTitle = (member: { name: string; userId?: number; accountId?: string }) => {
+  return isCurrentUserMember(member) ? `${member.name}（我）` : member.name;
 };
 
 const openMember = (memberId: string) => {
@@ -178,6 +198,10 @@ const goToInvite = () => {
   uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(activeFamilyId.value)}` });
 };
 
+const goToPreferences = () => {
+  uni.navigateTo({ url: `/pages/family-preferences/index?familyId=${encodeURIComponent(activeFamilyId.value)}` });
+};
+
 const openEdit = (field: EditField) => {
   editingField.value = field;
   editValue.value = field === 'name' ? currentFamily.value.name : currentFamily.value.rules ?? '';
@@ -188,7 +212,7 @@ const closeEdit = () => {
   isEditPanelVisible.value = false;
 };
 
-const saveEdit = () => {
+const saveEdit = async () => {
   const trimmedValue = editValue.value.trim();
   if (editingField.value === 'name' && !trimmedValue) {
     uni.showToast({ title: '请填写家庭名称', icon: 'none' });
@@ -200,9 +224,26 @@ const saveEdit = () => {
     name: editingField.value === 'name' ? trimmedValue : currentFamily.value.name,
     rules: editingField.value === 'rules' ? trimmedValue : currentFamily.value.rules
   };
-  families.value = updateFamily(nextFamily);
+  families.value = await updateFamily(nextFamily);
   closeEdit();
   uni.showToast({ title: '已保存', icon: 'success' });
+};
+
+const getFamilyIdFromLocation = () => {
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash;
+  const queryText = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+  return new URLSearchParams(queryText).get('id') ?? '';
+};
+
+const refreshFamilyPage = async (familyId = '') => {
+  families.value = await loadFamilies();
+  if (familyId && families.value.some((family) => family.id === familyId)) {
+    activeFamilyId.value = familyId;
+    saveActiveFamilyId(familyId);
+  } else {
+    activeFamilyId.value = loadActiveFamilyId();
+  }
 };
 
 const confirmLeaveFamily = () => {
@@ -216,12 +257,12 @@ const confirmLeaveFamily = () => {
     content: `确认退出「${currentFamily.value.name}」吗？退出后将看不到该家庭的菜篮子和共享菜谱。`,
     confirmText: '退出',
     confirmColor: '#e5735f',
-    success: (result) => {
+    success: async (result) => {
       if (!result.confirm) {
         return;
       }
 
-      families.value = leaveFamilyAsCurrentUser(currentFamily.value.id);
+      families.value = await leaveFamilyAsCurrentUser(currentFamily.value.id);
       activeFamilyId.value = loadActiveFamilyId();
       uni.showToast({ title: '已退出家庭', icon: 'none' });
       uni.navigateBack();
@@ -229,20 +270,19 @@ const confirmLeaveFamily = () => {
   });
 };
 
-onLoad((options) => {
-  families.value = loadFamilies();
+onLoad(async (options) => {
   const familyId = typeof options?.id === 'string' ? options.id : '';
-  if (familyId && families.value.some((family) => family.id === familyId)) {
-    activeFamilyId.value = familyId;
-    saveActiveFamilyId(familyId);
-  } else {
-    activeFamilyId.value = loadActiveFamilyId();
-  }
+  await refreshFamilyPage(familyId);
 });
 
-onShow(() => {
-  families.value = loadFamilies();
-  activeFamilyId.value = loadActiveFamilyId();
+onMounted(() => {
+  void refreshFamilyPage(getFamilyIdFromLocation()).catch((error) => {
+    uni.showToast({ title: error instanceof Error ? error.message : '家庭加载失败', icon: 'none' });
+  });
+});
+
+onShow(async () => {
+  await refreshFamilyPage(getFamilyIdFromLocation());
 });
 </script>
 

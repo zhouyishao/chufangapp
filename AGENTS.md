@@ -67,6 +67,14 @@
 - `docs/codex/coding-rules.md`
 - `docs/codex/checklist.md`
 
+### Headroom 使用规则
+
+- 本机已安装 Headroom CLI：`headroom`。
+- 每次准备执行 shell 命令前，必须先按 `docs/codex/headroom.md` 调用 Headroom 查看/压缩规则。
+- 优先使用 Headroom MCP 工具查看和压缩大输出；当前环境未暴露 MCP 工具时，使用 Headroom CLI 或严格限制命令输出范围。
+- 不要执行 `headroom init codex` 这类全局 Codex provider 注入命令，除非用户明确确认；该命令可能影响 Codex Desktop 会话列表的 provider 过滤。
+- 不要把 `headroom-ai` 加入 `frontend/`、`admin-frontend/`、`server/` 的业务依赖，除非当前任务明确是在业务代码中接入 LLM 压缩 SDK。
+
 ## 5. 开发原则
 
 - 优先保证可运行、正确、可维护。
