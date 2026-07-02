@@ -7,6 +7,7 @@
 | 类型 | 必读文档 | 说明 |
 |---|---|---|
 | 通用任务 | `AGENTS.md`、`docs/codex/coding-rules.md`、`docs/codex/checklist.md` | 修改范围、执行规则、输出要求 |
+| Skill / 工具调度 | `docs/codex/skill-tool-routing.md` | `Headroom`、`Superpowers`、`pm-product-discovery` 的入口、场景和自动调用规则 |
 | 产品任务 | `docs/product/prd.md`、`docs/product/roadmap.md` | 产品目标、范围、阶段 |
 | C 端 UI | `docs/design/ui-rules.md`、`docs/app/page-structure.md`、`docs/app/route-map.md` | 移动端页面、视觉、路由 |
 | 后台页面 | `docs/admin/menu-structure.md`、`docs/admin/page-rules.md` | 菜单、列表、表单、弹窗、分页 |

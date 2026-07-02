@@ -30,6 +30,8 @@ unpackage/
 # Codex / agent artifacts
 .codex/
 .claude/
+.playwright-cli/
+scratch/
 
 # Python caches
 __pycache__/
