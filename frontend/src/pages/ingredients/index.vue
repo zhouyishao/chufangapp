@@ -3,7 +3,7 @@
     <!-- 搜索框 -->
     <view class="category-search" v-if="searchConfig">
       <view class="category-search__bar" @tap="handleSearchTap">
-        <text class="category-search__icon" />
+        <app-icon class="category-search__icon" name="search" size="18px" />
         <text class="category-search__placeholder">{{ searchConfig.placeholder ?? '搜索菜谱、食材、水果、调料、酒水' }}</text>
       </view>
     </view>
@@ -146,6 +146,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
 import {
@@ -350,9 +351,15 @@ const handleBannerTap = (banner: TapTarget) => {
     uni.navigateTo({ url: `/pages/recipe-detail/index?id=${targetId}` });
   } else if ((targetType === 'INGREDIENT' || banner.type === 'ingredient') && targetId) {
     uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${targetId}` });
+  } else if ((targetType === 'BEVERAGE' || banner.type === 'beverage') && targetId) {
+    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${targetId}` });
   } else if ((targetType === 'CONTENT_DETAIL') && targetId) {
     const type = toText(banner.type);
-    uni.navigateTo({ url: type === 'recipe' ? `/pages/recipe-detail/index?id=${targetId}` : `/pages/ingredient-detail/index?id=${targetId}` });
+    if (type === 'beverage') {
+      uni.navigateTo({ url: `/pages/beverage-detail/index?id=${targetId}` });
+    } else {
+      uni.navigateTo({ url: type === 'recipe' ? `/pages/recipe-detail/index?id=${targetId}` : `/pages/ingredient-detail/index?id=${targetId}` });
+    }
   } else if ((targetType === 'CATEGORY' || targetType === 'CATEGORY_PAGE') && targetId) {
     const categoryId = toNullableNumber(targetId);
     const item = filterItems.value.find((filter) => filter.categoryId === categoryId);
@@ -396,28 +403,22 @@ onPullDownRefresh(() => {
 
 // ====== 搜索框 ======
 .category-search {
-  padding: 20rpx 32rpx 12rpx;
+  padding: 36rpx 24rpx 16rpx;
 }
 
 .category-search__bar {
   display: flex;
   align-items: center;
-  height: 80rpx;
-  padding: 0 28rpx;
-  border-radius: 40rpx;
-  background: var(--app-surface-strong);
-  border: 1px solid var(--app-border);
+  height: 92rpx;
+  padding: 0 36rpx;
+  border-radius: 46rpx;
+  background: rgba(255, 253, 252, 0.82);
+  border: 1px solid rgba(183, 174, 161, 0.24);
 }
 
 .category-search__icon {
-  display: block;
-  width: 32rpx;
-  height: 32rpx;
   margin-right: 16rpx;
-  background: currentColor;
   color: var(--text-placeholder);
-  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
 }
 
 .category-search__placeholder {
@@ -428,7 +429,7 @@ onPullDownRefresh(() => {
 
 // ====== 顶部导航 ======
 .category-topnav {
-  padding: 0 32rpx;
+  padding: 0 24rpx;
 }
 
 .category-topnav__scroll {
@@ -438,10 +439,10 @@ onPullDownRefresh(() => {
 .category-topnav__row {
   display: flex;
   align-items: center;
-  gap: 40rpx;
+  gap: 36rpx;
   width: max-content;
   min-width: 100%;
-  padding: 8rpx 0 12rpx;
+  padding: 8rpx 0 16rpx;
 }
 
 .category-topnav__tab {
@@ -495,7 +496,7 @@ onPullDownRefresh(() => {
 
 // ====== 分类筛选 ======
 .category-filter {
-  padding: 16rpx 32rpx;
+  padding: 14rpx 24rpx 20rpx;
 }
 
 .category-filter__scroll {
@@ -539,7 +540,7 @@ onPullDownRefresh(() => {
 }
 
 .category-section__header {
-  padding: 24rpx 32rpx 4rpx;
+  padding: 24rpx 24rpx 4rpx;
 }
 
 .category-section__title {
@@ -551,7 +552,7 @@ onPullDownRefresh(() => {
 
 // ====== 大矩形图片模块 ======
 .category-banner {
-  margin: 20rpx 32rpx 24rpx;
+  margin: 20rpx 24rpx 24rpx;
   position: relative;
 }
 
@@ -653,7 +654,7 @@ onPullDownRefresh(() => {
 
 // ====== 四宫格模块 ======
 .category-grid {
-  padding: 8rpx 32rpx 32rpx;
+  padding: 8rpx 24rpx 32rpx;
 }
 
 .category-grid__header {

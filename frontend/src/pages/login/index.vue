@@ -1,7 +1,9 @@
 <template>
   <view class="auth-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
     </view>
 
     <view class="hero-card glass-card">
@@ -26,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import AppIcon from '../../components/app/app-icon.vue';
 const benefits = [
   { title: '家庭共享', desc: '和家人同步菜篮子与采购记录' },
   { title: '价格记录', desc: '记录食材价格，查看走势' },

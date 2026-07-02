@@ -1,14 +1,27 @@
 <template>
   <view class="app-page my-recipe-detail-page">
-    <view class="header-image">
+    <view v-if="loading" class="empty-card glass-card">
+      <text class="empty-card__title">正在加载食谱</text>
+      <text class="empty-card__desc">正在从后端读取你的原创菜谱。</text>
+    </view>
+
+    <view v-else-if="error" class="empty-card glass-card">
+      <text class="empty-card__title">加载失败</text>
+      <text class="empty-card__desc">{{ error }}</text>
+      <button class="empty-card__button" @tap="loadRecipe">重试</button>
+    </view>
+
+    <view v-else-if="recipe" class="header-image">
       <image class="header-image__bg" :src="recipe.image" mode="aspectFill" />
       <view class="header-overlay">
-        <button class="round-button" @tap="goBack">←</button>
+        <button class="round-button" @tap="goBack">
+          <app-icon name="arrow-left" size="26rpx" />
+        </button>
         <button class="round-button" @tap="editRecipe">编辑</button>
       </view>
     </view>
 
-    <view class="content">
+    <view v-if="recipe" class="content">
       <view class="recipe-title-card glass-card">
         <view>
           <view class="title-row">
@@ -76,16 +89,52 @@
         </view>
       </view>
     </view>
+    <view v-else class="empty-card glass-card">
+      <text class="empty-card__title">未找到食谱</text>
+      <text class="empty-card__desc">当前没有可展示的原创食谱记录。</text>
+      <button class="empty-card__button" @tap="goBack">返回</button>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onMounted, ref } from 'vue';
+import { onLoad, onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import { findMyRecipeById } from '../../services/my-recipes';
 import type { MyRecipe } from '../../services/my-recipes';
 
-const recipe = ref<MyRecipe>(findMyRecipeById('my-1'));
+const recipe = ref<MyRecipe | null>(null);
+const loading = ref(true);
+const error = ref('');
+
+const readRecipeId = (query?: Record<string, string | undefined>) => {
+  const fromQuery = query?.id?.trim();
+  if (fromQuery) return fromQuery;
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash;
+  const queryText = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+  return new URLSearchParams(queryText).get('id')?.trim() ?? '';
+};
+
+const loadRecipe = async (query?: Record<string, string | undefined>) => {
+  const nextRecipeId = readRecipeId(query);
+  if (!nextRecipeId) {
+    recipe.value = null;
+    loading.value = false;
+    return;
+  }
+  loading.value = true;
+  error.value = '';
+  try {
+    recipe.value = await findMyRecipeById(nextRecipeId);
+  } catch (err) {
+    recipe.value = null;
+    error.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    loading.value = false;
+  }
+};
 
 const goBack = () => {
   uni.navigateBack();
@@ -96,7 +145,16 @@ const editRecipe = () => {
 };
 
 onLoad((query?: Record<string, string | undefined>) => {
-  recipe.value = findMyRecipeById(query?.id ?? 'my-1');
+  void loadRecipe(query);
+});
+
+onShow(() => {
+  void loadRecipe();
+});
+
+onMounted(() => {
+  if (recipe.value) return;
+  void loadRecipe();
 });
 </script>
 
@@ -104,6 +162,46 @@ onLoad((query?: Record<string, string | undefined>) => {
 .my-recipe-detail-page {
   min-height: 100vh;
   padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+}
+
+.empty-card {
+  display: grid;
+  gap: 16rpx;
+  margin-top: calc(var(--status-bar-height) + 40rpx);
+  padding: 34rpx;
+}
+
+.empty-card__title,
+.empty-card__desc {
+  display: block;
+}
+
+.empty-card__title {
+  color: var(--app-text);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+}
+
+.empty-card__desc {
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.empty-card__button {
+  width: 180rpx;
+  height: 72rpx;
+  margin: 8rpx 0 0;
+  border: 0;
+  border-radius: var(--app-radius-button);
+  background: var(--app-primary);
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.empty-card__button::after {
+  border: 0;
 }
 
 .header-image {

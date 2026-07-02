@@ -2,7 +2,7 @@
   <view class="app-page basket-page">
     <view class="family-selector" @tap="toggleFamilySelector">
       <text class="family-selector__name">{{ basketScopeName }}</text>
-      <text :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]">⌄</text>
+      <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
     </view>
 
     <view v-if="isFamilySelectorVisible" class="family-mask" @tap="closeFamilySelector">
@@ -14,14 +14,14 @@
           @tap="selectFamilyScope(family.id)"
         >
           <text class="family-option__name">{{ family.name }}</text>
-          <text v-if="family.id === activeFamilyId" class="family-option__check">✓</text>
+          <app-icon v-if="family.id === activeFamilyId" class="family-option__check" name="check" size="20rpx" />
         </view>
 
         <view class="family-sheet__divider" />
 
         <view class="family-manage-row" @tap="goToFamilyManage">
           <text class="family-manage-row__name">家庭管理</text>
-          <text class="family-manage-row__icon">⌬</text>
+          <app-icon class="family-manage-row__icon" name="arrow-right" size="22rpx" />
         </view>
       </view>
     </view>
@@ -73,7 +73,7 @@
                 <text class="recipe-title">{{ group.recipeName }}</text>
                 <text class="recipe-subtitle">{{ group.checkedCount }}/{{ group.items.length }} 已采购</text>
               </view>
-              <text :class="['recipe-arrow', { 'is-expanded': isRecipeExpanded(group.recipeId) }]">›</text>
+              <app-icon :class="['recipe-arrow', { 'is-expanded': isRecipeExpanded(group.recipeId) }]" name="chevron-right" size="22rpx" />
             </view>
             <view class="swipe-remove recipe-remove" @tap="removeRecipeGroup(group.recipeId)">删除</view>
           </view>
@@ -88,7 +88,7 @@
             >
               <view :class="['ingredient-row', { 'is-open': openedItemId === item.id }]">
                 <view class="ingredient-main" @tap="toggleItem(item.id)">
-                  <view :class="['check', { 'is-checked': item.checked }]">{{ item.checked ? '✓' : '' }}</view>
+                  <app-icon :class="['check', { 'is-checked': item.checked }]" :name="item.checked ? 'check' : 'circle'" size="18rpx" />
                   <text :class="['ingredient-name', { 'is-checked': item.checked }]">{{ item.name }}</text>
                 </view>
                 <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ getBasketDisplayText(item) }}</text>
@@ -110,7 +110,7 @@
           >
             <view :class="['ingredient-row', { 'is-open': openedItemId === getMergedKey(item.name) }]">
               <view class="ingredient-main" @tap="toggleMergedItem(item.itemIds)">
-                <view :class="['check', { 'is-checked': item.checked }]">{{ item.checked ? '✓' : '' }}</view>
+                <app-icon :class="['check', { 'is-checked': item.checked }]" :name="item.checked ? 'check' : 'circle'" size="18rpx" />
                 <text :class="['ingredient-name', { 'is-checked': item.checked }]">{{ item.name }}</text>
               </view>
               <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ item.amountText }}</text>
@@ -184,10 +184,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
-import { loadBasketItems, saveBasketItems } from '../../services/basket';
+import { loadBasketItems, removeBasketItem, updateBasketItemChecked } from '../../services/basket';
 import type { BasketItem } from '../../services/basket';
-import { getDefaultFamilies, loadActiveFamilyId, loadFamilies, saveActiveFamilyId } from '../../services/family';
+import { loadActiveFamilyId, loadFamilies, saveActiveFamilyId } from '../../services/family';
 import type { FamilyProfile } from '../../types/family';
 import { addPriceRecords } from '../../services/price';
 
@@ -209,6 +210,7 @@ interface MergedBasketItem {
 
 interface PriceInputItem {
   id: string;
+  ingredientId: number;
   name: string;
   unit: string;
   priceText: string;
@@ -221,8 +223,8 @@ const tabs = [
   { id: 'mine', label: '我的', active: false }
 ];
 
-const items = ref<BasketItem[]>(loadBasketItems());
-const families = ref<FamilyProfile[]>(loadFamilies());
+const items = ref<BasketItem[]>([]);
+const families = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
 
 const viewMode = ref<BasketViewMode>('merged');
@@ -249,7 +251,14 @@ const boardDescription = computed(() => {
   return '按菜谱整理采购项，单独食材不在这里显示';
 });
 const activeFamily = computed<FamilyProfile>(() => {
-  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? getDefaultFamilies()[0];
+  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? {
+    id: '',
+    name: '我的菜篮子',
+    description: '',
+    commonRecipes: 0,
+    pendingItems: 0,
+    members: []
+  };
 });
 const basketScopeName = computed(() => activeFamily.value.name);
 
@@ -320,10 +329,10 @@ const closeFamilySelector = () => {
   isFamilySelectorVisible.value = false;
 };
 
-const selectFamilyScope = (familyId: string) => {
+const selectFamilyScope = async (familyId: string) => {
   activeFamilyId.value = familyId;
   saveActiveFamilyId(familyId);
-  items.value = loadBasketItems(familyId);
+  items.value = await loadBasketItems(familyId);
   openedItemId.value = '';
   expandedRecipeIds.value = [];
   closeFamilySelector();
@@ -346,7 +355,9 @@ const toggleRecipeExpanded = (recipeId: string) => {
   expandedRecipeIds.value = [...expandedRecipeIds.value, recipeId];
 };
 
-const toggleItem = (id: string) => {
+const toggleItem = async (id: string) => {
+  const target = items.value.find((item) => item.id === id);
+  if (!target) return;
   items.value = items.value.map((item) => {
     if (item.id !== id) {
       return item;
@@ -354,10 +365,10 @@ const toggleItem = (id: string) => {
 
     return { ...item, checked: !item.checked };
   });
-  persistItems();
+  await updateBasketItemChecked(id, !target.checked);
 };
 
-const toggleMergedItem = (itemIds: string[]) => {
+const toggleMergedItem = async (itemIds: string[]) => {
   const targetItems = items.value.filter((item) => itemIds.includes(item.id));
   const nextChecked = !targetItems.every((item) => item.checked);
 
@@ -367,46 +378,49 @@ const toggleMergedItem = (itemIds: string[]) => {
     }
     return { ...item, checked: nextChecked };
   });
-  persistItems();
+  await Promise.all(itemIds.map((id) => updateBasketItemChecked(id, nextChecked)));
 };
 
-const removeItem = (id: string) => {
+const removeItem = async (id: string) => {
   items.value = items.value.filter((item) => item.id !== id);
   if (openedItemId.value === id) {
     openedItemId.value = '';
   }
-  persistItems();
+  await removeBasketItem(id);
 };
 
-const removeMergedItem = (itemIds: string[]) => {
+const removeMergedItem = async (itemIds: string[]) => {
   items.value = items.value.filter((item) => !itemIds.includes(item.id));
   openedItemId.value = '';
-  persistItems();
+  await Promise.all(itemIds.map(removeBasketItem));
 };
 
-const removeRecipeGroup = (recipeId: string) => {
+const removeRecipeGroup = async (recipeId: string) => {
+  const removedIds = items.value.filter((item) => item.recipeId === recipeId).map((item) => item.id);
   items.value = items.value.filter((item) => item.recipeId !== recipeId);
   expandedRecipeIds.value = expandedRecipeIds.value.filter((id) => id !== recipeId);
   openedItemId.value = '';
-  persistItems();
+  await Promise.all(removedIds.map(removeBasketItem));
 };
 
-const clearChecked = () => {
+const clearChecked = async () => {
+  const checkedIds = items.value.filter((item) => item.checked).map((item) => item.id);
   items.value = items.value.filter((item) => !item.checked);
-  persistItems();
+  await Promise.all(checkedIds.map(removeBasketItem));
 };
 
-const selectAll = () => {
+const selectAll = async () => {
   const nextChecked = !allChecked.value;
   items.value = items.value.map((item) => ({ ...item, checked: nextChecked }));
-  persistItems();
+  await Promise.all(items.value.map((item) => updateBasketItemChecked(item.id, nextChecked)));
 };
 
-const completePurchase = () => {
+const completePurchase = async () => {
   const purchasableItems = getUniquePurchasableItems();
   if (purchasableItems.length) {
     priceInputs.value = purchasableItems.map((item) => ({
       id: item.id,
+      ingredientId: item.ingredientId ? Number(item.ingredientId) : 0,
       name: item.name,
       unit: getPriceUnit(item),
       priceText: ''
@@ -416,7 +430,7 @@ const completePurchase = () => {
   }
 
   items.value = items.value.map((item) => ({ ...item, checked: true }));
-  persistItems();
+  await awaitPersistItems();
   uni.showToast({ title: '已完成采购', icon: 'success' });
 };
 
@@ -440,11 +454,12 @@ const closePricePanel = () => {
   isPricePanelVisible.value = false;
 };
 
-const savePurchasePrices = () => {
+const savePurchasePrices = async () => {
   const today = new Date().toISOString().slice(0, 10);
   const records = priceInputs.value
     .map((item) => ({
       id: `${item.id}-${Date.now()}`,
+      ingredientId: item.ingredientId,
       ingredientName: item.name,
       price: Number(item.priceText),
       unit: item.unit,
@@ -453,11 +468,11 @@ const savePurchasePrices = () => {
     .filter((record) => Number.isFinite(record.price) && record.price > 0);
 
   if (records.length) {
-    addPriceRecords(records);
+    await addPriceRecords(records);
   }
 
   items.value = items.value.map((item) => ({ ...item, checked: true }));
-  persistItems();
+  await awaitPersistItems();
   closePricePanel();
   uni.showToast({ title: records.length ? '价格已记录' : '已完成采购', icon: 'success' });
 };
@@ -491,14 +506,18 @@ const handleTouchEnd = (event: TouchEvent, id: string) => {
   }
 };
 
-const persistItems = () => {
-  saveBasketItems(items.value, activeFamilyId.value);
+const awaitPersistItems = async () => {
+  await Promise.all(items.value.map((item) => updateBasketItemChecked(item.id, item.checked)));
 };
 
-onShow(() => {
-  families.value = loadFamilies();
-  activeFamilyId.value = loadActiveFamilyId();
-  items.value = loadBasketItems(activeFamilyId.value);
+onShow(async () => {
+  try {
+    families.value = await loadFamilies();
+    activeFamilyId.value = loadActiveFamilyId() || families.value[0]?.id || '';
+    items.value = await loadBasketItems(activeFamilyId.value);
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '菜篮子加载失败', icon: 'none' });
+  }
 });
 </script>
 

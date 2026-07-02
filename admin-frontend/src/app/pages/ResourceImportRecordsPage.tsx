@@ -7,7 +7,7 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
-import { listImportBatches, getImportBatchesStats } from '../api';
+import { listImportBatches, getImportBatchesStats, retryFailedImport } from '../api';
 import type { ResourceImportBatchItem } from '../types';
 
 const statusOptions = [
@@ -32,12 +32,21 @@ const statusLabels: Record<ResourceImportBatchItem['status'], string> = {
   FAILED: '失败'
 };
 
+const resourceTypeLabels: Record<string, string> = {
+  RECIPE: '菜谱',
+  INGREDIENT: '食材',
+  FRUIT: '水果',
+  SEASONING: '调料',
+  BEVERAGE: '酒水'
+};
+
 export const ResourceImportRecordsPage = () => {
   const navigate = useNavigate();
   const [batches, setBatches] = useState<ResourceImportBatchItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [retryLoading, setRetryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -122,6 +131,24 @@ export const ResourceImportRecordsPage = () => {
     setDrawerOpen(true);
   };
 
+  const handleRetry = async () => {
+    if (!detailBatch) return;
+    setRetryLoading(true);
+    setError(null);
+    try {
+      const res = await retryFailedImport(detailBatch.id);
+      setNotice(`重试成功！成功重新导入 ${res.successCount} 项，失败 ${res.failCount} 项`);
+      await fetchBatches();
+      await fetchStats();
+      setDetailBatch(res.batch);
+      setTimeout(() => setNotice(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '重新导入重试失败');
+    } finally {
+      setRetryLoading(false);
+    }
+  };
+
   const columns: DataTableColumn<ResourceImportBatchItem>[] = [
     {
       key: 'id',
@@ -134,6 +161,15 @@ export const ResourceImportRecordsPage = () => {
       render: (batch) => (
         <span className="font-semibold text-[#2f2f2f] truncate max-w-[240px] block" title={batch.fileName}>
           {batch.fileName}
+        </span>
+      )
+    },
+    {
+      key: 'importType',
+      title: '导入类型',
+      render: (batch) => (
+        <span className="inline-flex items-center rounded-md bg-zinc-50 border border-zinc-150 px-2 py-0.5 text-xs font-semibold text-zinc-600">
+          {resourceTypeLabels[batch.importType] || batch.importType}
         </span>
       )
     },
@@ -164,18 +200,18 @@ export const ResourceImportRecordsPage = () => {
       render: (batch) => <span className="font-semibold text-emerald-600">{batch.successCount}</span>
     },
     {
-      key: 'failCount',
+      key: 'failedCount',
       title: '失败数',
       render: (batch) => (
-        <span className={batch.failCount > 0 ? 'font-semibold text-red-500' : 'text-zinc-400'}>
-          {batch.failCount}
+        <span className={batch.failedCount > 0 ? 'font-semibold text-red-500' : 'text-zinc-400'}>
+          {batch.failedCount}
         </span>
       )
     },
     {
-      key: 'operator',
+      key: 'createdBy',
       title: '操作人',
-      render: (batch) => <span className="text-[#2f2f2f] text-sm">{batch.operator}</span>
+      render: (batch) => <span className="text-[#2f2f2f] text-sm">{batch.createdBy}</span>
     },
     {
       key: 'createdAt',
@@ -351,12 +387,16 @@ export const ResourceImportRecordsPage = () => {
                   <span className="font-semibold text-zinc-800 break-all">{detailBatch.fileName}</span>
                 </div>
                 <div>
+                  <span className="text-zinc-400 block mb-0.5">导入类型</span>
+                  <span className="font-semibold text-zinc-800">{resourceTypeLabels[detailBatch.importType] || detailBatch.importType}</span>
+                </div>
+                <div>
                   <span className="text-zinc-400 block mb-0.5">导入状态</span>
                   <StatusTag label={statusLabels[detailBatch.status]} tone={statusTone[detailBatch.status]} />
                 </div>
                 <div>
                   <span className="text-zinc-400 block mb-0.5">操作人</span>
-                  <span className="font-semibold text-zinc-800">{detailBatch.operator}</span>
+                  <span className="font-semibold text-zinc-800">{detailBatch.createdBy}</span>
                 </div>
                 <div>
                   <span className="text-zinc-400 block mb-0.5">总数据项数</span>
@@ -368,9 +408,9 @@ export const ResourceImportRecordsPage = () => {
                 </div>
                 <div>
                   <span className="text-zinc-400 block mb-0.5">写入失败数</span>
-                  <span className="font-semibold text-red-500">{detailBatch.failCount} 项</span>
+                  <span className="font-semibold text-red-500">{detailBatch.failedCount} 项</span>
                 </div>
-                <div>
+                <div className="col-span-2">
                   <span className="text-zinc-400 block mb-0.5">导入时间</span>
                   <span className="font-semibold text-zinc-800 text-xs">
                     {new Date(detailBatch.createdAt).toLocaleString()}
@@ -389,19 +429,30 @@ export const ResourceImportRecordsPage = () => {
               </div>
             )}
 
-            <div className="flex items-center gap-3 pt-4 border-t border-[#f1ece4]">
-              <Button
-                className="flex-1 bg-[#7a8b6f] hover:bg-[#6d7f63] h-11"
-                onClick={() => {
-                  setDrawerOpen(false);
-                  navigate(`/resource-management/access-center?batchId=${detailBatch.id}`);
-                }}
-              >
-                🔍 查看当前批次明细列表
-              </Button>
+            <div className="flex flex-col gap-2 pt-4 border-t border-[#f1ece4]">
+              <div className="flex gap-2">
+                {detailBatch.failedCount > 0 && (
+                  <Button
+                    className="flex-1 bg-[#c27b48] hover:bg-[#ad6c3e] h-11"
+                    disabled={retryLoading}
+                    onClick={handleRetry}
+                  >
+                    {retryLoading ? '正在重新导入...' : '🔄 重新导入失败项'}
+                  </Button>
+                )}
+                <Button
+                  className="flex-1 bg-[#7a8b6f] hover:bg-[#6d7f63] h-11"
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    navigate(`/resource-management/access-center?batchId=${detailBatch.id}`);
+                  }}
+                >
+                  🔍 查看批次明细
+                </Button>
+              </div>
               <Button
                 variant="ghost"
-                className="px-6 h-11"
+                className="w-full h-11"
                 onClick={() => setDrawerOpen(false)}
               >
                 关闭

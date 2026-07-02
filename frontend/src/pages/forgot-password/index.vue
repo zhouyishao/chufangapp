@@ -1,7 +1,9 @@
 <template>
   <view class="auth-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <text class="top-title">找回密码</text>
     </view>
 
@@ -45,6 +47,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import AppIcon from '../../components/app/app-icon.vue';
 import { isValidPassword, isValidPhone, maskPhone, resetAuthPassword } from '../../services/auth';
 
 type ResetStep = 'phone' | 'code' | 'password';

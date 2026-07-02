@@ -2,7 +2,7 @@
   <view class="app-page recipe-create-page">
     <view class="topbar glass-card">
       <button class="icon-button" @tap="goBack">
-        <text>←</text>
+        <app-icon name="arrow-left" size="26rpx" />
       </button>
       <view>
         <text class="eyebrow">传菜谱</text>
@@ -14,7 +14,7 @@
     <view class="cover-card">
       <image v-if="form.image" class="cover-image" :src="form.image" mode="aspectFill" />
       <view v-else class="cover-placeholder">
-        <text class="cover-icon">{{ form.coverType === 'video' ? '▶' : '＋' }}</text>
+        <app-icon class="cover-icon" :name="form.coverType === 'video' ? 'play' : 'plus'" size="34rpx" />
         <text class="cover-title">{{ form.coverType === 'video' ? '已添加成品视频' : '添加成品图或视频' }}</text>
         <text class="cover-desc">突出完成状态</text>
       </view>
@@ -69,10 +69,15 @@
         <view v-for="(ingredient, index) in ingredients" :key="ingredient.id" class="ingredient-row">
           <input v-model="ingredient.name" class="ingredient-name" placeholder="食材" />
           <input v-model="ingredient.amount" class="ingredient-amount" placeholder="用量" />
-          <button class="row-delete" @tap="removeIngredient(index)">×</button>
+          <button class="row-delete" @tap="removeIngredient(index)">
+            <app-icon name="close" size="20rpx" />
+          </button>
         </view>
       </view>
-      <button class="add-row-button" @tap="addIngredient">＋ 添加用料</button>
+      <button class="add-row-button" @tap="addIngredient">
+        <app-icon name="plus" size="22rpx" />
+        <text>添加用料</text>
+      </button>
     </view>
 
     <view class="form-section glass-card">
@@ -99,26 +104,35 @@
           </view>
         </view>
       </view>
-      <button class="add-row-button" @tap="addStep">＋ 添加步骤</button>
+      <button class="add-row-button" @tap="addStep">
+        <app-icon name="plus" size="22rpx" />
+        <text>添加步骤</text>
+      </button>
     </view>
 
     <view class="form-section glass-card">
       <view class="section-head">
         <view>
           <text class="section-title">发布设置</text>
-          <text class="section-desc">当前 MVP 先保存到本地食谱库</text>
+        <text class="section-desc">保存后会写入后端我的食谱库</text>
         </view>
       </view>
       <view class="setting-row">
         <text class="setting-label">分类</text>
         <picker :range="categoryOptions" @change="changeCategory">
-          <view class="setting-value">{{ form.category }} ›</view>
+          <view class="setting-value">
+            <text>{{ form.category }}</text>
+            <app-icon name="chevron-right" size="22rpx" />
+          </view>
         </picker>
       </view>
       <view class="setting-row">
         <text class="setting-label">可见范围</text>
         <picker :range="visibilityOptions" @change="changeVisibility">
-          <view class="setting-value">{{ form.visibility }} ›</view>
+          <view class="setting-value">
+            <text>{{ form.visibility }}</text>
+            <app-icon name="chevron-right" size="22rpx" />
+          </view>
         </picker>
       </view>
       <view class="note-box">
@@ -135,7 +149,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
+import AppIcon from '../../components/app/app-icon.vue';
+import { saveMyRecipe } from '../../services/my-recipes';
+import { getHome } from '../../services/public-api';
 
 interface RecipeCreateForm {
   name: string;
@@ -164,7 +181,7 @@ interface StepRow {
 }
 
 const difficultyOptions = ['简单', '中等', '进阶'];
-const categoryOptions = ['家常菜', '快手菜', '汤类', '早餐', '减脂', '私房菜'];
+const categoryOptions = ref<string[]>([]);
 const visibilityOptions = ['仅自己可见', '家庭可见'];
 
 const form = reactive<RecipeCreateForm>({
@@ -175,7 +192,7 @@ const form = reactive<RecipeCreateForm>({
   flavor: '',
   image: '',
   coverType: '',
-  category: '私房菜',
+  category: '',
   visibility: '仅自己可见',
   notes: ''
 });
@@ -196,15 +213,27 @@ const goBack = () => {
 };
 
 const chooseCoverImage = () => {
-  form.image = 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80';
-  form.coverType = 'image';
-  uni.showToast({ title: '已添加封面图', icon: 'none' });
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: (result) => {
+      form.image = result.tempFilePaths[0] ?? '';
+      form.coverType = 'image';
+      uni.showToast({ title: '已添加封面图', icon: 'none' });
+    }
+  });
 };
 
 const chooseCoverVideo = () => {
-  form.image = '';
-  form.coverType = 'video';
-  uni.showToast({ title: '已添加成品视频', icon: 'none' });
+  uni.chooseVideo({
+    sourceType: ['album', 'camera'],
+    success: () => {
+      form.image = '';
+      form.coverType = 'video';
+      uni.showToast({ title: '已添加成品视频', icon: 'none' });
+    }
+  });
 };
 
 const addIngredient = () => {
@@ -234,13 +263,40 @@ const removeStep = (index: number) => {
 };
 
 const setStepImage = (index: number) => {
-  steps.value[index].image = '已添加图片';
-  uni.showToast({ title: '步骤图已添加', icon: 'none' });
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: (result) => {
+      steps.value[index].image = result.tempFilePaths[0] ?? '';
+      uni.showToast({ title: '步骤图已添加', icon: 'none' });
+    }
+  });
 };
 
 const setStepVideo = (index: number) => {
-  steps.value[index].video = '已添加视频';
-  uni.showToast({ title: '步骤视频已添加', icon: 'none' });
+  uni.chooseVideo({
+    sourceType: ['album', 'camera'],
+    success: () => {
+      steps.value[index].video = 'local-video';
+      uni.showToast({ title: '步骤视频已添加', icon: 'none' });
+    }
+  });
+};
+
+const loadCategoryOptions = async () => {
+  try {
+    const home = await getHome();
+    const categories = home.recipeCategories.map((item) => item.name).filter(Boolean);
+    if (categories.length) {
+      categoryOptions.value = categories;
+      if (!categories.includes(form.category)) {
+        form.category = categories[0];
+      }
+    }
+  } catch {
+    categoryOptions.value = [];
+  }
 };
 
 const changeDifficulty = (event: Event) => {
@@ -250,7 +306,7 @@ const changeDifficulty = (event: Event) => {
 
 const changeCategory = (event: Event) => {
   const detail = event as unknown as { detail?: { value?: number } };
-  form.category = categoryOptions[detail.detail?.value ?? 0];
+  form.category = categoryOptions.value[detail.detail?.value ?? 0];
 };
 
 const changeVisibility = (event: Event) => {
@@ -277,8 +333,43 @@ const validateRequired = () => {
   return true;
 };
 
-const saveDraft = () => {
-  uni.showToast({ title: '草稿已保存', icon: 'success' });
+const buildPayload = (isDraft: boolean) => ({
+  title: form.name.trim(),
+  subtitle: form.description.trim() || null,
+  cover: form.coverType === 'image' ? form.image || null : null,
+  description: form.description.trim() || null,
+  duration: form.duration.trim() || null,
+  difficulty: form.difficulty.trim() || null,
+  flavor: form.flavor.trim() || null,
+  category: form.category.trim() || null,
+  visibility: form.visibility.trim() || null,
+  notes: form.notes.trim() || null,
+  isDraft,
+  ingredients: ingredients.value
+    .map((ingredient, index) => ({ sortIndex: index + 1, name: ingredient.name.trim(), amount: ingredient.amount.trim() || null }))
+    .filter((ingredient) => ingredient.name),
+  steps: steps.value
+    .map((step, index) => ({
+      sortIndex: index + 1,
+      title: `步骤 ${index + 1}`,
+      description: step.content.trim(),
+      image: step.image || null,
+      video: step.video || null
+    }))
+    .filter((step) => step.description)
+});
+
+const saveDraft = async () => {
+  if (!validateRequired()) return;
+  try {
+    await saveMyRecipe(buildPayload(true));
+    uni.showToast({ title: '草稿已保存', icon: 'success' });
+    setTimeout(() => {
+      uni.navigateBack();
+    }, 500);
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' });
+  }
 };
 
 const previewRecipe = () => {
@@ -286,19 +377,28 @@ const previewRecipe = () => {
     return;
   }
 
-  uni.showToast({ title: '预览功能待接入', icon: 'none' });
+  uni.showToast({ title: '请保存后查看食谱详情', icon: 'none' });
 };
 
-const saveRecipe = () => {
+const saveRecipe = async () => {
   if (!validateRequired()) {
     return;
   }
 
-  uni.showToast({ title: '食谱已保存', icon: 'success' });
-  setTimeout(() => {
-    uni.navigateBack();
-  }, 500);
+  try {
+    await saveMyRecipe(buildPayload(false));
+    uni.showToast({ title: '食谱已保存', icon: 'success' });
+    setTimeout(() => {
+      uni.navigateBack();
+    }, 500);
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' });
+  }
 };
+
+onMounted(() => {
+  void loadCategoryOptions();
+});
 </script>
 
 <style scoped lang="scss">

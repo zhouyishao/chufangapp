@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   Ingredient,
   IngredientCategory,
+  AdminUserActivityItem,
   AdminUserListItem,
   AdminResourceItem,
   LoginResult,
@@ -223,6 +224,34 @@ export const setUserStatus = async (id: string | number, status: AdminUserListIt
     method: 'PATCH',
     body: JSON.stringify({ status })
   });
+};
+
+export const listUserFavorites = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  userId?: number;
+  targetType?: AdminUserActivityItem['targetType'] | 'all';
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'userId', params.userId);
+  setParam(qs, 'targetType', params.targetType);
+  return request<PageResult<AdminUserActivityItem>>(`/users/favorites?${qs.toString()}`);
+};
+
+export const listUserRecentViews = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  userId?: number;
+  targetType?: AdminUserActivityItem['targetType'] | 'all';
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'userId', params.userId);
+  setParam(qs, 'targetType', params.targetType);
+  return request<PageResult<AdminUserActivityItem>>(`/users/recent-views?${qs.toString()}`);
 };
 
 export const listCategories = async (params: {
@@ -1376,11 +1405,23 @@ export const getResourceLog = async (id: number | string) => {
 import type { ResourceImportBatchItem, ResourceImportStagedItem } from './types';
 
 export const createImportBatch = async (payload: {
-  fileName: string;
+  importType: string;
   sourceType: string;
-  items: Array<{ resourceType: string; name: string; content: Record<string, any> }>;
+  fileName: string;
+  items: Array<{ rowIndex: number; rawData: Record<string, any> }>;
 }) => {
-  return request<{ batch: ResourceImportBatchItem; items: ResourceImportStagedItem[] }>('/resource-imports/batches', {
+  return request<{ batch: ResourceImportBatchItem; items: ResourceImportStagedItem[] }>('/resource-imports/upload', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const previewImport = async (payload: {
+  importType: string;
+  sourceType: string;
+  items: Array<{ rowIndex: number; rawData: Record<string, any> }>;
+}) => {
+  return request<Array<{ rowIndex: number; rawData: Record<string, any>; mappedData: Record<string, any>; status: string; errorMessage: string | null }>>('/resource-imports/preview', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
@@ -1391,11 +1432,13 @@ export const listImportBatches = async (params: {
   pageSize?: number;
   q?: string;
   status?: ResourceImportBatchItem['status'];
+  importType?: ResourceImportBatchItem['importType'];
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
-  return request<PageResult<ResourceImportBatchItem>>(`/resource-imports/batches?${qs.toString()}`);
+  setParam(qs, 'importType', params.importType);
+  return request<PageResult<ResourceImportBatchItem>>(`/resource-imports?${qs.toString()}`);
 };
 
 export const getImportBatchesStats = async () => {
@@ -1408,17 +1451,12 @@ export const listImportItems = async (params: {
   q?: string;
   status?: ResourceImportStagedItem['status'];
   batchId?: number;
-  resourceType?: ResourceImportStagedItem['resourceType'];
-  isDuplicate?: boolean;
+  importId?: number;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
-  setParam(qs, 'batchId', params.batchId);
-  setParam(qs, 'resourceType', params.resourceType);
-  if (typeof params.isDuplicate === 'boolean') {
-    qs.set('isDuplicate', String(params.isDuplicate));
-  }
+  setParam(qs, 'importId', params.importId || params.batchId);
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
 };
 
@@ -1442,9 +1480,20 @@ export const setImportItemStatus = async (
   });
 };
 
-export const confirmImportBatch = async (payload: { itemIds: Array<number | string> }) => {
-  return request<{ successCount: number; failCount: number }>('/resource-imports/items/batch-confirm', {
+export const confirmImportBatch = async (payload: { importId: number; itemIds?: number[] }) => {
+  return request<{ successCount: number; failCount: number; batch: ResourceImportBatchItem }>('/resource-imports/confirm', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 };
+
+export const retryFailedImport = async (id: number | string) => {
+  return request<{ successCount: number; failCount: number; batch: ResourceImportBatchItem }>(`/resource-imports/${id}/retry-failed`, {
+    method: 'POST'
+  });
+};
+
+// ====== Client-side Template Reference ======
+// Template downloads for Recipe, Ingredient, Fruit, Seasoning, and Beverage are generated
+// dynamically on the client-side inside ResourceAccessCenterPage.tsx to optimize speed,
+// keep server footprint zero, and avoid backend binary write dependencies.

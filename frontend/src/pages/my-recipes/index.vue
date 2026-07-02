@@ -1,12 +1,16 @@
 <template>
   <view class="app-page my-recipes-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <view>
         <text class="eyebrow">美食研究家</text>
         <text class="page-title">我的食谱</text>
       </view>
-      <button class="create-button" @tap="createRecipe">＋</button>
+      <button class="create-button" @tap="createRecipe">
+        <app-icon name="plus" size="26rpx" />
+      </button>
     </view>
 
     <view class="studio-card glass-card">
@@ -35,7 +39,18 @@
       </view>
     </view>
 
-    <view class="recipe-list">
+    <view v-if="loading" class="empty-tip glass-card">
+      <text class="empty-tip__title">正在加载菜谱</text>
+      <text class="empty-tip__desc">正在从后端读取你的原创菜谱。</text>
+    </view>
+
+    <view v-else-if="error" class="empty-tip glass-card">
+      <text class="empty-tip__title">加载失败</text>
+      <text class="empty-tip__desc">{{ error }}</text>
+      <button class="retry-button" @tap="loadRecipes">重试</button>
+    </view>
+
+    <view v-else class="recipe-list">
       <view
         v-for="recipe in recipes"
         :key="recipe.id"
@@ -60,7 +75,7 @@
       </view>
     </view>
 
-    <view class="empty-tip glass-card">
+    <view v-if="!loading && !error" class="empty-tip glass-card">
       <text class="empty-tip__title">下一步可以做什么？</text>
       <text class="empty-tip__desc">点击右上角加号，记录食材、步骤、图片和试菜笔记。</text>
     </view>
@@ -68,10 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import { loadMyRecipes } from '../../services/my-recipes';
 
-const recipes = ref(loadMyRecipes());
+const recipes = ref<Awaited<ReturnType<typeof loadMyRecipes>>>([]);
+const loading = ref(true);
+const error = ref('');
 
 const draftCount = computed(() => recipes.value.filter((recipe) => recipe.status === 'draft').length);
 const publishedCount = computed(() => recipes.value.filter((recipe) => recipe.status === 'published').length);
@@ -87,6 +106,27 @@ const createRecipe = () => {
 const openRecipe = (recipeId: string) => {
   uni.navigateTo({ url: `/pages/my-recipe-detail/index?id=${recipeId}` });
 };
+
+const loadRecipes = async () => {
+  loading.value = true;
+  error.value = '';
+  try {
+    recipes.value = await loadMyRecipes();
+  } catch (err) {
+    recipes.value = [];
+    error.value = err instanceof Error ? err.message : '加载失败';
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(() => {
+  void loadRecipes();
+});
+
+onShow(() => {
+  void loadRecipes();
+});
 </script>
 
 <style scoped lang="scss">
@@ -317,5 +357,21 @@ const openRecipe = (recipeId: string) => {
   color: var(--app-text-secondary);
   font-size: var(--font-size-tag);
   line-height: var(--line-body-sm);
+}
+
+.retry-button {
+  width: 100%;
+  height: 76rpx;
+  margin-top: 16rpx;
+  border: 0;
+  border-radius: var(--app-radius-button);
+  background: var(--app-primary);
+  color: var(--text-white);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.retry-button::after {
+  border: 0;
 }
 </style>

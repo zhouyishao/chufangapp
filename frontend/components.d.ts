@@ -7,6 +7,7 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    AppIcon: typeof import('./src/components/app/app-icon.vue')['default']
     BannerCarouselModule: typeof import('./src/components/category-modules/BannerCarouselModule.vue')['default']
     CategoryFilterModule: typeof import('./src/components/category-modules/CategoryFilterModule.vue')['default']
     FourCardGridContentModule: typeof import('./src/components/home-modules/FourCardGridContentModule.vue')['default']

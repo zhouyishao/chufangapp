@@ -1,17 +1,15 @@
 <template>
   <view class="auth-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <text class="top-title">账号密码登录</text>
     </view>
 
     <view class="form-card glass-card">
       <text class="title">欢迎回来</text>
-      <text class="desc">使用手机号和密码登录，账号数据当前先保存在本地。</text>
-      <view class="demo-account">
-        <text>测试账号：13800138000</text>
-        <text>密码：123456</text>
-      </view>
+      <text class="desc">输入手机号完成授权登录，收藏、家庭和菜篮子会同步到后端。</text>
 
       <view class="field">
         <text class="field-label">手机号</text>
@@ -34,7 +32,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { createAuthUser, findAuthAccount, isValidPhone, saveAuthUser, verifyPassword } from '../../services/auth';
+import AppIcon from '../../components/app/app-icon.vue';
+import { createAuthUser, isValidPhone, saveAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { saveUserProfile } from '../../services/profile';
 
 const phone = ref('');
@@ -60,17 +59,12 @@ const login = async () => {
     return;
   }
 
-  const account = findAuthAccount(phone.value);
-  if (!account || !verifyPassword(phone.value, password.value)) {
-    uni.showToast({ title: '手机号或密码错误', icon: 'none' });
-    return;
-  }
-
-  const user = createAuthUser(account.phone, account.nickname);
-  saveAuthUser(user);
+  const user = createAuthUser(phone.value);
+  const remoteUser = await syncAuthUserWithBackend(user);
+  saveAuthUser(remoteUser ?? user);
   saveUserProfile({
-    nickname: user.nickname,
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+    nickname: remoteUser?.nickname ?? user.nickname,
+    avatarUrl: '',
     bio: '一起把一日三餐过得更松弛'
   });
   uni.showToast({ title: '登录成功', icon: 'success' });
@@ -151,18 +145,6 @@ const goToForgotPassword = () => {
   color: var(--app-text-secondary);
   font-size: var(--font-size-caption);
   line-height: var(--line-body-sm);
-}
-
-.demo-account {
-  display: grid;
-  gap: 8rpx;
-  margin-top: 22rpx;
-  padding: 20rpx 22rpx;
-  border-radius: 24rpx;
-  background: #e9e2d6;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-medium);
 }
 
 .field {

@@ -1,14 +1,17 @@
 <template>
   <view class="app-page member-page">
     <view class="topbar">
-      <button class="nav-button" @tap="goBack">←</button>
+      <button class="nav-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <view class="topbar__spacer" />
     </view>
 
     <view v-if="member" class="member-hero">
       <image class="member-avatar" :src="member.avatar" mode="aspectFill" />
       <view class="member-hero__main">
-        <text class="member-name">{{ member.accountId || member.name }}</text>
+        <text class="member-name">{{ member.name }}</text>
+        <text class="member-account">{{ member.accountId || '-' }}</text>
         <text class="member-joined">{{ joinedText }}</text>
       </view>
     </view>
@@ -26,14 +29,14 @@
         <text class="info-label">备注</text>
         <view class="info-right">
           <text class="info-value info-value--muted">{{ member.note || '未设置' }}</text>
-          <text class="arrow">›</text>
+          <app-icon class="arrow" name="chevron-right" size="22rpx" />
         </view>
       </view>
       <view class="info-row info-row--link" @tap="openRoleSelector">
         <text class="info-label">家庭权限</text>
         <view class="info-right">
           <text class="info-value info-value--muted">{{ member.role }}</text>
-          <text class="arrow">›</text>
+          <app-icon class="arrow" name="chevron-right" size="22rpx" />
         </view>
       </view>
     </view>
@@ -106,8 +109,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
+import { loadAuthUser } from '../../services/auth';
 import {
   canCurrentUserLeaveFamily,
   getFamilyById,
@@ -126,29 +131,46 @@ const remarkDraft = ref('');
 
 const isRoleSelectorVisible = ref(false);
 const roleDraft = ref<FamilyMemberRole>('成员');
-const isCurrentUser = computed(() => member.value?.name === '我');
+const isCurrentUser = computed(() => {
+  const currentUser = loadAuthUser();
+  if (!currentUser || !member.value) return false;
+  return member.value.userId === currentUser.id || member.value.accountId === currentUser.phone;
+});
 
 const joinedText = computed(() => {
   if (!member.value) {
     return '';
   }
 
-  const joinedAt = member.value.joinedAt ? member.value.joinedAt : '2026-01-23';
-  return `${joinedAt} 由 家庭管理员 邀请加入家庭`;
+  if (!member.value.joinedAt) {
+    return '加入时间待补充';
+  }
+  return `${member.value.joinedAt} 由 家庭管理员 邀请加入家庭`;
 });
 
 const goBack = () => {
   uni.navigateBack();
 };
 
-const refreshMember = () => {
+const refreshMember = async () => {
   if (!familyId.value || !memberId.value) {
     member.value = null;
     return;
   }
 
-  const family = getFamilyById(familyId.value);
-  member.value = family.members.find((item) => item.id === memberId.value) ?? null;
+  const family = await getFamilyById(familyId.value);
+  member.value = family?.members.find((item) => item.id === memberId.value) ?? null;
+};
+
+const getMemberParamsFromLocation = () => {
+  if (typeof window === 'undefined') return { familyId: '', memberId: '' };
+  const hash = window.location.hash;
+  const queryText = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+  const params = new URLSearchParams(queryText);
+  return {
+    familyId: params.get('familyId') ?? '',
+    memberId: params.get('memberId') ?? ''
+  };
 };
 
 const openRemarkEditor = () => {
@@ -169,14 +191,18 @@ const saveRemark = () => {
     return;
   }
 
-  const nextMember: FamilyMember = {
-    ...member.value,
-    note: remarkDraft.value.trim()
-  };
-  updateFamilyMember(familyId.value, nextMember);
-  member.value = nextMember;
-  closeRemarkEditor();
-  uni.showToast({ title: '已保存', icon: 'success' });
+  const trimmedRemark = remarkDraft.value.trim();
+  void updateFamilyMember(familyId.value, member.value, {
+    remark: trimmedRemark
+  })
+    .then(async () => {
+      await refreshMember();
+      closeRemarkEditor();
+      uni.showToast({ title: '备注已保存', icon: 'success' });
+    })
+    .catch((error) => {
+      uni.showToast({ title: error instanceof Error ? error.message : '备注保存失败', icon: 'none' });
+    });
 };
 
 const openRoleSelector = () => {
@@ -201,18 +227,22 @@ const saveRole = () => {
     return;
   }
 
-  const nextMember: FamilyMember = {
-    ...member.value,
+  void updateFamilyMember(familyId.value, member.value, {
     role: roleDraft.value
-  };
-  updateFamilyMember(familyId.value, nextMember);
-  member.value = nextMember;
-  closeRoleSelector();
-  uni.showToast({ title: '已保存', icon: 'success' });
+  })
+    .then(async () => {
+      await refreshMember();
+      closeRoleSelector();
+      uni.showToast({ title: '权限已保存', icon: 'success' });
+    })
+    .catch((error) => {
+      uni.showToast({ title: error instanceof Error ? error.message : '权限保存失败', icon: 'none' });
+    });
 };
 
-const confirmLeaveFamily = () => {
-  const family = getFamilyById(familyId.value);
+const confirmLeaveFamily = async () => {
+  const family = await getFamilyById(familyId.value);
+  if (!family) return;
   if (!canCurrentUserLeaveFamily(family)) {
     uni.showToast({ title: '请先设置其他管理员', icon: 'none' });
     return;
@@ -223,12 +253,12 @@ const confirmLeaveFamily = () => {
     content: `确认退出「${family.name}」吗？退出后将看不到该家庭的共享内容。`,
     confirmText: '退出',
     confirmColor: '#e5735f',
-    success: (result) => {
+    success: async (result) => {
       if (!result.confirm) {
         return;
       }
 
-      leaveFamilyAsCurrentUser(family.id);
+      await leaveFamilyAsCurrentUser(family.id);
       uni.showToast({ title: '已退出家庭', icon: 'none' });
       uni.navigateBack();
     }
@@ -246,12 +276,12 @@ const confirmRemoveMember = () => {
     content: `确认将「${targetName}」移出当前家庭吗？`,
     confirmText: '移除',
     confirmColor: '#e5735f',
-    success: (result) => {
+    success: async (result) => {
       if (!result.confirm || !member.value) {
         return;
       }
 
-      removeFamilyMember(familyId.value, member.value.id);
+      await removeFamilyMember(familyId.value, member.value.id);
       uni.showToast({ title: '已移除成员', icon: 'none' });
       uni.navigateBack();
     }
@@ -261,7 +291,16 @@ const confirmRemoveMember = () => {
 onLoad((options) => {
   familyId.value = typeof options?.familyId === 'string' ? options.familyId : '';
   memberId.value = typeof options?.memberId === 'string' ? options.memberId : '';
-  refreshMember();
+  void refreshMember().catch(() => undefined);
+});
+
+onMounted(() => {
+  if (!familyId.value || !memberId.value) {
+    const params = getMemberParamsFromLocation();
+    familyId.value = familyId.value || params.familyId;
+    memberId.value = memberId.value || params.memberId;
+  }
+  void refreshMember().catch(() => undefined);
 });
 </script>
 
@@ -320,6 +359,7 @@ onLoad((options) => {
 }
 
 .member-name,
+.member-account,
 .member-joined,
 .info-label,
 .info-value,
@@ -334,6 +374,13 @@ onLoad((options) => {
   font-weight: var(--font-semibold);
   letter-spacing: 0;
   line-height: var(--line-hero);
+}
+
+.member-account {
+  margin-top: 8rpx;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .member-joined {

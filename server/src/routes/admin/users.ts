@@ -53,6 +53,14 @@ const listQuerySchema = z.object({
   endDate: z.string().trim().optional()
 });
 
+const activityQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().optional(),
+  userId: z.coerce.number().int().positive().optional(),
+  targetType: z.enum(['RECIPE', 'INGREDIENT']).optional()
+});
+
 const toDateRange = (startDate?: string, endDate?: string) => {
   const range: { gte?: Date; lte?: Date } = {};
   if (startDate) {
@@ -165,6 +173,158 @@ adminUsersRouter.get('/', requireAdminAuth, async (req, res) => {
 
   const data: PageResult<ReturnType<typeof formatUser>> = {
     list: list.map(formatUser),
+    total,
+    page,
+    pageSize
+  };
+  res.json(ok(data));
+});
+
+adminUsersRouter.get('/favorites', requireAdminAuth, async (req, res) => {
+  const parsed = activityQuerySchema.safeParse(req.query);
+  if (!parsed.success) throw formatZodError(parsed);
+  const { page, pageSize, q, userId, targetType } = parsed.data;
+  const skip = (page - 1) * pageSize;
+  const where = {
+    deletedAt: null,
+    ...(userId ? { userId } : {}),
+    ...(targetType === 'RECIPE' ? { recipeId: { not: null } } : {}),
+    ...(targetType === 'INGREDIENT' ? { ingredientId: { not: null } } : {}),
+    ...(q
+      ? {
+          OR: [
+            { user: { is: { nickname: { contains: q, mode: 'insensitive' as const } } } },
+            { user: { is: { phone: { contains: q, mode: 'insensitive' as const } } } },
+            { recipe: { is: { title: { contains: q, mode: 'insensitive' as const } } } },
+            { ingredient: { is: { name: { contains: q, mode: 'insensitive' as const } } } }
+          ]
+        }
+      : {})
+  };
+
+  const [list, total] = await Promise.all([
+    prisma.favorite.findMany({
+      where,
+      include: {
+        user: { select: { id: true, bizId: true, code: true, phone: true, nickname: true, avatar: true } },
+        recipe: { select: { id: true, title: true, cover: true, status: true, isPublish: true } },
+        ingredient: { select: { id: true, name: true, cover: true, status: true, isPublish: true } }
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      skip,
+      take: pageSize
+    }),
+    prisma.favorite.count({ where })
+  ]);
+
+  const data: PageResult<{
+    id: number;
+    userId: number;
+    userCode: string;
+    userName: string | null;
+    phone: string | null;
+    avatar: string | null;
+    targetType: 'RECIPE' | 'INGREDIENT';
+    targetId: number | null;
+    targetTitle: string;
+    targetCover: string | null;
+    targetStatus: string | null;
+    isPublish: boolean | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }> = {
+    list: list.map((item) => ({
+      id: item.id,
+      userId: item.userId,
+      userCode: item.user.code ?? item.user.bizId ?? `user_${item.user.id}`,
+      userName: item.user.nickname,
+      phone: item.user.phone,
+      avatar: item.user.avatar,
+      targetType: item.recipeId ? 'RECIPE' : 'INGREDIENT',
+      targetId: item.recipeId ?? item.ingredientId,
+      targetTitle: item.recipe?.title ?? item.ingredient?.name ?? '内容已删除',
+      targetCover: item.recipe?.cover ?? item.ingredient?.cover ?? null,
+      targetStatus: item.recipe?.status ?? item.ingredient?.status ?? null,
+      isPublish: item.recipe?.isPublish ?? item.ingredient?.isPublish ?? null,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt
+    })),
+    total,
+    page,
+    pageSize
+  };
+  res.json(ok(data));
+});
+
+adminUsersRouter.get('/recent-views', requireAdminAuth, async (req, res) => {
+  const parsed = activityQuerySchema.safeParse(req.query);
+  if (!parsed.success) throw formatZodError(parsed);
+  const { page, pageSize, q, userId, targetType } = parsed.data;
+  const skip = (page - 1) * pageSize;
+  const where = {
+    deletedAt: null,
+    ...(userId ? { userId } : {}),
+    ...(targetType === 'RECIPE' ? { recipeId: { not: null } } : {}),
+    ...(targetType === 'INGREDIENT' ? { ingredientId: { not: null } } : {}),
+    ...(q
+      ? {
+          OR: [
+            { user: { is: { nickname: { contains: q, mode: 'insensitive' as const } } } },
+            { user: { is: { phone: { contains: q, mode: 'insensitive' as const } } } },
+            { recipe: { is: { title: { contains: q, mode: 'insensitive' as const } } } },
+            { ingredient: { is: { name: { contains: q, mode: 'insensitive' as const } } } }
+          ]
+        }
+      : {})
+  };
+
+  const [list, total] = await Promise.all([
+    prisma.viewHistory.findMany({
+      where,
+      include: {
+        user: { select: { id: true, bizId: true, code: true, phone: true, nickname: true, avatar: true } },
+        recipe: { select: { id: true, title: true, cover: true, status: true, isPublish: true } },
+        ingredient: { select: { id: true, name: true, cover: true, status: true, isPublish: true } }
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      skip,
+      take: pageSize
+    }),
+    prisma.viewHistory.count({ where })
+  ]);
+
+  const data: PageResult<{
+    id: number;
+    userId: number;
+    userCode: string;
+    userName: string | null;
+    phone: string | null;
+    avatar: string | null;
+    targetType: 'RECIPE' | 'INGREDIENT';
+    targetId: number | null;
+    targetTitle: string;
+    targetCover: string | null;
+    targetStatus: string | null;
+    isPublish: boolean | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }> = {
+    list: list.map((item) => ({
+      id: item.id,
+      userId: item.userId,
+      userCode: item.user.code ?? item.user.bizId ?? `user_${item.user.id}`,
+      userName: item.user.nickname,
+      phone: item.user.phone,
+      avatar: item.user.avatar,
+      targetType: item.recipeId ? 'RECIPE' : 'INGREDIENT',
+      targetId: item.recipeId ?? item.ingredientId,
+      targetTitle: item.recipe?.title ?? item.ingredient?.name ?? '内容已删除',
+      targetCover: item.recipe?.cover ?? item.ingredient?.cover ?? null,
+      targetStatus: item.recipe?.status ?? item.ingredient?.status ?? null,
+      isPublish: item.recipe?.isPublish ?? item.ingredient?.isPublish ?? null,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt
+    })),
     total,
     page,
     pageSize

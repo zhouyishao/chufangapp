@@ -69,9 +69,15 @@ const handleTap = (item: HomeModuleItem) => {
 
   const targetId = item.jumpTarget || item.id;
   if ((item.jumpType === 'CONTENT_DETAIL' || item.type === 'recipe') && targetId) {
+    if (item.type === 'beverage') {
+      uni.navigateTo({ url: `/pages/beverage-detail/index?id=${targetId}` });
+      return;
+    }
     uni.navigateTo({ url: item.type === 'ingredient' ? `/pages/ingredient-detail/index?id=${targetId}` : `/pages/recipe-detail/index?id=${targetId}` });
   } else if (item.type === 'ingredient' && targetId) {
     uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${targetId}` });
+  } else if (item.type === 'beverage' && targetId) {
+    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${targetId}` });
   }
 };
 </script>

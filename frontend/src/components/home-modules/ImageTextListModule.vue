@@ -23,7 +23,10 @@
             <text v-if="item.duration" class="hm-list__tag">{{ item.duration }}</text>
             <text v-if="item.difficulty" class="hm-list__tag">{{ item.difficulty }}</text>
             <text v-if="item.servings" class="hm-list__tag">{{ item.servings }}人份</text>
-            <text v-if="item.favoriteCount" class="hm-list__fav">♡ {{ item.favoriteCount }}</text>
+            <view v-if="item.favoriteCount" class="hm-list__fav">
+              <app-icon name="heart" size="18rpx" />
+              <text>{{ item.favoriteCount }}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -33,12 +36,14 @@
       class="hm-list__more"
       @tap="handleMore"
     >
-      <text>更多 ›</text>
+      <text>更多</text>
+      <app-icon name="chevron-right" size="20rpx" />
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
+import AppIcon from '../app/app-icon.vue';
 import type { HomeModule } from '../../services/public-api';
 import { resolveAssetUrl } from '../../services/public-api';
 
@@ -152,6 +157,9 @@ const handleMore = () => {
 }
 
 .hm-list__fav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
   color: var(--text-placeholder);
   font-size: var(--font-size-tabbar);
   margin-left: auto;

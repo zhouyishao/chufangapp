@@ -11,11 +11,11 @@
         @search="emitSearch"
       >
         <template #leftin>
-          <view class="home-search-icon" />
+          <app-icon name="search" size="28rpx" />
         </template>
       </nut-searchbar>
       <button class="add-button" @tap="openActionSheet">
-        <view class="add-button__icon" />
+        <app-icon name="plus" size="30rpx" />
       </button>
     </view>
 
@@ -37,13 +37,7 @@
         <view class="add-action-list">
           <view class="add-action" @tap="scanCode">
             <view class="add-action__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 7V5a1 1 0 0 1 1-1h2" />
-                <path d="M17 4h2a1 1 0 0 1 1 1v2" />
-                <path d="M20 17v2a1 1 0 0 1-1 1h-2" />
-                <path d="M7 20H5a1 1 0 0 1-1-1v-2" />
-                <path d="M8 8h8v8H8z" />
-              </svg>
+              <app-icon name="scan" size="28rpx" />
             </view>
             <view>
               <text class="add-action__title">扫一扫</text>
@@ -51,10 +45,7 @@
           </view>
           <view class="add-action" @tap="addRecipe">
             <view class="add-action__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
-              </svg>
+              <app-icon name="plus" size="28rpx" />
             </view>
             <view>
               <text class="add-action__title">添加菜谱</text>
@@ -68,6 +59,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import AppIcon from '../app/app-icon.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -94,15 +86,7 @@ const emit = defineEmits<{
 const keyword = ref('');
 const isActionSheetVisible = ref(false);
 const internalActiveCategoryId = ref(props.activeCategoryId);
-const fallbackCategories = [
-  { id: 'recommend', label: '推荐' },
-  { id: 'home', label: '家常菜' },
-  { id: 'quick', label: '快手菜' },
-  { id: 'soup', label: '汤类' },
-  { id: 'breakfast', label: '早餐' },
-  { id: 'light', label: '减脂' }
-];
-const visibleCategories = computed(() => (props.categories.length > 0 ? props.categories : fallbackCategories));
+const visibleCategories = computed(() => props.categories);
 
 const selectedCategoryId = computed(() => props.activeCategoryId || internalActiveCategoryId.value);
 const headerStyle = computed(() => ({
@@ -128,7 +112,7 @@ const selectCategory = (categoryId: string) => {
 
 const scanCode = () => {
   closeActionSheet();
-  uni.showToast({ title: '扫一扫功能开发中', icon: 'none' });
+  uni.navigateTo({ url: '/pages/scan/index' });
 };
 
 const addRecipe = () => {
@@ -216,23 +200,6 @@ const addRecipe = () => {
 .add-button::after,
 .category-tab::after {
   border: 0;
-}
-
-.add-button__icon {
-  width: 34rpx;
-  height: 34rpx;
-  background: currentColor;
-  -webkit-mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_plus.svg') center / contain no-repeat;
-}
-
-.home-search-icon {
-  width: 32rpx;
-  height: 32rpx;
-  background: currentColor;
-  color: var(--app-text-secondary);
-  -webkit-mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
-  mask: url('../../assets/icons/icon_search.svg') center / contain no-repeat;
 }
 
 .category-scroll {

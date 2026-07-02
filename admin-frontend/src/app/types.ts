@@ -181,6 +181,23 @@ export type AdminUserListItem = {
   updatedAt: string;
 };
 
+export type AdminUserActivityItem = {
+  id: number;
+  userId: number;
+  userCode: string;
+  userName: string | null;
+  phone: string | null;
+  avatar: string | null;
+  targetType: 'RECIPE' | 'INGREDIENT';
+  targetId: number | null;
+  targetTitle: string;
+  targetCover: string | null;
+  targetStatus: 'ACTIVE' | 'DISABLED' | null;
+  isPublish: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ResourceAppItem = {
   id: number;
   name: string;
@@ -240,27 +257,28 @@ export type ResourceLogItem = {
 
 export type ResourceImportBatchItem = {
   id: number;
-  fileName: string;
+  importType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
   sourceType: string;
+  fileName: string;
   status: 'PENDING' | 'COMPLETED' | 'FAILED';
   totalCount: number;
   successCount: number;
-  failCount: number;
+  failedCount: number;
   errorMessage: string | null;
-  operator: string;
+  createdBy: string;
   createdAt: string;
-  updatedAt: string;
+  finishedAt: string | null;
 };
 
 export type ResourceImportStagedItem = {
   id: number;
-  batchId: number;
-  resourceType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
-  name: string;
-  content: Record<string, any>;
+  importId: number;
+  importType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  rowIndex: number;
+  rawData: Record<string, any>;
+  mappedData: Record<string, any>;
   status: 'PENDING' | 'IMPORTED' | 'FAILED' | 'IGNORED';
-  isDuplicate: boolean;
-  errorReason: string | null;
+  errorMessage: string | null;
+  targetId: number | null;
   createdAt: string;
-  updatedAt: string;
 };

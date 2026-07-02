@@ -38,6 +38,10 @@ const getTitle = (item: HomeModuleItem) => item.title || item.name || '';
 
 const handleTap = (item: HomeModuleItem) => {
   if (item.type === 'category') return;
+  if (item.type === 'beverage') {
+    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${item.id}` });
+    return;
+  }
   if (item.type === 'ingredient') {
     uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${item.id}` });
     return;

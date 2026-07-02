@@ -1,9 +1,9 @@
 <template>
   <view class="app-page history-page">
-    <view class="history-topbar">
-      <view class="back-button" @click="goBack">
-        <text class="back-icon">←</text>
-      </view>
+    <view class="topbar">
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <view>
         <text class="eyebrow">家庭采购归档</text>
         <text class="page-title">采购记录</text>
@@ -11,46 +11,61 @@
     </view>
 
     <view class="summary-card glass-card">
-      <view>
-        <text class="summary-label">历史订单</text>
-        <text class="summary-value">{{ purchaseHistories.length }}</text>
+      <view class="summary-item">
+        <text class="summary-label">已归档</text>
+        <text class="summary-value">{{ groupedHistories.length }}</text>
       </view>
-      <view>
-        <text class="summary-label">累计菜谱</text>
-        <text class="summary-value">{{ totalRecipeCount }}</text>
+      <view class="summary-item">
+        <text class="summary-label">采购项</text>
+        <text class="summary-value">{{ checkedItemCount }}</text>
       </view>
-      <view>
-        <text class="summary-label">累计食材</text>
-        <text class="summary-value">{{ totalItemCount }}</text>
+      <view class="summary-item">
+        <text class="summary-label">家庭</text>
+        <text class="summary-value">{{ familyCount }}</text>
       </view>
     </view>
 
-    <view class="history-card glass-card">
-      <view class="history-list">
-        <view
-          v-for="group in groupedPurchaseHistories"
-          :key="group.year"
-          class="history-year-group"
-        >
-          <text class="history-year">{{ group.year }}</text>
-          <view
-            v-for="history in group.items"
-            :key="history.id"
-            class="history-item"
-            @click="toggleHistoryExpanded(history.id)"
-          >
-            <view class="history-item__main">
-              <view>
-                <text class="history-date">{{ getHistoryDateLabel(history) }}</text>
-                <text class="history-meta">
-                  {{ history.recipeCount }} 道菜 · {{ history.itemCount }} 项食材 · {{ history.status }}
-                </text>
-              </view>
-              <text :class="['history-arrow', { 'is-expanded': isHistoryExpanded(history.id) }]">›</text>
+    <view v-if="loading" class="state-card glass-card">
+      <text class="state-title">正在加载采购记录</text>
+      <text class="state-desc">从后端同步已勾选的菜篮子条目。</text>
+    </view>
+
+    <view v-else-if="needsLogin" class="state-card glass-card">
+      <text class="state-title">登录后查看采购记录</text>
+      <text class="state-desc">采购记录会跟随你的账号同步到后端。</text>
+      <button class="state-action" @tap="goToLogin">去登录</button>
+    </view>
+
+    <view v-else-if="error" class="state-card glass-card">
+      <text class="state-title">采购记录加载失败</text>
+      <text class="state-desc">{{ error }}</text>
+      <button class="state-action" @tap="loadPurchaseHistory">重试</button>
+    </view>
+
+    <view v-else-if="!groupedHistories.length" class="state-card glass-card">
+      <text class="state-title">暂无采购记录</text>
+      <text class="state-desc">把菜篮子条目标记为已购买后，这里会按日期归档显示。</text>
+    </view>
+
+    <view v-else class="history-card glass-card">
+      <view v-for="group in groupedHistories" :key="group.dateKey" class="history-group">
+        <view class="history-group__header">
+          <view>
+            <text class="history-date">{{ group.label }}</text>
+            <text class="history-meta">{{ group.items.length }} 项 · {{ group.familyNames.join('、') }}</text>
+          </view>
+          <text class="history-total">{{ group.totalQuantityText }}</text>
+        </view>
+
+        <view v-for="item in group.items" :key="item.id" class="history-item">
+          <view class="history-item__main">
+            <view class="history-item__copy">
+              <text class="history-item__name">{{ item.name }}</text>
+              <text class="history-item__desc">{{ item.recipeName }} · {{ item.amountText || item.quantityText }}</text>
             </view>
-            <view v-if="isHistoryExpanded(history.id)" class="history-detail">
-              <text class="history-recipes">{{ history.recipeNames.join('、') }}</text>
-              <text class="history-items">{{ history.itemSummary }}</text>
+            <view class="history-item__right">
+              <text class="history-item__checked">已购买</text>
+              <text class="history-item__time">{{ item.timeLabel }}</text>
             </view>
           </view>
         </view>
@@ -60,108 +75,102 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
+import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
+import { loadBasketItems, type BasketItem } from '../../services/basket';
 
-interface PurchaseHistory {
-  id: string;
-  year: number;
-  month: number;
-  day: number;
-  recipeCount: number;
-  itemCount: number;
-  recipeNames: string[];
-  itemSummary: string;
-  status: string;
-}
+type HistoryItem = BasketItem & {
+  dateKey: string;
+  label: string;
+  timeLabel: string;
+  quantityText: string;
+};
 
-interface PurchaseHistoryGroup {
-  year: number;
-  items: PurchaseHistory[];
-}
+type PurchaseHistoryGroup = {
+  dateKey: string;
+  label: string;
+  familyNames: string[];
+  totalQuantityText: string;
+  items: HistoryItem[];
+};
 
-const expandedHistoryIds = ref<string[]>([]);
-const currentYear = new Date().getFullYear();
-const purchaseHistories = ref<PurchaseHistory[]>([
-  {
-    id: 'history-2026-05-18',
-    year: 2026,
-    month: 5,
-    day: 18,
-    recipeCount: 2,
-    itemCount: 8,
-    recipeNames: ['芦笋虾仁', '番茄牛腩'],
-    itemSummary: '芦笋、虾仁、番茄、牛腩、生姜等',
-    status: '已完成'
-  },
-  {
-    id: 'history-2026-05-17',
-    year: 2026,
-    month: 5,
-    day: 17,
-    recipeCount: 3,
-    itemCount: 11,
-    recipeNames: ['初夏蔬菜沙拉', '菌菇豆腐汤', '白灼芦笋'],
-    itemSummary: '生菜、黄瓜、菌菇、豆腐、芦笋等',
-    status: '已完成'
-  },
-  {
-    id: 'history-2025-12-28',
-    year: 2025,
-    month: 12,
-    day: 28,
-    recipeCount: 2,
-    itemCount: 9,
-    recipeNames: ['冬笋烧肉', '萝卜牛腩汤'],
-    itemSummary: '冬笋、五花肉、白萝卜、牛腩、葱姜等',
-    status: '已完成'
+const loading = ref(false);
+const error = ref('');
+const needsLogin = ref(false);
+const items = ref<HistoryItem[]>([]);
+
+const formatDateKey = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const formatDateLabel = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '未知日期';
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startToday - startTarget) / 86400000);
+  if (diffDays === 0) return '今天';
+  if (diffDays === 1) return '昨天';
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+};
+
+const formatTimeLabel = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
+const formatQuantityText = (item: BasketItem) => {
+  if (item.amountText) return item.amountText;
+  if (item.quantity !== undefined && item.quantity !== null) return `${item.quantity}${item.purchaseText ? '' : ''}`;
+  return '';
+};
+
+const normalizedItems = computed<HistoryItem[]>(() =>
+  [...items.value]
+    .sort((a, b) => (b.checkedAt || b.updatedAt || '').localeCompare(a.checkedAt || a.updatedAt || ''))
+);
+
+const groupedHistories = computed<PurchaseHistoryGroup[]>(() => {
+  const groupMap = new Map<string, HistoryItem[]>();
+  for (const item of normalizedItems.value) {
+    const timestamp = item.checkedAt || item.updatedAt || item.createdAt || '';
+    const dateKey = formatDateKey(timestamp);
+    const list = groupMap.get(dateKey) ?? [];
+    groupMap.set(dateKey, [...list, item]);
   }
-]);
-
-const totalRecipeCount = computed(() =>
-  purchaseHistories.value.reduce((total, item) => total + item.recipeCount, 0)
-);
-const totalItemCount = computed(() =>
-  purchaseHistories.value.reduce((total, item) => total + item.itemCount, 0)
-);
-const groupedPurchaseHistories = computed<PurchaseHistoryGroup[]>(() => {
-  const groupMap = new Map<number, PurchaseHistory[]>();
-
-  purchaseHistories.value.forEach((history) => {
-    const histories = groupMap.get(history.year) ?? [];
-    groupMap.set(history.year, [...histories, history]);
-  });
 
   return Array.from(groupMap.entries())
-    .sort(([yearA], [yearB]) => yearB - yearA)
-    .map(([year, items]) => ({
-      year,
-      items: [...items].sort((a, b) => {
-        if (a.month !== b.month) {
-          return b.month - a.month;
-        }
-        return b.day - a.day;
-      })
-    }));
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([dateKey, list]) => {
+      const first = list[0];
+      const familyNames = Array.from(new Set(list.map((entry) => entry.familyName).filter(Boolean) as string[]));
+      const totalQuantity = list.reduce((sum, entry) => sum + (Number(entry.quantity) || 1), 0);
+      return {
+        dateKey,
+        label: formatDateLabel(first?.checkedAt || first?.updatedAt || first?.createdAt || ''),
+        familyNames: familyNames.length ? familyNames : ['未绑定家庭'],
+        totalQuantityText: `${totalQuantity} 件`,
+        items: list.map((entry) => ({
+          ...entry,
+          label: formatDateLabel(entry.checkedAt || entry.updatedAt || entry.createdAt || ''),
+          timeLabel: formatTimeLabel(entry.checkedAt || entry.updatedAt || entry.createdAt || ''),
+          quantityText: formatQuantityText(entry)
+        }))
+      };
+    });
 });
 
-const getHistoryDateLabel = (history: PurchaseHistory) => {
-  if (history.year === currentYear) {
-    return `${history.month}月${history.day}日`;
-  }
-
-  return `${history.year}年${history.month}月${history.day}日`;
-};
-
-const isHistoryExpanded = (historyId: string) => expandedHistoryIds.value.includes(historyId);
-
-const toggleHistoryExpanded = (historyId: string) => {
-  if (isHistoryExpanded(historyId)) {
-    expandedHistoryIds.value = expandedHistoryIds.value.filter((id) => id !== historyId);
-    return;
-  }
-
-  expandedHistoryIds.value = [...expandedHistoryIds.value, historyId];
-};
+const checkedItemCount = computed(() => normalizedItems.value.length);
+const familyCount = computed(() => {
+  const ids = new Set(normalizedItems.value.map((item) => item.familyId).filter(Boolean));
+  return ids.size;
+});
 
 const goBack = () => {
   uni.navigateBack({
@@ -170,19 +179,65 @@ const goBack = () => {
     }
   });
 };
+
+const goToLogin = () => {
+  uni.navigateTo({ url: '/pages/login/index' });
+};
+
+const loadPurchaseHistory = async () => {
+  loading.value = true;
+  error.value = '';
+  needsLogin.value = false;
+  try {
+    const user = await syncAuthUserWithBackend(loadAuthUser());
+    if (!user?.id) {
+      items.value = [];
+      needsLogin.value = true;
+      return;
+    }
+    const data = await loadBasketItems(null);
+    items.value = data
+      .filter((item) => item.checked)
+      .map((item) => ({
+        ...item,
+        dateKey: '',
+        label: '',
+        timeLabel: '',
+        quantityText: formatQuantityText(item)
+      }));
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '请稍后再试';
+    items.value = [];
+  } finally {
+    loading.value = false;
+  }
+};
+
+onShow(() => {
+  void loadPurchaseHistory();
+});
+
+onMounted(() => {
+  void loadPurchaseHistory();
+});
 </script>
 
 <style scoped lang="scss">
 .history-page {
-  padding-bottom: 80rpx;
+  min-height: 100vh;
+  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
 }
 
-.history-topbar {
-  display: grid;
-  grid-template-columns: 72rpx 1fr;
-  gap: 18rpx;
+.topbar {
+  display: flex;
   align-items: center;
+  gap: 18rpx;
   margin-bottom: 24rpx;
+}
+
+.back-button,
+.state-action {
+  border: 0;
 }
 
 .back-button {
@@ -193,134 +248,167 @@ const goBack = () => {
   height: 72rpx;
   border-radius: 50%;
   background: #fffdfc;
-  box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.04);
+  color: var(--app-text);
+  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
-.back-icon {
-  color: var(--app-text);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-semibold);
+.eyebrow,
+.page-title,
+.summary-label,
+.summary-value,
+.state-title,
+.state-desc,
+.history-date,
+.history-meta,
+.history-total,
+.history-item__name,
+.history-item__desc,
+.history-item__checked,
+.history-item__time {
+  display: block;
 }
 
 .eyebrow {
-  display: block;
   color: var(--app-text-tertiary);
   font-size: var(--font-size-tabbar);
   font-weight: var(--font-semibold);
 }
 
 .page-title {
-  display: block;
-  margin-top: 6rpx;
+  margin-top: 4rpx;
   color: var(--app-text);
   font-size: var(--font-size-detail-title);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-semibold);
 }
 
 .summary-card {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20rpx;
+  gap: 16rpx;
   padding: 28rpx;
 }
 
+.summary-item {
+  min-width: 0;
+}
+
 .summary-label {
-  display: block;
   color: var(--app-text-secondary);
   font-size: var(--font-size-tabbar);
 }
 
 .summary-value {
-  display: block;
   margin-top: 8rpx;
   color: var(--app-text);
   font-size: var(--font-size-detail-title);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-semibold);
 }
 
+.state-card,
 .history-card {
   margin-top: 20rpx;
-  padding: 28rpx 26rpx 18rpx;
+  padding: 28rpx;
 }
 
+.state-title {
+  color: var(--app-text);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+}
+
+.state-desc,
+.history-meta,
+.history-item__desc,
+.history-item__time {
+  margin-top: 10rpx;
+  color: var(--app-text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.state-action {
+  margin-top: 18rpx;
+  width: 100%;
+  height: 84rpx;
+  border-radius: var(--app-radius-button);
+  background: var(--app-primary);
+  color: var(--text-white);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+}
+
+.history-group + .history-group {
+  margin-top: 24rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid var(--app-border);
+}
+
+.history-group__header,
 .history-item__main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 20rpx;
-}
-
-.history-list {
-  margin-top: 0;
-}
-
-.history-year-group + .history-year-group {
-  margin-top: 24rpx;
-  padding-top: 22rpx;
-  border-top: 1rpx solid var(--app-border);
-}
-
-.history-year {
-  display: block;
-  margin-bottom: 8rpx;
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-medium);
-}
-
-.history-item {
-  padding: 20rpx 0;
-  border-top: 1rpx solid var(--app-border);
-}
-
-.history-year + .history-item {
-  border-top: 0;
+  gap: 16rpx;
 }
 
 .history-date {
-  display: block;
   color: var(--app-text);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-medium);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
 }
 
 .history-meta {
-  display: block;
   margin-top: 8rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
 }
 
-.history-arrow {
-  color: var(--app-text);
-  font-size: var(--font-size-detail-title);
-  line-height: var(--line-tabbar);
-  transition: transform 0.2s ease;
+.history-total {
+  color: var(--app-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
 }
 
-.history-arrow.is-expanded {
-  transform: rotate(90deg);
-}
-
-.history-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
+.history-item {
   margin-top: 16rpx;
-  padding: 18rpx;
+  padding: 20rpx 18rpx;
   border-radius: 24rpx;
   background: var(--app-accent-soft);
 }
 
-.history-recipes {
+.history-item__main {
+  align-items: center;
+}
+
+.history-item__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.history-item__name {
+  overflow: hidden;
   color: var(--app-text);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item__desc {
+  margin-top: 6rpx;
+}
+
+.history-item__right {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.history-item__checked {
+  color: var(--app-primary);
   font-size: var(--font-size-tag);
   font-weight: var(--font-semibold);
 }
 
-.history-items {
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  line-height: var(--line-body-sm);
+.history-item__time {
+  margin-top: 4rpx;
 }
 </style>

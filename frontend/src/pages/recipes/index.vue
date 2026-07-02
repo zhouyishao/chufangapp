@@ -3,13 +3,13 @@
     <view class="header">
       <view class="header-top">
         <view class="back-button" @tap="goBack">
-          <text class="back-icon">←</text>
+          <app-icon class="back-icon" name="arrow-left" size="26rpx" />
         </view>
         <text class="header-title">菜谱</text>
         <view class="header-spacer" />
       </view>
       <view class="search-bar" @tap="handleSearch">
-        <view class="search-icon">🔍</view>
+        <app-icon class="search-icon" name="search" size="26rpx" />
         <text class="search-placeholder">搜索菜谱</text>
       </view>
       <view class="category-section">
@@ -33,17 +33,17 @@
         <view class="filter-row">
           <view class="filter-item" @tap="toggleFilterDropdown('time')">
             <text class="filter-label">{{ timeFilterLabel }}</text>
-            <text :class="['filter-arrow', { 'is-open': activeFilterDropdown === 'time' }]">⌄</text>
+            <app-icon :class="['filter-arrow', { 'is-open': activeFilterDropdown === 'time' }]" name="chevron-down" size="22rpx" />
           </view>
           <view class="filter-divider" />
           <view class="filter-item" @tap="toggleFilterDropdown('difficulty')">
             <text class="filter-label">{{ difficultyFilterLabel }}</text>
-            <text :class="['filter-arrow', { 'is-open': activeFilterDropdown === 'difficulty' }]">⌄</text>
+            <app-icon :class="['filter-arrow', { 'is-open': activeFilterDropdown === 'difficulty' }]" name="chevron-down" size="22rpx" />
           </view>
           <view class="filter-divider" />
           <view class="filter-item" @tap="toggleFilterDropdown('servings')">
             <text class="filter-label">{{ servingsFilterLabel }}</text>
-            <text :class="['filter-arrow', { 'is-open': activeFilterDropdown === 'servings' }]">⌄</text>
+            <app-icon :class="['filter-arrow', { 'is-open': activeFilterDropdown === 'servings' }]" name="chevron-down" size="22rpx" />
           </view>
         </view>
         <view v-if="activeFilterDropdown" class="filter-dropdown">
@@ -78,23 +78,23 @@
             <view class="recipe-header">
               <text class="recipe-name">{{ recipe.name }}</text>
               <view class="recipe-actions">
-                <text class="action-icon" @tap.stop="toggleCollect(recipe.id)">
-                  {{ recipe.collected ? '❤️' : '🤍' }}
-                </text>
+                <button class="action-icon" @tap.stop="toggleCollect(recipe.id)">
+                  <app-icon :name="recipe.collected ? 'heart-filled' : 'heart'" size="28rpx" />
+                </button>
               </view>
             </view>
             <text class="recipe-reason">{{ recipe.reason }}</text>
             <view class="recipe-meta">
               <view class="meta-item">
-                <text class="meta-icon">⏱</text>
+                <app-icon class="meta-icon" name="clock" size="22rpx" />
                 <text class="meta-text">{{ recipe.duration }}</text>
               </view>
               <view class="meta-item">
-                <text class="meta-icon">📊</text>
+                <app-icon class="meta-icon" name="difficulty" size="22rpx" />
                 <text class="meta-text">{{ recipe.difficulty }}</text>
               </view>
               <view class="meta-item">
-                <text class="meta-icon">👥</text>
+                <app-icon class="meta-icon" name="users" size="22rpx" />
                 <text class="meta-text">{{ recipe.servings }}</text>
               </view>
             </view>
@@ -112,19 +112,7 @@
               :class="['basket-icon-button', { 'is-added': isRecipeInBasket(recipe) }]"
               @tap.stop="toggleRecipeBasket(recipe)"
             >
-              <svg
-                class="basket-icon-button__icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
+              <app-icon class="basket-icon-button__icon" name="basket" size="28rpx" />
             </button>
           </view>
         </view>
@@ -147,9 +135,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { addBasketItem, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
-import { listRecipes } from '../../services/public-api';
+import type { BasketItem } from '../../services/basket';
+import { addMobileFavorite, deleteMobileFavorite, listMobileFavorites, listRecipes } from '../../services/public-api';
+import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import type { HomeTab } from '../../types/home';
 
 interface Recipe {
@@ -162,6 +153,8 @@ interface Recipe {
   reason: string;
   tags: string[];
   collected: boolean;
+  favoriteRecordId: number | null;
+  legacyId: number | null;
   category: string;
   basketIngredients: BasketIngredient[];
 }
@@ -190,6 +183,7 @@ const servingsFilter = ref('all');
 const activeFilterDropdown = ref<FilterType | ''>('');
 const hasMore = ref(true);
 const basketItemIds = ref<string[]>([]);
+const basketItems = ref<BasketItem[]>([]);
 const tabs = ref<HomeTab[]>([
   { id: 'home', label: '首页', active: false },
   { id: 'ingredients', label: '食材', active: true },
@@ -218,15 +212,7 @@ const servingsOptions: FilterOption[] = [
   { label: '5人以上', value: 'party' }
 ];
 
-const categories = ref<Category[]>([
-  { id: 'all', label: '全部' },
-  { id: '家常菜', label: '家常菜' },
-  { id: '快手菜', label: '快手菜' },
-  { id: '早餐', label: '早餐' },
-  { id: '晚餐', label: '晚餐' },
-  { id: '减脂餐', label: '减脂餐' },
-  { id: '下饭菜', label: '下饭菜' }
-]);
+const categories = ref<Category[]>([{ id: 'all', label: '全部' }]);
 
 const recipes = ref<Recipe[]>([]);
 
@@ -249,6 +235,7 @@ const mapRemoteRecipe = (item: {
   scene?: string | null;
   category?: { id: string; name: string; type: string } | null;
   cuisine?: { id: number; name: string } | null;
+  legacyId?: number;
 }) => {
   const duration = item.cookTime ? `${item.cookTime}分钟` : '—';
   const servingsText = item.servings ? `${item.servings}人` : '—';
@@ -257,18 +244,51 @@ const mapRemoteRecipe = (item: {
   return {
     id: String(item.id),
     name: item.title,
-    image:
-      item.cover ??
-      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
+    image: item.cover ?? '',
     duration,
     difficulty: item.difficulty ?? '—',
     servings: servingsText,
     reason: item.description ?? '',
     tags: tags.length > 0 ? tags : ['推荐'],
     collected: false,
+    favoriteRecordId: null,
+    legacyId: Number.isFinite(Number(item.legacyId)) ? Number(item.legacyId) : null,
     category: categoryName,
     basketIngredients: []
   } satisfies Recipe;
+};
+
+const syncRemoteCategories = () => {
+  const categoryNames = Array.from(new Set(recipes.value.map((item) => item.category).filter(Boolean)));
+  categories.value = [
+    { id: 'all', label: '全部' },
+    ...categoryNames.map((name) => ({ id: name, label: name }))
+  ];
+  if (activeCategory.value !== 'all' && !categoryNames.includes(activeCategory.value)) {
+    activeCategory.value = 'all';
+  }
+};
+
+const getLoggedUserId = async () => {
+  const user = await syncAuthUserWithBackend(loadAuthUser());
+  return user?.id ?? null;
+};
+
+const syncRecipeFavoriteStates = async () => {
+  const userId = await getLoggedUserId();
+  if (!userId) {
+    recipes.value = recipes.value.map((item) => ({ ...item, collected: false, favoriteRecordId: null }));
+    return;
+  }
+  const data = await listMobileFavorites({ userId, page: 1, pageSize: 100 });
+  recipes.value = recipes.value.map((recipe) => {
+    const record = data.list.find((item) => recipe.legacyId !== null && item.recipeId === recipe.legacyId);
+    return {
+      ...recipe,
+      collected: Boolean(record),
+      favoriteRecordId: record?.id ?? null
+    };
+  });
 };
 
 const loadRemoteRecipes = async (mode: 'reset' | 'append') => {
@@ -277,12 +297,11 @@ const loadRemoteRecipes = async (mode: 'reset' | 'append') => {
   remoteError.value = null;
   try {
     const page = mode === 'reset' ? 1 : remotePage.value;
-    console.log('[recipes page] request /api/recipes');
     const data = await listRecipes({ page, pageSize: 10 });
-    console.log('[recipes page] raw response', data);
     const next = data.list.map(mapRemoteRecipe);
     recipes.value = mode === 'append' ? [...recipes.value, ...next] : next;
-    console.log('[recipes page] final recipes', recipes.value);
+    syncRemoteCategories();
+    void syncRecipeFavoriteStates().catch(() => undefined);
     remoteTotal.value = data.total;
     remotePage.value = page;
     hasMore.value = page * remotePageSize.value < data.total;
@@ -307,7 +326,6 @@ const loadFirstPageRecipes = () => {
 
 const displayRecipes = computed(() => {
   let filtered = recipes.value;
-  console.log('[recipes page] selectedCategory', activeCategory.value);
 
   if (activeCategory.value !== 'all') {
     filtered = filtered.filter(r => r.category === activeCategory.value);
@@ -325,7 +343,6 @@ const displayRecipes = computed(() => {
     filtered = filtered.filter((recipe) => matchServingsFilter(recipe.servings));
   }
 
-  console.log('[recipes page] filteredRecipes', filtered);
   return filtered;
 });
 
@@ -469,14 +486,32 @@ const matchServingsFilter = (servings: string) => {
   return true;
 };
 
-const toggleCollect = (recipeId: string) => {
+const toggleCollect = async (recipeId: string) => {
   const recipe = recipes.value.find(r => r.id === recipeId);
-  if (recipe) {
-    recipe.collected = !recipe.collected;
-    uni.showToast({
-      title: recipe.collected ? '已收藏' : '取消收藏',
-      icon: 'none'
-    });
+  if (!recipe) return;
+  if (!recipe.legacyId) {
+    uni.showToast({ title: '真实菜谱加载后可收藏', icon: 'none' });
+    return;
+  }
+  try {
+    const userId = await getLoggedUserId();
+    if (!userId) {
+      uni.showToast({ title: '请先登录后收藏', icon: 'none' });
+      return;
+    }
+    if (recipe.collected && recipe.favoriteRecordId) {
+      await deleteMobileFavorite(recipe.favoriteRecordId);
+      recipe.collected = false;
+      recipe.favoriteRecordId = null;
+      uni.showToast({ title: '已取消收藏', icon: 'none' });
+      return;
+    }
+    const record = await addMobileFavorite({ userId, recipeId: recipe.legacyId });
+    recipe.collected = true;
+    recipe.favoriteRecordId = record.id;
+    uni.showToast({ title: '已收藏', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '操作失败', icon: 'none' });
   }
 };
 
@@ -486,12 +521,13 @@ const isRecipeInBasket = (recipe: Recipe) => {
   return recipe.basketIngredients.every((ingredient) => basketItemIds.value.includes(getRecipeBasketItemId(recipe, ingredient)));
 };
 
-const toggleRecipeBasket = (recipe: Recipe) => {
+const toggleRecipeBasket = async (recipe: Recipe) => {
   if (isRecipeInBasket(recipe)) {
-    recipe.basketIngredients.forEach((ingredient) => {
-      removeBasketItem(getRecipeBasketItemId(recipe, ingredient));
-    });
-    syncBasketState();
+    await Promise.all(recipe.basketIngredients.map(async (ingredient) => {
+      const existing = basketItems.value.find((item) => getRecipeBasketItemId(recipe, ingredient) === getBasketKey(item));
+      if (existing) await removeBasketItem(existing.id);
+    }));
+    await syncBasketState();
     uni.showToast({
       title: '已移出菜篮子',
       icon: 'none'
@@ -499,9 +535,9 @@ const toggleRecipeBasket = (recipe: Recipe) => {
     return;
   }
 
-  recipe.basketIngredients
+  await Promise.all(recipe.basketIngredients
     .filter((ingredient) => !basketItemIds.value.includes(getRecipeBasketItemId(recipe, ingredient)))
-    .forEach((ingredient) => {
+    .map((ingredient) =>
       addBasketItem({
         id: getRecipeBasketItemId(recipe, ingredient),
         recipeId: recipe.id,
@@ -510,18 +546,21 @@ const toggleRecipeBasket = (recipe: Recipe) => {
         amountText: ingredient.amount,
         purchaseText: getIngredientPurchaseText(ingredient.name),
         checked: false
-      });
-    });
+      })
+    ));
 
-  syncBasketState();
+  await syncBasketState();
   uni.showToast({
     title: '已加入菜篮子',
     icon: 'success'
   });
 };
 
-const syncBasketState = () => {
-  basketItemIds.value = loadBasketItems().map((item) => item.id);
+const getBasketKey = (item: BasketItem) => `${item.recipeId}-${item.name}`;
+
+const syncBasketState = async () => {
+  basketItems.value = await loadBasketItems();
+  basketItemIds.value = basketItems.value.map(getBasketKey);
 };
 
 const goToRecipeDetail = (recipeId: string) => {
@@ -531,10 +570,7 @@ const goToRecipeDetail = (recipeId: string) => {
 };
 
 const handleSearch = () => {
-  uni.showToast({
-    title: '搜索功能开发中',
-    icon: 'none'
-  });
+  uni.navigateTo({ url: '/pages/search/index' });
 };
 
 const loadMore = () => {
@@ -548,12 +584,11 @@ const loadMore = () => {
 };
 
 onShow(() => {
-  syncBasketState();
+  void syncBasketState().catch(() => undefined);
   loadFirstPageRecipes();
 });
 
 onMounted(() => {
-  console.log('[recipes page] mounted');
   if (!hasRequestedRemote.value) {
     loadFirstPageRecipes();
   }
@@ -851,7 +886,21 @@ onMounted(() => {
 }
 
 .action-icon {
-  font-size: var(--font-size-section-title);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(233, 226, 214, 0.56);
+  color: var(--app-danger);
+}
+
+.action-icon::after {
+  border: 0;
 }
 
 .recipe-reason {
@@ -872,7 +921,7 @@ onMounted(() => {
 }
 
 .meta-icon {
-  font-size: var(--font-size-tag);
+  color: var(--app-text-tertiary);
   opacity: 0.6;
 }
 

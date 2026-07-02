@@ -1,7 +1,9 @@
 <template>
   <view class="app-page profile-edit-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">←</button>
+      <button class="back-button" @tap="goBack">
+        <app-icon name="arrow-left" size="26rpx" />
+      </button>
       <text class="page-title">个人信息</text>
       <view class="topbar-spacer" />
     </view>
@@ -49,6 +51,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import AppIcon from '../../components/app/app-icon.vue';
 import { getDefaultUserProfile, loadUserProfile, saveUserProfile } from '../../services/profile';
 import type { UserProfile } from '../../types/profile';
 

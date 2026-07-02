@@ -1,10 +1,12 @@
-import { PagePlaceholder } from '../components/PagePlaceholder';
+import { listUserFavorites } from '../api';
+import { UserActivityListPage } from './UserActivityListPage';
 
 export const UserFavoritesPage = () => (
-  <PagePlaceholder
+  <UserActivityListPage
     title="用户收藏"
-    description="查看多类型收藏数据，支持菜谱、食材、水果、调料和调酒。"
-    modules={['收藏列表', '收藏趋势', '热门收藏', '用户分布']}
-    fields={['user_id / target_id / target_type', 'created_at / content_status']}
+    description="查看 C 端用户收藏的菜谱和食材，数据来自 favorites 表。"
+    eventLabel="收藏时间"
+    emptyText="暂无收藏记录"
+    fetcher={listUserFavorites}
   />
 );

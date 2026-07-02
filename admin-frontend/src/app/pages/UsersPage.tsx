@@ -107,6 +107,11 @@ export const UsersPage = () => {
   const [userToDelete, setUserToDelete] = useState<AdminUserListItem | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Status Toggle States
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [userToToggle, setUserToToggle] = useState<AdminUserListItem | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   
   // Form States
   const [formState, setFormState] = useState(initialForm);
@@ -176,19 +181,10 @@ export const UsersPage = () => {
     setTimeout(() => void loadData(), 0);
   };
 
-  const handleToggleStatus = async (item: AdminUserListItem) => {
-    const nextStatus = item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-    const actionName = nextStatus === 'DISABLED' ? '禁用' : '启用';
-    if (!window.confirm(`确认${actionName}用户「${item.nickname ?? item.code}」？`)) return;
-    setError('');
-    try {
-      await setUserStatus(item.legacyId, nextStatus);
-      setNotice(`用户「${item.nickname ?? item.code}」已${actionName}`);
-      setTimeout(() => setNotice(null), 3000);
-      await loadData();
-    } catch (err) {
-      setError(normalizeErrorMessage(err));
-    }
+  const handleToggleStatus = (item: AdminUserListItem) => {
+    setUserToToggle(item);
+    setToggleError(null);
+    setStatusModalOpen(true);
   };
 
   const openDeleteModal = (item: AdminUserListItem) => {
@@ -818,6 +814,74 @@ export const UsersPage = () => {
               onClick={handleConfirmDelete}
             >
               {saving ? '处理中...' : '确认注销'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Status Toggle Confirmation */}
+      <Modal
+        title={`确认${userToToggle?.status === 'ACTIVE' ? '禁用' : '启用'}用户账号`}
+        open={statusModalOpen}
+        onClose={() => {
+          setStatusModalOpen(false);
+          setUserToToggle(null);
+          setToggleError(null);
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-600">
+            您即将**{userToToggle?.status === 'ACTIVE' ? '禁用' : '启用'}**用户「
+            <span className="font-semibold text-zinc-900">{userToToggle?.nickname ?? userToToggle?.code}</span>
+            」的账号。
+          </p>
+          <p className="text-xs text-zinc-400">
+            {userToToggle?.status === 'ACTIVE'
+              ? '禁用后，该用户将无法通过 App 进行登录或提交数据，直至账号被重新启用。'
+              : '启用后，该用户将恢复 App 的全部正常使用功能。'}
+          </p>
+
+          {toggleError ? (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-700 font-semibold font-mono">
+              {toggleError}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setStatusModalOpen(false);
+                setUserToToggle(null);
+                setToggleError(null);
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              className={userToToggle?.status === 'ACTIVE' ? 'bg-red-500 hover:bg-red-600 text-white font-semibold' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold'}
+              disabled={saving}
+              onClick={async () => {
+                if (!userToToggle) return;
+                setSaving(true);
+                setToggleError(null);
+                const nextStatus = userToToggle.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
+                const actionName = nextStatus === 'DISABLED' ? '禁用' : '启用';
+                try {
+                  await setUserStatus(userToToggle.legacyId, nextStatus);
+                  setNotice(`用户「${userToToggle.nickname ?? userToToggle.code}」已${actionName}`);
+                  setTimeout(() => setNotice(null), 3000);
+                  setStatusModalOpen(false);
+                  setUserToToggle(null);
+                  await loadData();
+                } catch (err) {
+                  setToggleError(normalizeErrorMessage(err));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? '处理中...' : '确认'}
             </Button>
           </div>
         </div>

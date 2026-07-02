@@ -107,7 +107,11 @@ apiRecipesRouter.get('/:id', async (req, res) => {
       category: { select: { id: true, bizId: true, code: true, name: true, type: true } },
       cuisine: { select: { id: true, name: true } },
       steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-      ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+      ingredients: {
+        where: { deletedAt: null },
+        orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }],
+        include: { ingredient: { select: { cover: true } } }
+      },
       beverages: {
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
         include: { beverage: true }

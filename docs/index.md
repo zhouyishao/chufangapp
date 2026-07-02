@@ -13,6 +13,7 @@
 | 后端接口 | `docs/backend/api-spec.md`、`docs/backend/auth.md` | API 规范、鉴权 |
 | 数据库 | `docs/backend/database-schema.md`、`docs/backend/field-models.md` | Prisma 模型、字段 |
 | 全链路测试 | `docs/codex/e2e-index.md`、`docs/codex/e2e-test-cases.md`、`docs/codex/verification-rules.md` | E2E 范围、测试、验收 |
+| Codex 输出压缩 | `docs/codex/headroom.md` | Headroom 安装、命令前查看/压缩规则、MCP 接入说明 |
 
 ## 文档分层
 
@@ -45,6 +46,7 @@ flowchart TD
   A["AGENTS.md"] --> I["docs/index.md"]
   I --> C["docs/codex/coding-rules.md"]
   I --> K["docs/codex/checklist.md"]
+  I --> H["docs/codex/headroom.md"]
   I --> P["docs/product/prd.md"]
   I --> D["docs/design/ui-rules.md"]
   I --> B["docs/backend/api-spec.md"]

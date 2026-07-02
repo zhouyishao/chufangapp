@@ -35,6 +35,7 @@ import { adminUsersRouter } from './routes/admin/users';
 import { adminResourcesRouter } from './routes/admin/resources';
 import { apiHomeRouter } from './routes/api/home';
 import { apiAppHomeRouter } from './routes/api/app-home';
+import { apiBeveragesRouter } from './routes/api/beverages';
 import { apiPageModulesRouter } from './routes/api/page-modules';
 import { apiIngredientsRouter } from './routes/api/ingredients';
 import { apiMobileRouter } from './routes/api/mobile';
@@ -100,6 +101,7 @@ export const createApp = () => {
   app.use('/api/home', apiHomeRouter);
   app.use('/api/app/home', apiAppHomeRouter);
   app.use('/api/app', apiPageModulesRouter);
+  app.use('/api/beverages', apiBeveragesRouter);
   app.use('/api/ingredients', apiIngredientsRouter);
   app.use('/api/recipes', apiRecipesRouter);
   app.use('/api/mobile', apiMobileRouter);
