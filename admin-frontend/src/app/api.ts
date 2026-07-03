@@ -741,6 +741,10 @@ export const deleteHeroBanner = async (navId: string, bannerId: number) =>
 // 该页面已迁移至顶部导航配置内容，不再作为独立页面路由
 // 以下导出仅用于保持 TypeScript 编译兼容
 
+const throwDeprecatedHomeHeroBannerError = (): never => {
+  throw new ApiError('旧首页顶部轮播图入口已废弃，请进入“首页运营 > 顶部导航 > 配置内容 > 轮播图设置”继续操作。');
+};
+
 /** @deprecated 使用 HeroBanner 替代 */
 export type HomeHeroBanner = HeroBanner;
 /** @deprecated 使用 HeroBannerPayload 替代 */
@@ -751,24 +755,31 @@ export type HomeHeroBannerStatus = BannerStatus;
 export type HomeHeroBannerTargetType = HeroBannerTargetType;
 /** @deprecated 使用 listHeroBanners 替代 */
 export const listHomeHeroBanners = async (params: { page?: number; pageSize?: number; q?: string; status?: BannerStatus } = {}) => {
-  // 已废弃：请使用 listHeroBanners(navId, params)
-  const qs = createPageQuery(params.page, params.pageSize, 10);
-  setParam(qs, 'q', params.q?.trim());
-  setParam(qs, 'status', params.status);
-  return request<PageResult<HomeHeroBanner>>(`/home/top-navs/0/hero-banners?${qs.toString()}`);
+  void params;
+  return throwDeprecatedHomeHeroBannerError();
 };
 /** @deprecated 使用 createHeroBanner 替代 */
-export const createHomeHeroBanner = async (payload: HomeHeroBannerPayload) =>
-  request<HomeHeroBanner>('/home/top-navs/0/hero-banners', { method: 'POST', body: JSON.stringify(payload) });
+export const createHomeHeroBanner = async (payload: HomeHeroBannerPayload) => {
+  void payload;
+  return throwDeprecatedHomeHeroBannerError();
+};
 /** @deprecated 使用 updateHeroBanner 替代 */
-export const updateHomeHeroBanner = async (id: number, payload: HomeHeroBannerPayload) =>
-  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const updateHomeHeroBanner = async (id: number, payload: HomeHeroBannerPayload) => {
+  void id;
+  void payload;
+  return throwDeprecatedHomeHeroBannerError();
+};
 /** @deprecated 使用 updateHeroBannerStatus 替代 */
-export const updateHomeHeroBannerStatus = async (id: number, status: HomeHeroBannerStatus) =>
-  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const updateHomeHeroBannerStatus = async (id: number, status: HomeHeroBannerStatus) => {
+  void id;
+  void status;
+  return throwDeprecatedHomeHeroBannerError();
+};
 /** @deprecated 使用 deleteHeroBanner 替代 */
-export const deleteHomeHeroBanner = async (id: number) =>
-  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}`, { method: 'DELETE' });
+export const deleteHomeHeroBanner = async (id: number) => {
+  void id;
+  return throwDeprecatedHomeHeroBannerError();
+};
 
 export type Beverage = {
   id: string;

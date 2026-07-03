@@ -213,6 +213,8 @@ model FamilyMember {
   @@unique([familyId, userId])
   @@index([familyId])
   @@index([userId])
+  @@index([userId, deletedAt, memberStatus], map: "family_members_user_active_idx")
+  @@index([familyId, deletedAt, memberStatus], map: "family_members_family_active_idx")
   @@map("family_members")
 }
 
@@ -457,6 +459,8 @@ model Ingredient {
 
   @@unique([name])
   @@index([categoryId])
+  @@index([deletedAt, status, isPublish, isRecommend, sort(sort: Desc), id(sort: Desc)], map: "ingredients_public_list_idx")
+  @@index([categoryId, deletedAt, status, isPublish, isRecommend, sortOrder(sort: Desc), id(sort: Desc)], map: "ingredients_category_public_idx")
   @@map("ingredients")
 }
 
@@ -487,6 +491,7 @@ model IngredientPriceRecord {
 
   @@index([ingredientId])
   @@index([userId])
+  @@index([ingredientId, userId, deletedAt, priceDate(sort: Desc), createdAt(sort: Desc)], map: "ingredient_price_records_lookup_idx")
   @@map("ingredient_price_records")
 }
 
@@ -604,6 +609,10 @@ model Recipe {
   updatedBy      Int?         @map("updated_by")
 
   @@unique([importSourceType, sourceName, sourceRecipeId])
+  @@index([deletedAt, status, isPublish, auditStatus, isRecommend, sort(sort: Desc), id(sort: Desc)], map: "recipes_public_list_idx")
+  @@index([deletedAt, status, isPublish, auditStatus, isRecommend, sortOrder(sort: Desc), id(sort: Desc)], map: "recipes_public_module_idx")
+  @@index([categoryId, deletedAt, status, isPublish, auditStatus, isRecommend, sortOrder(sort: Desc), id(sort: Desc)], map: "recipes_category_public_idx")
+  @@index([authorId, deletedAt, updatedAt(sort: Desc), id(sort: Desc)], map: "recipes_author_idx")
   @@map("recipes")
 }
 
@@ -736,6 +745,8 @@ model Beverage {
 
   @@unique([name])
   @@index([categoryId])
+  @@index([deletedAt, status, isPublish, sortOrder(sort: Desc), id(sort: Desc)], map: "beverages_public_list_idx")
+  @@index([categoryId, deletedAt, status, isPublish, sortOrder(sort: Desc), id(sort: Desc)], map: "beverages_category_public_idx")
   @@map("beverages")
 }
 
@@ -875,6 +886,9 @@ model Favorite {
   @@index([userId])
   @@index([recipeId])
   @@index([ingredientId])
+  @@index([userId, deletedAt, updatedAt(sort: Desc), id(sort: Desc)], map: "favorites_user_active_updated_idx")
+  @@index([userId, deletedAt, recipeId, updatedAt(sort: Desc)], map: "favorites_user_active_recipe_idx")
+  @@index([userId, deletedAt, ingredientId, updatedAt(sort: Desc)], map: "favorites_user_active_ingredient_idx")
   @@map("favorites")
 }
 
@@ -904,6 +918,9 @@ model ViewHistory {
   @@index([userId])
   @@index([recipeId])
   @@index([ingredientId])
+  @@index([userId, deletedAt, updatedAt(sort: Desc), id(sort: Desc)], map: "view_histories_user_active_updated_idx")
+  @@index([userId, recipeId, deletedAt], map: "view_histories_user_recipe_active_idx")
+  @@index([userId, ingredientId, deletedAt], map: "view_histories_user_ingredient_active_idx")
   @@map("view_histories")
 }
 
@@ -944,6 +961,8 @@ model PurchaseListItem {
   @@index([familyId])
   @@index([recipeId])
   @@index([ingredientId])
+  @@index([userId, deletedAt, checked, updatedAt(sort: Desc), id(sort: Desc)], map: "purchase_list_items_user_active_idx")
+  @@index([familyId, deletedAt, checked, updatedAt(sort: Desc), id(sort: Desc)], map: "purchase_list_items_family_active_idx")
   @@map("purchase_list_items")
 }
 
@@ -970,6 +989,7 @@ model SearchHistory {
 
   @@unique([userId, keyword])
   @@index([userId])
+  @@index([userId, deletedAt, updatedAt(sort: Desc), id(sort: Desc)], map: "search_histories_user_active_updated_idx")
   @@map("search_histories")
 }
 

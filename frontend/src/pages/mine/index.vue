@@ -325,11 +325,18 @@ const logout = () => {
 };
 
 const goToCurrentFamily = () => {
-  uni.navigateTo({ url: `/pages/family-manage/index?id=${encodeURIComponent(activeFamilyId.value)}` });
+  const familyId = activeFamilyId.value || familyOptions.value[0]?.id || '';
+  uni.navigateTo({ url: familyId ? `/pages/family-manage/index?id=${encodeURIComponent(familyId)}` : '/pages/family/index' });
 };
 
 const goToFamilyInvite = () => {
-  uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(activeFamilyId.value)}` });
+  const familyId = activeFamilyId.value || familyOptions.value[0]?.id || '';
+  if (!familyId) {
+    uni.showToast({ title: '请先创建家庭', icon: 'none' });
+    uni.navigateTo({ url: '/pages/family/index' });
+    return;
+  }
+  uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(familyId)}` });
 };
 
 const refreshUserStats = async () => {
