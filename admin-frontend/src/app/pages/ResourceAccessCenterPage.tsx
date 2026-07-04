@@ -9,13 +9,16 @@ import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
 import {
+  listResourceApiProviders,
+  syncResourceApiProvider,
+  testSavedResourceApiProvider,
   listImportItems,
   createImportBatch,
   updateImportItem,
   setImportItemStatus,
   confirmImportBatch
 } from '../api';
-import type { ResourceImportStagedItem } from '../types';
+import type { ResourceApiProviderItem, ResourceImportStagedItem } from '../types';
 
 type ResourceType = ResourceImportStagedItem['importType'];
 type ImportStatus = ResourceImportStagedItem['status'];
@@ -79,6 +82,13 @@ export const ResourceAccessCenterPage = () => {
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
+  const [providerItems, setProviderItems] = useState<ResourceApiProviderItem[]>([]);
+  const [providerLoading, setProviderLoading] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<number | ''>('');
+  const [syncLimit, setSyncLimit] = useState(100);
+  const [syncParamsText, setSyncParamsText] = useState('{\n  "page": 1,\n  "pageSize": 100\n}');
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [previewItem, setPreviewItem] = useState<ResourceImportStagedItem | null>(null);
@@ -109,9 +119,34 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
+  const refreshProviders = async () => {
+    setProviderLoading(true);
+    try {
+      const data = await listResourceApiProviders({
+        page: 1,
+        pageSize: 100,
+        status: 'ACTIVE',
+        resourceType: uploadType
+      });
+      setProviderItems(data.list);
+      setSelectedProviderId((current) => {
+        if (typeof current === 'number' && data.list.some((item) => item.id === current)) return current;
+        return data.list[0]?.id ?? '';
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载接口提供方失败');
+    } finally {
+      setProviderLoading(false);
+    }
+  };
+
   useEffect(() => {
     void refresh();
   }, [page, pageSize, appliedQ, statusFilter, batchIdFilter]);
+
+  useEffect(() => {
+    void refreshProviders();
+  }, [uploadType]);
 
   const handleSearch = () => {
     setPage(1);
@@ -127,6 +162,57 @@ export const ResourceAccessCenterPage = () => {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
       setSearchParams(nextParams);
+    }
+  };
+
+  const handleTestProvider = async () => {
+    if (typeof selectedProviderId !== 'number') {
+      setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    setTestLoading(true);
+    setError(null);
+    try {
+      const result = await testSavedResourceApiProvider(selectedProviderId);
+      setNotice(`测试通过：解析 ${result.total} 条，预览 ${result.preview.length} 条`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '测试连接失败');
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleSyncProvider = async () => {
+    if (typeof selectedProviderId !== 'number') {
+      setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    let parsedParams: Record<string, unknown> | null = null;
+    if (syncParamsText.trim()) {
+      try {
+        parsedParams = JSON.parse(syncParamsText) as Record<string, unknown>;
+      } catch {
+        setError('同步参数 JSON 格式无效');
+        return;
+      }
+    }
+
+    setSyncLoading(true);
+    setError(null);
+    try {
+      const result = await syncResourceApiProvider(selectedProviderId, {
+        limit: Math.min(500, Math.max(1, syncLimit || 100)),
+        params: parsedParams
+      });
+      setNotice(`已同步到导入池，批次 #${result.batch.id}，待处理 ${result.summary.pending} 条，失败 ${result.summary.failed} 条`);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('batchId', String(result.batch.id));
+      setSearchParams(nextParams);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '同步失败');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -449,9 +535,29 @@ export const ResourceAccessCenterPage = () => {
       render: (item) => <span className="text-zinc-600 text-sm">{item.mappedData?.categoryName || '-'}</span>
     },
     {
+      key: 'provider',
+      title: '提供方',
+      render: (item) => <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
+    },
+    {
+      key: 'externalId',
+      title: '外部 ID',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.externalId || '-'}</span>
+    },
+    {
       key: 'importStatus',
       title: '导入状态',
       render: (item) => <StatusTag label={item.status === 'PENDING' ? '待处理' : item.status === 'IMPORTED' ? '已导入' : item.status === 'FAILED' ? '导入失败' : '已忽略'} tone={importStatusTone[item.status]} />
+    },
+    {
+      key: 'filterCode',
+      title: '过滤码',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.filterCode || '-'}</span>
+    },
+    {
+      key: 'duplicateTargetId',
+      title: '重复目标',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.duplicateTargetId || '-'}</span>
     },
     {
       key: 'duplicateStatus',
@@ -550,6 +656,54 @@ export const ResourceAccessCenterPage = () => {
           </button>
         </div>
       ) : null}
+
+      <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
+        <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr_auto] items-end">
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">API 提供方</span>
+            <select
+              className={selectClass}
+              value={selectedProviderId}
+              onChange={(e) => setSelectedProviderId(e.target.value ? Number(e.target.value) : '')}
+              disabled={providerLoading}
+            >
+              <option value="">{providerLoading ? '加载中...' : '请选择提供方'}</option>
+              {providerItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.providerName} - {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">同步条数</span>
+            <Input
+              type="number"
+              value={syncLimit}
+              onChange={(e) => setSyncLimit(Number(e.target.value))}
+              min={1}
+              max={500}
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">请求参数 JSON</span>
+            <textarea
+              className="min-h-11 rounded-xl border border-[#e9e2d6] bg-white px-3 py-2 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10"
+              value={syncParamsText}
+              onChange={(e) => setSyncParamsText(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 xl:justify-end">
+            <Button variant="ghost" className="h-11 px-5" onClick={handleTestProvider} disabled={testLoading}>
+              {testLoading ? '测试中...' : '测试连接'}
+            </Button>
+            <Button className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]" onClick={handleSyncProvider} disabled={syncLoading}>
+              {syncLoading ? '同步中...' : '同步到导入池'}
+            </Button>
+          </div>
+        </div>
+      </section>
 
       {/* Filter Options */}
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">

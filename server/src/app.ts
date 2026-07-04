@@ -27,6 +27,7 @@ import { adminPostsRouter } from './routes/admin/posts';
 import { adminRecommendationsRouter } from './routes/admin/recommendations';
 import { adminAuditsRouter } from './routes/admin/audits';
 import { adminChannelsRouter } from './routes/admin/channels';
+import { adminResourceApiProvidersRouter } from './routes/admin/resource-api-providers';
 import { adminRecipesRouter } from './routes/admin/recipes';
 import { adminTagsRouter } from './routes/admin/tags';
 import { adminSeasonalFoodsRouter } from './routes/admin/seasonal-foods';
@@ -92,6 +93,7 @@ export const createApp = () => {
   app.use('/api/admin/audits', adminAuditsRouter);
   app.use('/api/admin/tags', adminTagsRouter);
   app.use('/api/admin/channels', adminChannelsRouter);
+  app.use('/api/admin/resource-api-providers', adminResourceApiProvidersRouter);
   app.use('/api/admin/content-selector', adminContentSelectorRouter);
   app.use('/api/admin/home/top-navs', adminHomeTopNavsRouter);
   app.use('/api/admin/home/top-navs/:navId/hero-banners', adminTopNavHeroBannersRouter);

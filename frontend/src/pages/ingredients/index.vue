@@ -145,7 +145,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onShow, onPullDownRefresh, onLoad } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
@@ -288,7 +288,10 @@ const bottomTabs = ref<HomeTab[]>([
 ]);
 
 // ====== 数据加载 ======
+let isFetching = false;
 const fetchModules = async () => {
+  if (isFetching) return;
+  isFetching = true;
   loading.value = true;
   error.value = null;
   try {
@@ -307,6 +310,7 @@ const fetchModules = async () => {
     modules.value = [];
   } finally {
     loading.value = false;
+    isFetching = false;
     uni.stopPullDownRefresh();
   }
 };
@@ -321,7 +325,7 @@ const handleTopNavTap = (item: PageModuleTopNavItem) => {
   void fetchModules();
 };
 
-// ====== 分类筛选点击 ======
+// ====== 分类分类点击 ======
 const handleFilterTap = (item: PageModuleCategoryFilterItem) => {
   currentFilter.value = item.type === 'system' ? 'recommend' : item.key;
   currentCategoryId.value = item.type === 'category' ? item.categoryId : undefined;
@@ -380,6 +384,37 @@ const handleSearchTap = () => {
 };
 
 // ====== 生命周期 ======
+onLoad((query?: Record<string, string | undefined>) => {
+  let changed = false;
+  if (query?.tab === 'recipes' || query?.type === 'recipe') {
+    if (currentType.value !== 'recipe') {
+      currentType.value = 'recipe';
+      changed = true;
+    }
+  } else if (query?.type) {
+    if (currentType.value !== query.type) {
+      currentType.value = query.type;
+      changed = true;
+    }
+  }
+  if (query?.filter) {
+    if (currentFilter.value !== query.filter) {
+      currentFilter.value = query.filter;
+      changed = true;
+    }
+  }
+  if (query?.categoryId) {
+    const parsed = Number(query.categoryId);
+    if (Number.isFinite(parsed) && currentCategoryId.value !== parsed) {
+      currentCategoryId.value = parsed;
+      changed = true;
+    }
+  }
+  if (changed) {
+    void fetchModules();
+  }
+});
+
 onMounted(() => {
   void fetchModules();
 });
@@ -390,8 +425,7 @@ onShow(() => {
 
 onPullDownRefresh(() => {
   void fetchModules();
-});
-</script>
+});</script>
 
 <style scoped lang="scss">
 .category-page {

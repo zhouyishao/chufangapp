@@ -724,6 +724,20 @@ model Beverage {
   isAlcoholic    Boolean      @default(false) @map("is_alcoholic")
   alcoholDegree  Float?       @map("alcohol_degree")
   description    String?      @db.Text
+  drinkType      String?      @map("drink_type") @db.VarChar(80)
+  cocktailMethod String?      @map("cocktail_method") @db.VarChar(80)
+  baseSpirit     String?      @map("base_spirit") @db.VarChar(120)
+  glassType      String?      @map("glass_type") @db.VarChar(120)
+  alcoholicType  String?      @map("alcoholic_type") @db.VarChar(80)
+  ingredients    Json?        @map("ingredients")
+  measures       Json?        @map("measures")
+  garnish        String?      @db.VarChar(255)
+  instructions   String?      @db.Text
+  flavorTags     Json?        @map("flavor_tags")
+  sceneTags      Json?        @map("scene_tags")
+  sourceName     String?      @map("source_name") @db.VarChar(120)
+  sourceExternalId String?    @map("source_external_id") @db.VarChar(120)
+  rawJson        Json?        @map("raw_json")
 
   category       Category?    @relation(fields: [categoryId], references: [id])
   recipes        RecipeBeverage[]
@@ -744,6 +758,7 @@ model Beverage {
   updatedBy      Int?         @map("updated_by")
 
   @@unique([name])
+  @@index([sourceName, sourceExternalId])
   @@index([categoryId])
   @@index([deletedAt, status, isPublish, sortOrder(sort: Desc), id(sort: Desc)], map: "beverages_public_list_idx")
   @@index([categoryId, deletedAt, status, isPublish, sortOrder(sort: Desc), id(sort: Desc)], map: "beverages_category_public_idx")
@@ -1480,6 +1495,36 @@ model ResourceCallLog {
   @@map("resource_call_logs")
 }
 
+model ResourceApiProvider {
+  id              Int                  @id @default(autoincrement())
+  name            String               @db.VarChar(120)
+  providerName    String               @map("provider_name") @db.VarChar(120)
+  resourceType    String               @map("resource_type") @db.VarChar(32)
+  method          String               @default("GET") @db.VarChar(16)
+  endpointUrl     String               @map("endpoint_url") @db.VarChar(500)
+  authType        String               @default("NONE") @map("auth_type") @db.VarChar(32)
+  appKey          String?              @map("app_key") @db.VarChar(255)
+  encryptedSecret String?              @map("encrypted_secret") @db.Text
+  defaultHeaders  Json?                @map("default_headers")
+  defaultParams   Json?                @map("default_params")
+  dataPath        String               @default("data.list") @map("data_path") @db.VarChar(120)
+  timeoutMs       Int                  @default(10000) @map("timeout_ms")
+  dailyLimit      Int                  @default(10000) @map("daily_limit")
+  description     String?              @db.Text
+  status          RecordStatus         @default(ACTIVE)
+  lastSyncedAt    DateTime?            @map("last_synced_at")
+  lastTestedAt    DateTime?            @map("last_tested_at")
+  lastError       String?              @map("last_error") @db.Text
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  importBatches   ResourceImportBatch[]
+
+  @@index([resourceType])
+  @@index([status])
+  @@map("resource_api_providers")
+}
+
 model ResourceImportBatch {
   id           Int                  @id @default(autoincrement())
   importType   String               @map("import_type") @db.VarChar(32) // RECIPE / INGREDIENT / FRUIT / SEASONING / BEVERAGE
@@ -1491,11 +1536,16 @@ model ResourceImportBatch {
   failedCount  Int                  @default(0) @map("failed_count")
   errorMessage String?              @map("error_message") @db.Text
   createdBy    String               @map("created_by") @db.VarChar(64)
+  providerId   Int?                 @map("provider_id")
+  provider     ResourceApiProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  sourceName   String?              @map("source_name") @db.VarChar(120)
+  requestSnapshot Json?              @map("request_snapshot")
   createdAt    DateTime             @default(now()) @map("created_at")
   finishedAt   DateTime?            @map("finished_at")
 
   items        ResourceImportItem[]
 
+  @@index([providerId])
   @@map("resource_import_batches")
 }
 
@@ -1509,6 +1559,10 @@ model ResourceImportItem {
   status       String              @default("PENDING") @db.VarChar(20) // PENDING / IMPORTED / FAILED
   errorMessage String?             @map("error_message") @db.Text
   targetId     Int?                @map("target_id") // Inserted row ID in main tables on success
+  externalId   String?             @map("external_id") @db.VarChar(120)
+  externalUrl  String?             @map("external_url") @db.VarChar(500)
+  filterCode   String?             @map("filter_code") @db.VarChar(64)
+  duplicateTargetId Int?            @map("duplicate_target_id")
   createdAt    DateTime            @default(now()) @map("created_at")
 
   @@index([importId])

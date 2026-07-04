@@ -250,7 +250,7 @@ let scrollFallbackTimer: ReturnType<typeof setInterval> | undefined;
 const isActionSheetVisible = ref(false);
 const homeTabs: HomeTab[] = [
   { id: 'home', label: '首页', active: true },
-  { id: 'ingredients', label: '食材', active: false },
+  { id: 'categories', label: '分类', active: false },
   { id: 'basket', label: '菜篮子', active: false },
   { id: 'mine', label: '我的', active: false }
 ];

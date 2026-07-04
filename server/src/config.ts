@@ -23,5 +23,6 @@ export const config = {
   corsOrigin: parseCorsOrigin(process.env.CORS_ORIGIN ?? '*'),
   jwtAdminSecret: getEnv('JWT_ADMIN_SECRET', 'change-me-admin'),
   jwtAppSecret: getEnv('JWT_APP_SECRET', 'change-me-app'),
+  resourceProviderSecretKey: getEnv('RESOURCE_PROVIDER_SECRET_KEY', 'change-me-resource-provider'),
   uploadDir: process.env.UPLOAD_DIR ?? './uploads'
 };

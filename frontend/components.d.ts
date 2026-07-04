@@ -19,6 +19,8 @@ declare module 'vue' {
     HorizontalRecipeCardModule: typeof import('./src/components/home-modules/HorizontalRecipeCardModule.vue')['default']
     ImageTextListModule: typeof import('./src/components/home-modules/ImageTextListModule.vue')['default']
     LargeImageCarouselModule: typeof import('./src/components/home-modules/LargeImageCarouselModule.vue')['default']
+    NutButton: typeof import('nutui-uniapp/components/button/button.vue')['default']
+    NutTag: typeof import('nutui-uniapp/components/tag/tag.vue')['default']
     SearchBarModule: typeof import('./src/components/category-modules/SearchBarModule.vue')['default']
     SeasonalIngredientCardModule: typeof import('./src/components/home-modules/SeasonalIngredientCardModule.vue')['default']
     SectionBlock: typeof import('./src/components/home/section-block.vue')['default']

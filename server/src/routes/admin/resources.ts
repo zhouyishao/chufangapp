@@ -8,6 +8,7 @@ import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { baseListQuerySchema, parseId } from './shared';
 import { createBusinessId, nextCodeFromItems } from '../../lib/business-id';
+import { createOfficialRecord } from '../../services/resource-import/importer';
 
 export const adminResourcesRouter = Router();
 
@@ -966,6 +967,17 @@ adminResourcesRouter.post('/resource-imports/upload', requireAdminAuth, async (r
   res.json(ok({ batch, items: createdItems }));
 });
 
+const batchListQuerySchema = baseListQuerySchema.extend({
+  status: z.enum(['PENDING', 'COMPLETED', 'FAILED']).optional(),
+  sourceType: z.enum(['API', 'JSON', 'XLSX', 'CSV']).optional(),
+  providerId: z.coerce.number().int().optional()
+});
+
+const importItemListQuerySchema = baseListQuerySchema.extend({
+  status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']).optional(),
+  providerId: z.coerce.number().int().optional()
+});
+
 // 3. GET /resource-imports/batches/stats
 adminResourcesRouter.get('/resource-imports/batches/stats', requireAdminAuth, async (req, res) => {
   const [total, pending, completed, failed] = await Promise.all([
@@ -979,48 +991,62 @@ adminResourcesRouter.get('/resource-imports/batches/stats', requireAdminAuth, as
 
 // 4. GET /resource-imports
 adminResourcesRouter.get('/resource-imports', requireAdminAuth, async (req, res) => {
-  const parsed = baseListQuerySchema.extend({
+  const parsed = batchListQuerySchema.extend({
     importType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional()
   }).safeParse(req.query);
   if (!parsed.success) throw formatZodError(parsed);
-  const { page, pageSize, q, status, importType } = parsed.data;
+  const { page, pageSize, q, status, importType, providerId, sourceType } = parsed.data;
   const skip = (page - 1) * pageSize;
 
   const where = {
     ...(status ? { status } : {}),
     ...(importType ? { importType } : {}),
+    ...(providerId ? { providerId } : {}),
+    ...(sourceType ? { sourceType } : {}),
     ...(q ? {
       OR: [
         { fileName: { contains: q, mode: 'insensitive' as const } },
-        { createdBy: { contains: q, mode: 'insensitive' as const } }
+        { createdBy: { contains: q, mode: 'insensitive' as const } },
+        { sourceName: { contains: q, mode: 'insensitive' as const } }
       ]
     } : {})
   };
 
-  const [list, total] = await Promise.all([
-    prisma.resourceImportBatch.findMany({
-      where,
-      orderBy: { id: 'desc' },
-      skip,
-      take: pageSize
-    }),
-    prisma.resourceImportBatch.count({ where })
-  ]);
+  const list = (await prisma.resourceImportBatch.findMany({
+    where,
+    include: { provider: { select: { id: true, name: true, providerName: true } } },
+    orderBy: { id: 'desc' },
+    skip,
+    take: pageSize
+  } as any)) as any[];
+  const total = await prisma.resourceImportBatch.count({ where });
 
-  const data: PageResult<typeof list[number]> = { list, total, page, pageSize };
+  const data: PageResult<any> = {
+    list: list.map((item) => ({
+      ...item,
+      providerName: item.provider?.providerName ?? null,
+      provider: item.provider
+        ? { id: item.provider.id, name: item.provider.name, providerName: item.provider.providerName }
+        : null,
+      createdAt: item.createdAt.toISOString(),
+      finishedAt: item.finishedAt ? item.finishedAt.toISOString() : null
+    })),
+    total,
+    page,
+    pageSize
+  };
   res.json(ok(data));
 });
 
 // 5. GET /resource-imports/items
 adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req, res) => {
-  const parsed = baseListQuerySchema.extend({
+  const parsed = importItemListQuerySchema.extend({
     batchId: z.coerce.number().int().optional(),
-    importId: z.coerce.number().int().optional(),
-    status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']).optional()
+    importId: z.coerce.number().int().optional()
   }).safeParse(req.query);
 
   if (!parsed.success) throw formatZodError(parsed);
-  const { page, pageSize, q, status, batchId, importId } = parsed.data;
+  const { page, pageSize, q, status, batchId, importId, providerId } = parsed.data;
   const skip = (page - 1) * pageSize;
 
   const targetImportId = importId || batchId;
@@ -1028,6 +1054,7 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
   const where = {
     ...(targetImportId ? { importId: targetImportId } : {}),
     ...(status ? { status } : {}),
+    ...(providerId ? { batch: { providerId } } : {}),
     ...(q ? {
       OR: [
         { mappedData: { path: ['name'], string_contains: q } }
@@ -1035,31 +1062,35 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
     } : {})
   };
 
-  const [items, total] = await Promise.all([
-    prisma.resourceImportItem.findMany({
-      where,
-      include: { batch: { select: { importType: true } } },
-      orderBy: { id: 'desc' },
-      skip,
-      take: pageSize
-    }),
-    prisma.resourceImportItem.count({ where })
-  ]);
+  const items = (await prisma.resourceImportItem.findMany({
+    where,
+    include: { batch: { select: { importType: true, providerId: true, sourceName: true, provider: { select: { providerName: true } } } } },
+    orderBy: { id: 'desc' },
+    skip,
+    take: pageSize
+  } as any)) as any[];
+  const total = await prisma.resourceImportItem.count({ where });
 
   const list = items.map(item => ({
     id: item.id,
     importId: item.importId,
     importType: item.batch.importType,
+    providerId: item.batch.providerId,
+    providerName: item.batch.provider?.providerName ?? null,
     rowIndex: item.rowIndex,
     rawData: item.rawData,
     mappedData: item.mappedData,
     status: item.status,
     errorMessage: item.errorMessage,
     targetId: item.targetId,
+    externalId: item.externalId,
+    externalUrl: item.externalUrl,
+    filterCode: item.filterCode,
+    duplicateTargetId: item.duplicateTargetId,
     createdAt: item.createdAt.toISOString()
   }));
 
-  const data: PageResult<typeof list[number]> = { list, total, page, pageSize };
+  const data: PageResult<any> = { list, total, page, pageSize };
   res.json(ok(data));
 });
 
@@ -1068,25 +1099,37 @@ adminResourcesRouter.get('/resource-imports/:id', requireAdminAuth, async (req, 
   const id = parseId(req.params.id);
   const batch = await prisma.resourceImportBatch.findUnique({
     where: { id },
-    include: { items: { orderBy: { rowIndex: 'asc' } } }
-  });
+    include: { provider: { select: { id: true, name: true, providerName: true } }, items: { orderBy: { rowIndex: 'asc' } } }
+  } as any) as any;
   if (!batch) throw new HttpError('导入记录不存在', 404, 404);
   
-  const items = batch.items.map(item => ({
+  const items = batch.items.map((item: any) => ({
     id: item.id,
     importId: item.importId,
     importType: batch.importType,
+    providerId: batch.providerId,
+    providerName: batch.provider?.providerName ?? null,
     rowIndex: item.rowIndex,
     rawData: item.rawData,
     mappedData: item.mappedData,
     status: item.status,
     errorMessage: item.errorMessage,
     targetId: item.targetId,
+    externalId: item.externalId,
+    externalUrl: item.externalUrl,
+    filterCode: item.filterCode,
+    duplicateTargetId: item.duplicateTargetId,
     createdAt: item.createdAt.toISOString()
   }));
 
   res.json(ok({
     ...batch,
+    providerName: batch.provider?.providerName ?? null,
+    provider: batch.provider
+      ? { id: batch.provider.id, name: batch.provider.name, providerName: batch.provider.providerName }
+      : null,
+    createdAt: batch.createdAt.toISOString(),
+    finishedAt: batch.finishedAt ? batch.finishedAt.toISOString() : null,
     items
   }));
 });
@@ -1192,8 +1235,9 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
   const { importId, itemIds } = parsed.data;
 
   const batch = await prisma.resourceImportBatch.findUnique({
-    where: { id: importId }
-  });
+    where: { id: importId },
+    include: { provider: true }
+  } as any) as any;
   if (!batch) throw new HttpError('导入批次不存在', 404, 404);
 
   const items = await prisma.resourceImportItem.findMany({
@@ -1211,24 +1255,18 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
       continue;
     }
     try {
-      let targetId: number | null = null;
       const mapped = item.mappedData as Record<string, any>;
-      const name = mapped.name;
-
-      if (!name) {
+      if (!String(mapped.name ?? '').trim()) {
         throw new Error('必填项缺失: 名称为空');
       }
-
-      if (batch.importType === 'RECIPE') {
-        const recipe = await importRecipe(name, mapped);
-        targetId = recipe.id;
-      } else if (['INGREDIENT', 'FRUIT', 'SEASONING'].includes(batch.importType)) {
-        const ing = await importIngredient(batch.importType, name, mapped);
-        targetId = ing.id;
-      } else if (batch.importType === 'BEVERAGE') {
-        const bev = await importBeverage(name, mapped);
-        targetId = bev.id;
-      }
+      const targetId = await createOfficialRecord(
+        prisma,
+        batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
+        mapped as any,
+        item.id,
+        batch.provider?.providerName ?? batch.sourceName ?? null,
+        (mapped.externalUrl as string | undefined) ?? null
+      );
 
       await prisma.resourceImportItem.update({
         where: { id: item.id },
@@ -1276,8 +1314,9 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
 adminResourcesRouter.post('/resource-imports/:id/retry-failed', requireAdminAuth, async (req, res) => {
   const id = parseId(req.params.id);
   const batch = await prisma.resourceImportBatch.findUnique({
-    where: { id }
-  });
+    where: { id },
+    include: { provider: true }
+  } as any) as any;
   if (!batch) throw new HttpError('导入批次不存在', 404, 404);
 
   const failedItems = await prisma.resourceImportItem.findMany({
@@ -1289,29 +1328,18 @@ adminResourcesRouter.post('/resource-imports/:id/retry-failed', requireAdminAuth
 
   for (const item of failedItems) {
     try {
-      let targetId: number | null = null;
       const mapped = item.mappedData as Record<string, any>;
-      const name = mapped.name;
-
-      if (!name) {
+      if (!String(mapped.name ?? '').trim()) {
         throw new Error('必填项缺失: 名称为空');
       }
-
-      const isDuplicate = await checkDuplicate(batch.importType, name);
-      if (isDuplicate) {
-        throw new Error('数据重复: 该资源在正式库中已存在');
-      }
-
-      if (batch.importType === 'RECIPE') {
-        const recipe = await importRecipe(name, mapped);
-        targetId = recipe.id;
-      } else if (['INGREDIENT', 'FRUIT', 'SEASONING'].includes(batch.importType)) {
-        const ing = await importIngredient(batch.importType, name, mapped);
-        targetId = ing.id;
-      } else if (batch.importType === 'BEVERAGE') {
-        const bev = await importBeverage(name, mapped);
-        targetId = bev.id;
-      }
+      const targetId = await createOfficialRecord(
+        prisma,
+        batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
+        mapped as any,
+        item.id,
+        batch.provider?.providerName ?? batch.sourceName ?? null,
+        (mapped.externalUrl as string | undefined) ?? null
+      );
 
       await prisma.resourceImportItem.update({
         where: { id: item.id },

@@ -9,6 +9,7 @@ import type {
   LoginResult,
   PageResult,
   Recipe,
+  ResourceApiProviderItem,
   ResourceAppItem,
   ResourceApiKeyItem,
   ResourcePermissionItem,
@@ -1220,6 +1221,110 @@ export const createFamilyInvite = async (payload: { familyId: number; inviterId?
 // 资源接口管理 (Resource Apps, Keys, Permissions, Logs)
 // ==========================================
 
+export const listResourceApiProviders = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourceApiProviderItem['status'];
+  resourceType?: ResourceApiProviderItem['resourceType'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'resourceType', params.resourceType);
+  return request<PageResult<ResourceApiProviderItem>>(`/resource-api-providers?${qs.toString()}`);
+};
+
+export const getResourceApiProvider = async (id: number | string) => {
+  return request<ResourceApiProviderItem>(`/resource-api-providers/${id}`);
+};
+
+export const createResourceApiProvider = async (payload: {
+  name: string;
+  providerName: string;
+  resourceType: ResourceApiProviderItem['resourceType'];
+  method: ResourceApiProviderItem['method'];
+  endpointUrl: string;
+  authType: ResourceApiProviderItem['authType'];
+  appKey?: string | null;
+  secret?: string | null;
+  defaultHeaders?: Record<string, unknown> | null;
+  defaultParams?: Record<string, unknown> | null;
+  dataPath: string;
+  timeoutMs: number;
+  dailyLimit: number;
+  description?: string | null;
+  status: ResourceApiProviderItem['status'];
+}) => request<ResourceApiProviderItem>('/resource-api-providers', {
+  method: 'POST',
+  body: JSON.stringify(payload)
+});
+
+export const updateResourceApiProvider = async (
+  id: number | string,
+  payload: {
+    name: string;
+    providerName: string;
+    resourceType: ResourceApiProviderItem['resourceType'];
+    method: ResourceApiProviderItem['method'];
+    endpointUrl: string;
+    authType: ResourceApiProviderItem['authType'];
+    appKey?: string | null;
+    secret?: string | null;
+    defaultHeaders?: Record<string, unknown> | null;
+    defaultParams?: Record<string, unknown> | null;
+    dataPath: string;
+    timeoutMs: number;
+    dailyLimit: number;
+    description?: string | null;
+    status: ResourceApiProviderItem['status'];
+  }
+) => request<ResourceApiProviderItem>(`/resource-api-providers/${id}`, {
+  method: 'PUT',
+  body: JSON.stringify(payload)
+});
+
+export const setResourceApiProviderStatus = async (id: number | string, status: ResourceApiProviderItem['status']) =>
+  request<ResourceApiProviderItem>(`/resource-api-providers/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+
+export const deleteResourceApiProvider = async (id: number | string) =>
+  request<ResourceApiProviderItem>(`/resource-api-providers/${id}`, { method: 'DELETE' });
+
+export const testResourceApiProvider = async (payload: {
+  name: string;
+  providerName: string;
+  resourceType: ResourceApiProviderItem['resourceType'];
+  method: ResourceApiProviderItem['method'];
+  endpointUrl: string;
+  authType: ResourceApiProviderItem['authType'];
+  appKey?: string | null;
+  secret?: string | null;
+  defaultHeaders?: Record<string, unknown> | null;
+  defaultParams?: Record<string, unknown> | null;
+  dataPath: string;
+  timeoutMs: number;
+  dailyLimit: number;
+  description?: string | null;
+  status: ResourceApiProviderItem['status'];
+}) => request<{ total: number; preview: Array<Record<string, unknown>>; requestUrl: string; requestBody: Record<string, unknown> | null; headers: Record<string, string> }>('/resource-api-providers/test', {
+  method: 'POST',
+  body: JSON.stringify(payload)
+});
+
+export const testSavedResourceApiProvider = async (id: number | string) =>
+  request<{ total: number; preview: Array<Record<string, unknown>>; requestUrl: string; requestBody: Record<string, unknown> | null; headers: Record<string, string> }>(`/resource-api-providers/${id}/test`, {
+    method: 'POST'
+  });
+
+export const syncResourceApiProvider = async (id: number | string, payload: { limit?: number; params?: Record<string, unknown> | null } = {}) =>
+  request<{ batch: ResourceImportBatchItem; summary: { total: number; pending: number; failed: number; imported: number; ignored: number }; preview: Array<Record<string, unknown>> }>(`/resource-api-providers/${id}/sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+
 export const listResourceApps = async (params: {
   page?: number;
   pageSize?: number;
@@ -1444,11 +1549,15 @@ export const listImportBatches = async (params: {
   q?: string;
   status?: ResourceImportBatchItem['status'];
   importType?: ResourceImportBatchItem['importType'];
+  sourceType?: string;
+  providerId?: number;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   setParam(qs, 'importType', params.importType);
+  setParam(qs, 'sourceType', params.sourceType);
+  setParam(qs, 'providerId', params.providerId);
   return request<PageResult<ResourceImportBatchItem>>(`/resource-imports?${qs.toString()}`);
 };
 
@@ -1463,11 +1572,13 @@ export const listImportItems = async (params: {
   status?: ResourceImportStagedItem['status'];
   batchId?: number;
   importId?: number;
+  providerId?: number;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   setParam(qs, 'importId', params.importId || params.batchId);
+  setParam(qs, 'providerId', params.providerId);
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
 };
 
