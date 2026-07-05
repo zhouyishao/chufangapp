@@ -236,7 +236,21 @@ export const ApiProviderListPage = () => {
             <Button variant="ghost" onClick={handleReset}>重置</Button>
           </div>
         </div>
-        <Button onClick={() => navigate('/resources/api-providers/create')}>新增接口</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=JUHE_RECIPE')}
+          >
+            新建 Juhe 菜谱
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=TIANAPI_RECIPE')}
+          >
+            新建 TianAPI 菜谱
+          </Button>
+          <Button onClick={() => navigate('/resources/api-providers/create')}>新增接口</Button>
+        </div>
       </FilterPanel>
 
       <DataTable

@@ -54,7 +54,10 @@ const splitLines = (value: unknown): string[] => {
   }
   const text = toText(value);
   if (!text) return [];
-  return text.split(/\n|；|;/).map((item) => item.trim()).filter(Boolean);
+  return text
+    .split(/\n|；|;|。|．|!\s*|\?\s*/u)
+    .map((item) => item.trim())
+    .filter(Boolean);
 };
 
 const splitTags = (value: unknown): string[] => {
@@ -77,7 +80,9 @@ const splitIngredients = (value: unknown): IngredientEntry[] => {
     return value
       .map((item, index): IngredientEntry | null => {
         if (typeof item === 'string') {
-          const [name, amount = ''] = item.trim().split(/\s+/);
+          const trimmed = item.trim();
+          if (!trimmed) return null;
+          const [name, amount = ''] = trimmed.split(/[:：\s]+/);
           return name ? { name, amount: amount || undefined, sortIndex: index + 1 } : null;
         }
         const raw = asRecord(item);
@@ -96,9 +101,11 @@ const splitIngredients = (value: unknown): IngredientEntry[] => {
   const text = toText(value);
   if (!text) return [];
   return text
-    .split(/,|，|\n|；|;/)
+    .split(/,|，|\n|；|;|、/)
     .map((part, index): IngredientEntry | null => {
-      const [name, amount = ''] = part.trim().split(/\s+/);
+      const trimmed = part.trim();
+      if (!trimmed) return null;
+      const [name, amount = ''] = trimmed.split(/[:：\s]+/);
       return name ? { name, amount: amount || undefined, sortIndex: index + 1 } : null;
     })
     .filter(isIngredientEntry);
@@ -208,6 +215,11 @@ const normalizeUrl = (value: unknown): string | null => {
   return text || null;
 };
 
+const firstText = (value: unknown): string | null => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  return toText(value[0]);
+};
+
 const isValidMediaUrl = (value: string | null | undefined): boolean => {
   if (!value) return true;
   return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/uploads/');
@@ -215,22 +227,32 @@ const isValidMediaUrl = (value: string | null | undefined): boolean => {
 
 export function normalizeResourcePayload(resourceType: ResourceImportType, rawInput: unknown): NormalizedResourcePayload {
   const raw = asRecord(rawInput);
-  const name = getText(raw, ['name', 'title', '名称', '标题', 'strDrink', 'strMeal', 'food', 'name_cn', 'product_name', 'product_name_en', 'description']);
+  const name = getText(raw, ['name', 'title', '名称', '标题', 'strDrink', 'strMeal', 'food', 'name_cn', 'product_name', 'product_name_en', 'menu', 'cpName']);
   const payload: NormalizedResourcePayload = {
     name,
     sourceName: getText(raw, ['sourceName', 'providerName', '来源名称']) || null,
-    externalId: getText(raw, ['externalId', 'id', 'ID', 'sourceId', 'idDrink', 'idMeal', 'code', '_id']) || null,
+    externalId: getText(raw, ['externalId', 'id', 'ID', 'sourceId', 'idDrink', 'idMeal', 'code', '_id', 'cpId', 'menuId', 'cookId']) || null,
     externalUrl: normalizeUrl(raw.sourceUrl ?? raw.url ?? raw.source_url ?? raw.strImageSource ?? raw.strSource ?? raw['链接']) || null,
     rawJson: raw
   };
 
   if (resourceType === 'RECIPE') {
-    const recipeInstructions = getText(raw, ['instructions', 'strInstructions', '步骤']);
+    const recipeInstructions = getText(raw, ['instructions', 'strInstructions', '步骤', 'process', 'content', 'method', 'imtro', 'intro']);
     const numberedIngredients = collectNumberedIngredients(raw, 20);
     payload.title = name;
     payload.subtitle = getText(raw, ['subtitle', '副标题']) || undefined;
-    payload.description = getText(raw, ['description', 'desc', 'imtro', 'message', '描述']) || undefined;
-    payload.cover = normalizeUrl(raw.cover ?? raw.pic ?? raw.img ?? raw.strMealThumb ?? raw['封面']) || null;
+    payload.description = getText(raw, ['description', 'desc', 'imtro', 'intro', 'message', '描述', '摘要']) || undefined;
+    payload.cover = normalizeUrl(
+      raw.cover ??
+      raw.pic ??
+      raw.img ??
+      raw.image ??
+      raw.images ??
+      raw.strMealThumb ??
+      firstText(raw.albums) ??
+      firstText(raw.album) ??
+      raw['封面']
+    ) || null;
     payload.cookTime = getNumber(raw, ['cookTime', 'cook_time', '耗时', 'time']);
     payload.servings = getNumber(raw, ['servings', '份量']);
     payload.calories = getNumber(raw, ['calories', '卡路里', 'calorie']);
@@ -238,10 +260,10 @@ export function normalizeResourcePayload(resourceType: ResourceImportType, rawIn
     payload.taste = getText(raw, ['taste', '口味', 'tag', 'strTags']) || null;
     payload.scene = getText(raw, ['scene', '场景']) || null;
     payload.tips = getText(raw, ['tips', '技巧', 'summary']) || null;
-    payload.categoryName = getText(raw, ['categoryName', 'category', 'classify', 'strCategory', '分类', '分类名称']) || null;
-    payload.cuisineName = getText(raw, ['cuisineName', 'strArea', '菜系']) || null;
-    payload.steps = splitLines(raw.steps ?? raw.process ?? raw.content ?? recipeInstructions ?? raw['步骤']);
-    payload.ingredients = splitIngredients(raw.ingredients ?? raw.burden ?? raw.food ?? raw['用料'] ?? raw['食材']);
+    payload.categoryName = getText(raw, ['categoryName', 'category', 'classify', 'strCategory', 'tags', 'classid', 'class', '分类', '分类名称']) || null;
+    payload.cuisineName = getText(raw, ['cuisineName', 'strArea', '菜系', '来源菜系']) || null;
+    payload.steps = splitLines(raw.steps ?? raw.process ?? raw.content ?? raw.method ?? recipeInstructions ?? raw['步骤']);
+    payload.ingredients = splitIngredients(raw.ingredients ?? raw.burden ?? raw.material ?? raw.yl ?? raw.food ?? raw['用料'] ?? raw['食材']);
     if (payload.ingredients.length === 0) payload.ingredients = numberedIngredients;
   } else if (resourceType === 'BEVERAGE') {
     const cocktailIngredients = collectNumberedIngredients(raw, 15);

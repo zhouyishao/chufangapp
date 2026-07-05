@@ -8,6 +8,7 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import { getResourceSourceScopeLabel } from '../utils/resource-source';
 import {
   listResourceApiProviders,
   syncResourceApiProvider,
@@ -43,6 +44,18 @@ const resourceTypeFilterOptions = [
   { label: '全部分类', value: '' },
   ...resourceTypeOptions
 ] as const;
+
+const buildSyncParamsTemplate = (provider?: ResourceApiProviderItem) => {
+  if (!provider) return '{\n  "page": 1,\n  "pageSize": 100\n}';
+  const providerName = `${provider.providerName} ${provider.name}`.toLowerCase();
+  if (providerName.includes('juhe') || providerName.includes('聚合')) {
+    return '{\n  "__appKeyEnv": "JUHE_COOK_KEY",\n  "__appKeyParam": "key",\n  "menu": "黄瓜",\n  "rn": 10,\n  "pn": 0\n}';
+  }
+  if (providerName.includes('tianapi') || providerName.includes('天行') || providerName.includes('天聚')) {
+    return '{\n  "__appKeyEnv": "TIANAPI_KEY",\n  "__appKeyParam": "key",\n  "word": "黄瓜",\n  "num": 10,\n  "page": 1\n}';
+  }
+  return '{\n  "page": 1,\n  "pageSize": 100\n}';
+};
 
 const importStatusOptions = [
   { label: '全部状态', value: '' },
@@ -92,7 +105,7 @@ export const ResourceAccessCenterPage = () => {
   const [providerLoading, setProviderLoading] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState<number | ''>('');
   const [syncLimit, setSyncLimit] = useState(100);
-  const [syncParamsText, setSyncParamsText] = useState('{\n  "page": 1,\n  "pageSize": 100\n}');
+  const [syncParamsText, setSyncParamsText] = useState(buildSyncParamsTemplate());
   const [syncLoading, setSyncLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
 
@@ -137,8 +150,14 @@ export const ResourceAccessCenterPage = () => {
       });
       setProviderItems(data.list);
       setSelectedProviderId((current) => {
-        if (typeof current === 'number' && data.list.some((item) => item.id === current)) return current;
-        return data.list[0]?.id ?? '';
+        const matched = typeof current === 'number' ? data.list.find((item) => item.id === current) : null;
+        const nextProvider = matched ?? data.list[0] ?? null;
+        if (nextProvider) {
+          setSyncParamsText(buildSyncParamsTemplate(nextProvider));
+          return nextProvider.id;
+        }
+        setSyncParamsText(buildSyncParamsTemplate());
+        return '';
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载接口提供方失败');
@@ -154,6 +173,12 @@ export const ResourceAccessCenterPage = () => {
   useEffect(() => {
     void refreshProviders();
   }, [uploadType]);
+
+  useEffect(() => {
+    if (typeof selectedProviderId !== 'number') return;
+    const provider = providerItems.find((item) => item.id === selectedProviderId);
+    setSyncParamsText(buildSyncParamsTemplate(provider));
+  }, [selectedProviderId, providerItems]);
 
   const handleSearch = () => {
     setPage(1);
@@ -545,7 +570,14 @@ export const ResourceAccessCenterPage = () => {
     {
       key: 'provider',
       title: '提供方',
-      render: (item) => <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
+      render: (item) => (
+        <div className="flex flex-col gap-1">
+          <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
+          <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+            {getResourceSourceScopeLabel(item.providerName)}
+          </span>
+        </div>
+      )
     },
     {
       key: 'externalId',
@@ -696,7 +728,16 @@ export const ResourceAccessCenterPage = () => {
             <select
               className={selectClass}
               value={selectedProviderId}
-              onChange={(e) => setSelectedProviderId(e.target.value ? Number(e.target.value) : '')}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : '';
+                setSelectedProviderId(nextId);
+                if (typeof nextId === 'number') {
+                  const provider = providerItems.find((item) => item.id === nextId);
+                  setSyncParamsText(buildSyncParamsTemplate(provider));
+                } else {
+                  setSyncParamsText(buildSyncParamsTemplate());
+                }
+              }}
               disabled={providerLoading}
             >
               <option value="">{providerLoading ? '加载中...' : '请选择提供方'}</option>

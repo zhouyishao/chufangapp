@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import {
   createResourceApiProvider,
@@ -51,6 +51,79 @@ const emptyDraft: Draft = {
 
 type Props = { mode: 'create' | 'edit' };
 
+type ProviderPresetKey = 'JUHE_RECIPE' | 'TIANAPI_RECIPE';
+
+type ProviderPreset = {
+  title: string;
+  description: string;
+  draft: Partial<Draft>;
+};
+
+const providerPresets: Record<ProviderPresetKey, ProviderPreset> = {
+  JUHE_RECIPE: {
+    title: 'Juhe 菜谱大全',
+    description: '中文菜谱主源，优先接家常菜和食材检索。',
+    draft: {
+      name: 'Juhe 菜谱大全',
+      providerName: 'Juhe',
+      resourceType: 'RECIPE',
+      method: 'GET',
+      endpointUrl: 'https://apis.juhe.cn/cook/query.php',
+      authType: 'QUERY_KEY',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __appKeyEnv: 'JUHE_COOK_KEY',
+          __appKeyParam: 'key',
+          menu: '黄瓜',
+          rn: 10,
+          pn: 0
+        },
+        null,
+        2
+      ),
+      dataPath: 'result.data',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '中文菜谱主源，支持按菜名或食材关键词查询',
+      status: 'ACTIVE'
+    }
+  },
+  TIANAPI_RECIPE: {
+    title: 'TianAPI 菜谱查询',
+    description: '中文菜谱备用源，按关键词补充更多结果。',
+    draft: {
+      name: 'TianAPI 菜谱查询',
+      providerName: 'TianAPI',
+      resourceType: 'RECIPE',
+      method: 'GET',
+      endpointUrl: 'https://apis.tianapi.com/caipu/index',
+      authType: 'QUERY_KEY',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __appKeyEnv: 'TIANAPI_KEY',
+          __appKeyParam: 'key',
+          word: '黄瓜',
+          num: 10,
+          page: 1
+        },
+        null,
+        2
+      ),
+      dataPath: 'result.list',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '中文菜谱备用源，支持关键词查询',
+      status: 'ACTIVE'
+    }
+  }
+};
+
 const parseJsonInput = (value: string) => {
   const text = value.trim();
   if (!text) return null;
@@ -62,6 +135,7 @@ const formatJsonInput = (value: Record<string, unknown> | null | undefined) => (
 export const ApiProviderFormPage = ({ mode }: Props) => {
   const navigate = useNavigate();
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const id = params.id;
 
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -71,6 +145,21 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [preview, setPreview] = useState<Array<Record<string, unknown>>>([]);
+  const appliedPresetRef = useRef<ProviderPresetKey | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'create') return;
+    const preset = searchParams.get('preset') as ProviderPresetKey | null;
+    if (!preset || !providerPresets[preset]) return;
+    if (appliedPresetRef.current === preset) return;
+    const next = providerPresets[preset];
+    appliedPresetRef.current = preset;
+    setDraft((current) => ({
+      ...current,
+      ...next.draft
+    }));
+    setNotice(`已加载 ${next.title} 模板`);
+  }, [mode, searchParams]);
 
   useEffect(() => {
     if (mode !== 'edit' || !id) return;
@@ -106,6 +195,16 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
   }, [id, mode]);
 
   const canSave = Boolean(draft.name.trim() && draft.providerName.trim() && draft.endpointUrl.trim() && !saving && !loading);
+
+  const applyPreset = (preset: ProviderPresetKey) => {
+    const next = providerPresets[preset];
+    appliedPresetRef.current = preset;
+    setDraft((current) => ({
+      ...current,
+      ...next.draft
+    }));
+    setNotice(`已加载 ${next.title} 模板`);
+  };
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -168,6 +267,24 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
       {loading ? <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-4 text-sm text-[#8c8c8c]">加载中...</div> : null}
       {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
       {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
+
+      {mode === 'create' ? (
+        <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-4">
+          <div className="mb-3 text-sm font-semibold text-[#2f2f2f]">中文菜谱模板</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(providerPresets).map(([key, preset]) => (
+              <button
+                key={key}
+                type="button"
+                className="rounded-full border border-[#e9e2d6] bg-white px-4 py-2 text-sm font-semibold text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]"
+                onClick={() => applyPreset(key as ProviderPresetKey)}
+              >
+                {preset.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-5 rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6">

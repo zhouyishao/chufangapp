@@ -85,14 +85,23 @@ export async function fetchProviderPreview(provider: ResourceApiProviderRuntime,
   const requestParams = stripControlParams(mergedParams);
   const method = provider.method.toUpperCase() === 'POST' ? 'POST' : 'GET';
   const appKeyParamName = getControlText(mergedParams, '__appKeyParam', 'appKey');
+  const appKeyEnvName = getControlText(mergedParams, '__appKeyEnv', '');
   const secretParamName = getControlText(mergedParams, '__secretParam', 'secret');
   const secretHeaderName = getControlText(mergedParams, '__secretHeader', 'X-Resource-Secret');
   const secretEnvName = getControlText(mergedParams, '__secretEnv', '');
+  const runtimeAppKey = provider.appKey
+    ? provider.appKey
+    : appKeyEnvName
+      ? process.env[appKeyEnvName]?.trim() || null
+      : null;
   const runtimeSecret = provider.encryptedSecret
     ? decryptSecret(provider.encryptedSecret)
     : secretEnvName
       ? process.env[secretEnvName]?.trim() || null
       : null;
+  if (appKeyEnvName && !runtimeAppKey) {
+    throw new Error(`Missing env: ${appKeyEnvName}`);
+  }
   if (secretEnvName && !runtimeSecret) {
     throw new Error(`Missing env: ${secretEnvName}`);
   }
@@ -110,7 +119,7 @@ export async function fetchProviderPreview(provider: ResourceApiProviderRuntime,
   } else if (provider.authType === 'CUSTOM_HEADERS' && runtimeSecret) {
     headers[secretHeaderName] = runtimeSecret;
   } else if (provider.authType === 'QUERY_KEY') {
-    if (provider.appKey) url.searchParams.set(appKeyParamName, provider.appKey);
+    if (runtimeAppKey) url.searchParams.set(appKeyParamName, runtimeAppKey);
     if (runtimeSecret) url.searchParams.set(secretParamName, runtimeSecret);
   }
 

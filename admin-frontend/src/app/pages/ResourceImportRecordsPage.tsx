@@ -7,6 +7,7 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import { getResourceSourceScopeLabel } from '../utils/resource-source';
 import { listImportBatches, getImportBatchesStats, retryFailedImport, listResourceApiProviders } from '../api';
 import type { ResourceImportBatchItem } from '../types';
 
@@ -210,9 +211,14 @@ export const ResourceImportRecordsPage = () => {
       key: 'providerName',
       title: '提供方',
       render: (batch) => (
-        <span className="text-sm text-[#2f2f2f]">
-          {batch.providerName || batch.provider?.providerName || batch.sourceName || '-'}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-[#2f2f2f]">
+            {batch.providerName || batch.provider?.providerName || batch.sourceName || '-'}
+          </span>
+          <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+            {getResourceSourceScopeLabel(batch.providerName || batch.provider?.providerName || batch.sourceName)}
+          </span>
+        </div>
       )
     },
     {
@@ -464,7 +470,12 @@ export const ResourceImportRecordsPage = () => {
                 </div>
                 <div>
                   <span className="text-zinc-400 block mb-0.5">提供方</span>
-                  <span className="font-semibold text-zinc-800">{detailBatch.providerName || detailBatch.provider?.providerName || detailBatch.sourceName || '-'}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold text-zinc-800">{detailBatch.providerName || detailBatch.provider?.providerName || detailBatch.sourceName || '-'}</span>
+                    <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+                      {getResourceSourceScopeLabel(detailBatch.providerName || detailBatch.provider?.providerName || detailBatch.sourceName)}
+                    </span>
+                  </div>
                 </div>
                 <div className="col-span-2">
                   <span className="text-zinc-400 block mb-0.5">文件名称</span>
