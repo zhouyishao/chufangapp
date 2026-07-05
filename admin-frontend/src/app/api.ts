@@ -1573,12 +1573,14 @@ export const listImportItems = async (params: {
   batchId?: number;
   importId?: number;
   providerId?: number;
+  resourceType?: ResourceImportStagedItem['importType'];
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   setParam(qs, 'importId', params.importId || params.batchId);
   setParam(qs, 'providerId', params.providerId);
+  setParam(qs, 'resourceType', params.resourceType);
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
 };
 

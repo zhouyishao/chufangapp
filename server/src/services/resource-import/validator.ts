@@ -1,4 +1,5 @@
 import type { NormalizedResourcePayload, ResourceImportEvaluation, ResourceImportType } from './types';
+import { localizeResourcePayload } from './localize';
 
 const toText = (value: unknown): string => {
   if (typeof value === 'string') return value.trim();
@@ -279,7 +280,7 @@ export function normalizeResourcePayload(resourceType: ResourceImportType, rawIn
     payload.priceDate = getText(raw, ['priceDate', '价格时间']) || null;
   }
 
-  return payload;
+  return localizeResourcePayload(resourceType, payload);
 }
 
 export function evaluateResourcePayload(resourceType: ResourceImportType, mapped: NormalizedResourcePayload): ResourceImportEvaluation {

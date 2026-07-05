@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 
 import { prisma } from '../../prisma';
 import { HttpError } from '../../http/errors';
@@ -8,7 +9,9 @@ import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { baseListQuerySchema, parseId } from './shared';
 import { createBusinessId, nextCodeFromItems } from '../../lib/business-id';
-import { createOfficialRecord } from '../../services/resource-import/importer';
+import { createOfficialRecord, findDuplicateTargetId } from '../../services/resource-import/importer';
+import { evaluateResourcePayload, normalizeResourcePayload } from '../../services/resource-import/validator';
+import type { ResourceImportType } from '../../services/resource-import/types';
 
 export const adminResourcesRouter = Router();
 
@@ -777,72 +780,7 @@ async function importBeverage(name: string, content: any) {
 }
 
 function mapRowData(importType: string, raw: any) {
-  const mapped: Record<string, any> = {};
-  const name = String(raw.name || raw.title || raw['名称'] || raw['标题'] || '').trim();
-  
-  mapped.name = name;
-  
-  if (importType === 'RECIPE') {
-    mapped.title = name;
-    mapped.subtitle = String(raw.subtitle || raw['副标题'] || '').trim();
-    mapped.description = String(raw.description || raw['描述'] || '').trim();
-    mapped.cookTime = raw.cookTime || raw.cook_time || raw['耗时'] ? Number(raw.cookTime || raw.cook_time || raw['耗时']) : null;
-    mapped.difficulty = String(raw.difficulty || raw['难度'] || '').trim();
-    mapped.servings = raw.servings || raw['份量'] ? Number(raw.servings || raw['份量']) : null;
-    mapped.calories = raw.calories || raw['卡路里'] ? Number(raw.calories || raw['卡路里']) : null;
-    mapped.taste = String(raw.taste || raw['口味'] || '').trim();
-    mapped.scene = String(raw.scene || raw['场景'] || '').trim();
-    mapped.tips = String(raw.tips || raw['技巧'] || '').trim();
-    mapped.categoryName = String(raw.categoryName || raw.category || raw['分类'] || raw['分类名称'] || '').trim();
-    mapped.cuisineName = String(raw.cuisineName || raw['菜系'] || '').trim();
-    
-    if (raw.steps) {
-      if (Array.isArray(raw.steps)) {
-        mapped.steps = raw.steps;
-      } else {
-        mapped.steps = String(raw.steps).split(/\n/).map(s => s.trim()).filter(Boolean);
-      }
-    } else {
-      mapped.steps = [];
-    }
-    
-    if (raw.ingredients) {
-      if (Array.isArray(raw.ingredients)) {
-        mapped.ingredients = raw.ingredients;
-      } else {
-        mapped.ingredients = String(raw.ingredients).split(/,|，|\n/).map((ing) => {
-          const parts = ing.trim().split(/\s+/);
-          return {
-            name: parts[0] || '',
-            amount: parts[1] || ''
-          };
-        }).filter((ing) => ing.name);
-      }
-    } else {
-      mapped.ingredients = [];
-    }
-  } else if (importType === 'BEVERAGE') {
-    mapped.coverImage = String(raw.coverImage || raw.cover || raw['图片'] || '').trim();
-    mapped.categoryName = String(raw.categoryName || raw.category || raw['分类'] || raw['分类名称'] || '').trim();
-    mapped.beverageType = String(raw.beverageType || raw['酒水类型'] || '').trim();
-    mapped.isAlcoholic = raw.isAlcoholic === true || String(raw.isAlcoholic) === 'true' || raw['是否含酒精'] === '是';
-    mapped.alcoholDegree = raw.alcoholDegree || raw['酒精浓度'] ? Number(raw.alcoholDegree || raw['酒精浓度']) : null;
-    mapped.description = String(raw.description || raw['描述'] || '').trim();
-  } else {
-    mapped.cover = String(raw.cover || raw['图片'] || '').trim();
-    mapped.categoryName = String(raw.categoryName || raw.category || raw['分类'] || raw['分类名称'] || '').trim();
-    mapped.seasonMonth = String(raw.seasonMonth || raw['时令月份'] || '').trim();
-    mapped.nutrition = String(raw.nutrition || raw['营养成分'] || '').trim();
-    mapped.selectionTips = String(raw.selectionTips || raw['挑选技巧'] || '').trim();
-    mapped.storageMethod = String(raw.storageMethod || raw['储存方法'] || '').trim();
-    mapped.taboo = String(raw.taboo || raw['食用禁忌'] || '').trim();
-    mapped.currentPrice = raw.currentPrice || raw['价格'] ? Number(raw.currentPrice || raw['价格']) : null;
-    mapped.priceUnit = String(raw.priceUnit || raw['计价单位'] || '').trim();
-    mapped.priceSource = String(raw.priceSource || raw['价格来源'] || '').trim();
-    mapped.priceDate = raw.priceDate || raw['价格时间'] ? String(raw.priceDate || raw['价格时间']).trim() : null;
-  }
-  
-  return mapped;
+  return normalizeResourcePayload(importType as ResourceImportType, raw);
 }
 
 // 1. POST /resource-imports/preview
@@ -864,19 +802,18 @@ adminResourcesRouter.post('/resource-imports/preview', requireAdminAuth, async (
   const previewedItems = await Promise.all(items.map(async (item) => {
     const raw = item.rawData;
     const mapped = mapRowData(importType, raw);
-    
-    let status = 'PENDING';
-    let errorMessage = null;
+    const evaluated = evaluateResourcePayload(importType as ResourceImportType, mapped as any);
+    let status = evaluated.status;
+    let errorMessage = evaluated.errorMessage;
+    let filterCode = evaluated.filterCode;
+    const duplicateTargetId = await findDuplicateTargetId(prisma, importType as ResourceImportType, mapped as any);
 
-    if (!mapped.name) {
+    if (duplicateTargetId) {
       status = 'FAILED';
-      errorMessage = '必填项缺失: 名称为空';
-    } else {
-      const isDuplicate = await checkDuplicate(importType, mapped.name);
-      if (isDuplicate) {
-        status = 'FAILED';
-        errorMessage = '数据重复: 该资源在正式库中已存在';
-      }
+      errorMessage = mapped.externalId
+        ? '数据重复: 该外部资源在正式库中已存在'
+        : '数据重复: 该资源在正式库中已存在';
+      filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
     }
 
     return {
@@ -884,7 +821,11 @@ adminResourcesRouter.post('/resource-imports/preview', requireAdminAuth, async (
       rawData: raw,
       mappedData: mapped,
       status,
-      errorMessage
+      errorMessage,
+      externalId: evaluated.externalId,
+      externalUrl: evaluated.externalUrl,
+      filterCode,
+      duplicateTargetId
     };
   }));
 
@@ -912,19 +853,18 @@ adminResourcesRouter.post('/resource-imports/upload', requireAdminAuth, async (r
   const stagedItemsData = await Promise.all(items.map(async (item) => {
     const raw = item.rawData;
     const mapped = mapRowData(importType, raw);
-    
-    let status = 'PENDING';
-    let errorMessage = null;
+    const evaluated = evaluateResourcePayload(importType as ResourceImportType, mapped as any);
+    let status = evaluated.status;
+    let errorMessage = evaluated.errorMessage;
+    let filterCode = evaluated.filterCode;
+    const duplicateTargetId = await findDuplicateTargetId(prisma, importType as ResourceImportType, mapped as any);
 
-    if (!mapped.name) {
+    if (duplicateTargetId) {
       status = 'FAILED';
-      errorMessage = '必填项缺失: 名称为空';
-    } else {
-      const isDuplicate = await checkDuplicate(importType, mapped.name);
-      if (isDuplicate) {
-        status = 'FAILED';
-        errorMessage = '数据重复: 该资源在正式库中已存在';
-      }
+      errorMessage = mapped.externalId
+        ? '数据重复: 该外部资源在正式库中已存在'
+        : '数据重复: 该资源在正式库中已存在';
+      filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
     }
 
     return {
@@ -932,7 +872,11 @@ adminResourcesRouter.post('/resource-imports/upload', requireAdminAuth, async (r
       rawData: raw,
       mappedData: mapped,
       status,
-      errorMessage
+      errorMessage,
+      externalId: evaluated.externalId,
+      externalUrl: evaluated.externalUrl,
+      filterCode,
+      duplicateTargetId
     };
   }));
 
@@ -956,10 +900,14 @@ adminResourcesRouter.post('/resource-imports/upload', requireAdminAuth, async (r
       data: {
         importId: batch.id,
         rowIndex: item.rowIndex,
-        rawData: item.rawData,
-        mappedData: item.mappedData,
+        rawData: item.rawData as Prisma.InputJsonValue,
+        mappedData: item.mappedData as Prisma.InputJsonValue,
         status: item.status,
-        errorMessage: item.errorMessage
+        errorMessage: item.errorMessage,
+        externalId: item.externalId,
+        externalUrl: item.externalUrl,
+        filterCode: item.filterCode,
+        duplicateTargetId: item.duplicateTargetId
       }
     });
   }));
@@ -975,7 +923,8 @@ const batchListQuerySchema = baseListQuerySchema.extend({
 
 const importItemListQuerySchema = baseListQuerySchema.extend({
   status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']).optional(),
-  providerId: z.coerce.number().int().optional()
+  providerId: z.coerce.number().int().optional(),
+  resourceType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional()
 });
 
 // 3. GET /resource-imports/batches/stats
@@ -1046,15 +995,19 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
   }).safeParse(req.query);
 
   if (!parsed.success) throw formatZodError(parsed);
-  const { page, pageSize, q, status, batchId, importId, providerId } = parsed.data;
+  const { page, pageSize, q, status, batchId, importId, providerId, resourceType } = parsed.data;
   const skip = (page - 1) * pageSize;
 
   const targetImportId = importId || batchId;
+  const batchWhere = {
+    ...(providerId ? { providerId } : {}),
+    ...(resourceType ? { importType: resourceType } : {})
+  };
 
   const where = {
     ...(targetImportId ? { importId: targetImportId } : {}),
     ...(status ? { status } : {}),
-    ...(providerId ? { batch: { providerId } } : {}),
+    ...(Object.keys(batchWhere).length > 0 ? { batch: batchWhere } : {}),
     ...(q ? {
       OR: [
         { mappedData: { path: ['name'], string_contains: q } }
@@ -1152,28 +1105,31 @@ adminResourcesRouter.put('/resource-imports/items/:id', requireAdminAuth, async 
 
   const raw = { ...existing.rawData as Record<string, any>, name: parsed.data.name, ...parsed.data.content };
   const mapped = mapRowData(existing.batch.importType, raw);
-  
-  let status = 'PENDING';
-  let errorMessage = null;
+  const evaluated = evaluateResourcePayload(existing.batch.importType as ResourceImportType, mapped as any);
+  let status = evaluated.status;
+  let errorMessage = evaluated.errorMessage;
+  let filterCode = evaluated.filterCode;
+  const duplicateTargetId = await findDuplicateTargetId(prisma, existing.batch.importType as ResourceImportType, mapped as any);
 
-  if (!mapped.name) {
+  if (duplicateTargetId) {
     status = 'FAILED';
-    errorMessage = '必填项缺失: 名称为空';
-  } else {
-    const isDuplicate = await checkDuplicate(existing.batch.importType, mapped.name);
-    if (isDuplicate) {
-      status = 'FAILED';
-      errorMessage = '数据重复: 该资源在正式库中已存在';
-    }
+    errorMessage = mapped.externalId
+      ? '数据重复: 该外部资源在正式库中已存在'
+      : '数据重复: 该资源在正式库中已存在';
+    filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
   }
 
   const updated = await prisma.resourceImportItem.update({
     where: { id },
-    data: {
-      rawData: raw,
-      mappedData: mapped,
+      data: {
+      rawData: raw as Prisma.InputJsonValue,
+      mappedData: mapped as Prisma.InputJsonValue,
       status,
-      errorMessage
+      errorMessage,
+      externalId: evaluated.externalId,
+      externalUrl: evaluated.externalUrl,
+      filterCode,
+      duplicateTargetId
     }
   });
 

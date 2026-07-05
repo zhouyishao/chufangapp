@@ -39,6 +39,11 @@ const resourceTypeOptions = [
   { label: '酒水', value: 'BEVERAGE' }
 ] as const;
 
+const resourceTypeFilterOptions = [
+  { label: '全部分类', value: '' },
+  ...resourceTypeOptions
+] as const;
+
 const importStatusOptions = [
   { label: '全部状态', value: '' },
   { label: '待处理', value: 'PENDING' },
@@ -81,6 +86,7 @@ export const ResourceAccessCenterPage = () => {
   const [q, setQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
+  const [resourceTypeFilter, setResourceTypeFilter] = useState<ResourceType | ''>('');
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
   const [providerItems, setProviderItems] = useState<ResourceApiProviderItem[]>([]);
   const [providerLoading, setProviderLoading] = useState(false);
@@ -108,7 +114,8 @@ export const ResourceAccessCenterPage = () => {
         pageSize,
         q: appliedQ.trim() || undefined,
         status: statusFilter || undefined,
-        batchId: batchIdFilter
+        batchId: batchIdFilter,
+        resourceType: resourceTypeFilter || undefined
       });
       setItems(data.list);
       setTotal(data.total);
@@ -142,7 +149,7 @@ export const ResourceAccessCenterPage = () => {
 
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, resourceTypeFilter]);
 
   useEffect(() => {
     void refreshProviders();
@@ -158,6 +165,7 @@ export const ResourceAccessCenterPage = () => {
     setQ('');
     setAppliedQ('');
     setStatusFilter('');
+    setResourceTypeFilter('');
     if (searchParams.has('batchId')) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
@@ -658,6 +666,30 @@ export const ResourceAccessCenterPage = () => {
       ) : null}
 
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-[#2f2f2f]">导入分类</span>
+          {resourceTypeFilterOptions.map((opt) => {
+            const active = resourceTypeFilter === opt.value;
+            return (
+              <button
+                key={opt.value || 'ALL'}
+                type="button"
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  active
+                    ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                    : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                }`}
+                onClick={() => {
+                  setResourceTypeFilter(opt.value as ResourceType | '');
+                  setPage(1);
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">API 提供方</span>
