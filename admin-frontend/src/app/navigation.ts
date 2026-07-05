@@ -34,7 +34,8 @@ export const adminNavigation: AdminNavItem[] = [
     permission: 'resource:view',
     children: [
       { label: '资源接入中心', path: '/resource-management/access-center', permission: 'resource:view' },
-      { label: '导入记录', path: '/resource-management/import-records', permission: 'resource:import:view' }
+      { label: '导入记录', path: '/resource-management/import-records', permission: 'resource:import:view' },
+      { label: 'API 接口管理', path: '/resources/api-providers', permission: 'resource:provider:view' }
     ]
   },
   {

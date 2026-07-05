@@ -218,7 +218,7 @@ interface PriceInputItem {
 
 const tabs = [
   { id: 'home', label: '首页', active: false },
-  { id: 'ingredients', label: '食材', active: false },
+  { id: 'categories', label: '分类', active: false },
   { id: 'basket', label: '菜篮子', active: true },
   { id: 'mine', label: '我的', active: false }
 ];

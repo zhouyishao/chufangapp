@@ -1,6 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import {
+  deleteResourceApiProvider,
+  listResourceApiProviders,
+  syncResourceApiProvider,
+  testSavedResourceApiProvider
+} from '../api';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
@@ -8,114 +14,278 @@ import { FilterPanel } from '../components/FilterPanel';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import type { ResourceApiProviderItem } from '../types';
 
-type ApiProvider = {
-  id: string;
-  name: string;
-  version: string;
-  type: string;
-  provider: string;
-  method: 'GET' | 'POST';
-  baseUrl: string;
-  status: '启用' | '禁用';
-  todayCalls: number;
-  dailyLimit: number;
-  updatedAt: string;
+const resourceTypeLabels: Record<ResourceApiProviderItem['resourceType'], string> = {
+  RECIPE: '菜谱',
+  INGREDIENT: '蔬菜/食材',
+  FRUIT: '水果',
+  SEASONING: '调料',
+  BEVERAGE: '酒水'
+};
+
+const statusTone: Record<ResourceApiProviderItem['status'], 'green' | 'gray'> = {
+  ACTIVE: 'green',
+  DISABLED: 'gray'
+};
+
+const authTypeLabels: Record<ResourceApiProviderItem['authType'], string> = {
+  NONE: '无需鉴权',
+  HEADER_TOKEN: 'Header Token',
+  QUERY_KEY: 'Query Key',
+  CUSTOM_HEADERS: '自定义请求头'
 };
 
 export const ApiProviderListPage = () => {
   const navigate = useNavigate();
-  const [items, setItems] = useState<ApiProvider[]>([]);
+  const [items, setItems] = useState<ResourceApiProviderItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [deleting, setDeleting] = useState<ApiProvider | null>(null);
+  const [typeFilter, setTypeFilter] = useState<ResourceApiProviderItem['resourceType'] | ''>('');
+  const [statusFilter, setStatusFilter] = useState<ResourceApiProviderItem['status'] | ''>('');
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<ResourceApiProviderItem | null>(null);
+  const [testingId, setTestingId] = useState<number | null>(null);
+  const [syncingId, setSyncingId] = useState<number | null>(null);
 
-  const filtered = items.filter(item => {
-    const matchQ = appliedQ.trim() ? item.name.includes(appliedQ.trim()) || item.provider.includes(appliedQ.trim()) : true;
-    const matchType = typeFilter === 'all' || item.type === typeFilter;
-    const matchStatus = statusFilter === 'all' || item.status === statusFilter;
-    return matchQ && matchType && matchStatus;
-  });
-
-  const handleTest = (item: ApiProvider) => setNotice(`资源接口测试能力未接入后端：${item.name}`);
-  const handleDelete = () => {
-    if (deleting) {
-      setItems((current) => current.filter((item) => item.id !== deleting.id));
-      setNotice(`已从当前列表移除「${deleting.name}」`);
-      setDeleting(null);
+  const fetchList = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listResourceApiProviders({
+        page,
+        pageSize,
+        q: appliedQ.trim() || undefined,
+        status: statusFilter || undefined,
+        resourceType: typeFilter || undefined
+      });
+      setItems(data.list);
+      setTotal(data.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '获取资源提供方列表失败');
+    } finally {
+      setLoading(false);
     }
   };
-  const handleReset = () => { setQ(''); setAppliedQ(''); setTypeFilter('all'); setStatusFilter('all'); };
 
-  const columns: DataTableColumn<ApiProvider>[] = [
-    { key: 'name', title: '接口名称', render: i => <span className="font-medium text-[#2f2f2f]">{i.name}</span> },
-    { key: 'version', title: '版本', render: i => <span className="text-xs text-[#8c8c8c]">{i.version}</span> },
-    { key: 'type', title: '类型', render: i => <span className="inline-flex rounded-full bg-[#f5f1ea] px-2 py-0.5 text-xs text-[#8c8c8c]">{i.type}</span> },
-    { key: 'provider', title: '服务商', render: i => i.provider },
-    { key: 'method', title: '方式', render: i => <span className={['inline-flex rounded px-2 py-0.5 text-xs font-mono', i.method === 'GET' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'].join(' ')}>{i.method}</span> },
-    { key: 'baseUrl', title: 'Base URL', render: i => <span className="max-w-48 truncate text-xs text-[#8c8c8c]">{i.baseUrl}</span> },
-    { key: 'status', title: '状态', render: i => <StatusTag label={i.status} tone={i.status === '启用' ? 'green' : 'gray'} /> },
-    { key: 'todayCalls', title: '今日调用', render: i => <span className="text-xs text-[#8c8c8c]">{i.todayCalls.toLocaleString()}</span> },
-    { key: 'actions', title: '操作', render: i => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="ghost" onClick={() => navigate(`/resources/api-providers/${i.id}/edit`)}>编辑</Button>
-        <Button variant="ghost" onClick={() => handleTest(i)}>测试</Button>
-        <Button variant="ghost" onClick={() => setNotice(`查看日志：${i.name}`)}>日志</Button>
-        <Button variant="danger" onClick={() => setDeleting(i)}>删除</Button>
-      </div>
-    )}
+  useEffect(() => {
+    void fetchList();
+  }, [page, pageSize, appliedQ, statusFilter, typeFilter]);
+
+  const handleSearch = () => {
+    setPage(1);
+    setAppliedQ(q);
+  };
+
+  const handleReset = () => {
+    setQ('');
+    setAppliedQ('');
+    setTypeFilter('');
+    setStatusFilter('');
+    setPage(1);
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    try {
+      await deleteResourceApiProvider(deleting.id);
+      setNotice(`已删除「${deleting.name}」`);
+      setDeleting(null);
+      await fetchList();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败');
+    }
+  };
+
+  const handleTest = async (item: ResourceApiProviderItem) => {
+    setTestingId(item.id);
+    setError(null);
+    try {
+      const result = await testSavedResourceApiProvider(item.id);
+      setNotice(`测试通过，成功解析 ${result.total} 条，预览 ${result.preview.length} 条`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '测试失败');
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const handleSync = async (item: ResourceApiProviderItem) => {
+    setSyncingId(item.id);
+    setError(null);
+    try {
+      const result = await syncResourceApiProvider(item.id, { limit: 100, params: {} });
+      setNotice(`同步完成：待处理 ${result.summary.pending} 条，失败 ${result.summary.failed} 条，批次 #${result.batch.id}`);
+      await fetchList();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '同步失败');
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const columns: DataTableColumn<ResourceApiProviderItem>[] = [
+    {
+      key: 'name',
+      title: '接口名称',
+      render: (item) => (
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold text-[#2f2f2f]">{item.name}</span>
+          <span className="text-xs text-[#8c8c8c]">{item.providerName}</span>
+        </div>
+      )
+    },
+    {
+      key: 'resourceType',
+      title: '资源类型',
+      render: (item) => <span className="text-sm text-[#2f2f2f]">{resourceTypeLabels[item.resourceType]}</span>
+    },
+    {
+      key: 'endpointUrl',
+      title: '接口地址',
+      widthClassName: 'max-w-[260px]',
+      render: (item) => <span className="block max-w-[260px] truncate text-xs text-[#8c8c8c]" title={item.endpointUrl}>{item.endpointUrl}</span>
+    },
+    {
+      key: 'authType',
+      title: '鉴权方式',
+      render: (item) => <span className="text-sm text-[#2f2f2f]">{authTypeLabels[item.authType]}</span>
+    },
+    {
+      key: 'status',
+      title: '状态',
+      render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={statusTone[item.status]} />
+    },
+    {
+      key: 'lastSyncedAt',
+      title: '最近同步',
+      render: (item) => <span className="text-xs text-[#8c8c8c]">{item.lastSyncedAt ? new Date(item.lastSyncedAt).toLocaleString() : '-'}</span>
+    },
+    {
+      key: 'actions',
+      title: '操作',
+      render: (item) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" onClick={() => navigate(`/resources/api-providers/${item.id}/edit`)}>
+            编辑
+          </Button>
+          <Button variant="ghost" onClick={() => void handleTest(item)} disabled={testingId === item.id}>
+            {testingId === item.id ? '测试中...' : '测试'}
+          </Button>
+          <Button variant="ghost" onClick={() => void handleSync(item)} disabled={syncingId === item.id}>
+            {syncingId === item.id ? '同步中...' : '同步'}
+          </Button>
+          <Button variant="danger" onClick={() => setDeleting(item)}>
+            删除
+          </Button>
+        </div>
+      )
+    }
   ];
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <section className="space-y-6">
-      <PageHeader title="API 接口管理" description="管理资源接入中心的接口配置、服务商、调用限制和状态。" />
-      {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
+      <PageHeader
+        title="API 接口管理"
+        description="配置公共资源 API 的来源、鉴权和同步方式，支持测试连接、同步到导入池并批量进入正式库。"
+      />
+
+      {error ? <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">{error}</div> : null}
+      {notice ? <div className="rounded-2xl border border-[#d8e9d1] bg-[#edf5ea] px-5 py-3 text-sm text-[#5f7f59]">{notice}</div> : null}
 
       <FilterPanel>
-        <div className="flex flex-1 gap-3">
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索接口名称 / 服务商..." />
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-            <option value="all">全部类型</option><option value="菜谱">菜谱</option><option value="食材">食材</option><option value="调料">调料</option><option value="水果">水果</option><option value="酒水">酒水</option><option value="价格">价格</option>
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-            <option value="all">全部状态</option><option value="启用">启用</option><option value="禁用">禁用</option>
-          </select>
+        <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-end">
+          <div className="flex-1">
+            <div className="mb-1.5 text-sm font-semibold text-[#2f2f2f]">搜索</div>
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索接口名称、服务商或地址..." />
+          </div>
+          <div className="min-w-[180px]">
+            <div className="mb-1.5 text-sm font-semibold text-[#2f2f2f]">资源类型</div>
+            <select
+              className="h-11 w-full rounded-xl border border-[#e9e2d6] bg-white px-3 text-sm text-[#2f2f2f]"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as ResourceApiProviderItem['resourceType'] | '')}
+            >
+              <option value="">全部类型</option>
+              {Object.entries(resourceTypeLabels).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[160px]">
+            <div className="mb-1.5 text-sm font-semibold text-[#2f2f2f]">状态</div>
+            <select
+              className="h-11 w-full rounded-xl border border-[#e9e2d6] bg-white px-3 text-sm text-[#2f2f2f]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as ResourceApiProviderItem['status'] | '')}
+            >
+              <option value="">全部状态</option>
+              <option value="ACTIVE">启用</option>
+              <option value="DISABLED">禁用</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleSearch}>查询</Button>
+            <Button variant="ghost" onClick={handleReset}>重置</Button>
+          </div>
         </div>
-        <Button onClick={() => navigate('/resources/api-providers/create')}>＋ 新增接口</Button>
-        <Button variant="ghost" onClick={() => setAppliedQ(q)}>搜索</Button>
-        <Button variant="ghost" onClick={handleReset}>重置</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=JUHE_RECIPE')}
+          >
+            新建 Juhe 菜谱
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=TIANAPI_RECIPE')}
+          >
+            新建 TianAPI 菜谱
+          </Button>
+          <Button onClick={() => navigate('/resources/api-providers/create')}>新增接口</Button>
+        </div>
       </FilterPanel>
 
-      <DataTable columns={columns} data={filtered} rowKey={i => i.id} emptyTitle="暂无接口配置" />
+      <DataTable
+        columns={columns}
+        data={items}
+        loading={loading}
+        error={null}
+        rowKey={(item) => item.id}
+        emptyTitle="暂无接口配置"
+        emptyDescription="先创建一个公共资源 API Provider，再进行测试和同步。"
+      />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-4">
-          <div className="text-xs text-[#8c8c8c]">今日调用总量</div>
-          <div className="mt-1 text-2xl font-semibold text-[#2f2f2f]">{items.reduce((s, i) => s + i.todayCalls, 0).toLocaleString()}</div>
-          <div className="mt-4 h-16 rounded-xl bg-gradient-to-r from-[#edf5ea] to-white" />
-        </div>
-        <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-4">
-          <div className="text-xs text-[#8c8c8c]">调用限制提醒</div>
-          <div className="mt-3 space-y-3">
-            {items.length ? (
-              items.slice(0, 3).map((item) => <div key={item.id} className="grid grid-cols-[80px_1fr_76px] items-center gap-3 text-xs text-[#2f2f2f]"><span>{item.name.slice(0, 5)}</span><span className="h-2 rounded-full bg-[#f5f1ea]"><span className="block h-2 rounded-full bg-[#7a8b6f]" style={{ width: `${Math.min(100, item.todayCalls / item.dailyLimit * 100)}%` }} /></span><span className="text-right text-[#8c8c8c]">{item.todayCalls}/{item.dailyLimit}</span></div>)
-            ) : (
-              <div className="text-xs text-[#8c8c8c]">暂无接口调用限制数据</div>
-            )}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffdfc] p-4">
-          <div className="mb-3 flex items-center justify-between"><div className="text-xs text-[#8c8c8c]">最近调用日志</div><button type="button" onClick={() => setNotice('已刷新最近调用日志')} className="text-xs text-[#6f8b62]">刷新</button></div>
-          <div className="space-y-3 text-xs">
-            <div className="text-[#8c8c8c]">暂无真实调用日志</div>
-          </div>
+      <div className="flex items-center justify-between gap-4 text-sm text-[#8c8c8c]">
+        <span>共 {total} 条记录</span>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            上一页
+          </Button>
+          <span className="rounded-lg bg-[#7a8b6f] px-3 py-1.5 text-white">{page}</span>
+          <span>/ {totalPages}</span>
+          <Button variant="ghost" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>
+            下一页
+          </Button>
         </div>
       </div>
 
-      <ConfirmModal title="确认删除" open={!!deleting} onClose={() => setDeleting(null)} description={deleting ? `删除接口「${deleting.name}」后将无法恢复，资源接入中心将无法调用此接口。` : null} confirmText="删除" danger onConfirm={handleDelete} />
+      <ConfirmModal
+        title="确认删除"
+        open={Boolean(deleting)}
+        onClose={() => setDeleting(null)}
+        description={deleting ? `删除「${deleting.name}」后不可恢复。` : null}
+        confirmText="删除"
+        danger
+        onConfirm={() => void handleDelete()}
+      />
     </section>
   );
 };

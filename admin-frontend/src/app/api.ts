@@ -9,6 +9,7 @@ import type {
   LoginResult,
   PageResult,
   Recipe,
+  ResourceApiProviderItem,
   ResourceAppItem,
   ResourceApiKeyItem,
   ResourcePermissionItem,
@@ -741,6 +742,10 @@ export const deleteHeroBanner = async (navId: string, bannerId: number) =>
 // 该页面已迁移至顶部导航配置内容，不再作为独立页面路由
 // 以下导出仅用于保持 TypeScript 编译兼容
 
+const throwDeprecatedHomeHeroBannerError = (): never => {
+  throw new ApiError('旧首页顶部轮播图入口已废弃，请进入“首页运营 > 顶部导航 > 配置内容 > 轮播图设置”继续操作。');
+};
+
 /** @deprecated 使用 HeroBanner 替代 */
 export type HomeHeroBanner = HeroBanner;
 /** @deprecated 使用 HeroBannerPayload 替代 */
@@ -751,24 +756,31 @@ export type HomeHeroBannerStatus = BannerStatus;
 export type HomeHeroBannerTargetType = HeroBannerTargetType;
 /** @deprecated 使用 listHeroBanners 替代 */
 export const listHomeHeroBanners = async (params: { page?: number; pageSize?: number; q?: string; status?: BannerStatus } = {}) => {
-  // 已废弃：请使用 listHeroBanners(navId, params)
-  const qs = createPageQuery(params.page, params.pageSize, 10);
-  setParam(qs, 'q', params.q?.trim());
-  setParam(qs, 'status', params.status);
-  return request<PageResult<HomeHeroBanner>>(`/home/top-navs/0/hero-banners?${qs.toString()}`);
+  void params;
+  return throwDeprecatedHomeHeroBannerError();
 };
 /** @deprecated 使用 createHeroBanner 替代 */
-export const createHomeHeroBanner = async (payload: HomeHeroBannerPayload) =>
-  request<HomeHeroBanner>('/home/top-navs/0/hero-banners', { method: 'POST', body: JSON.stringify(payload) });
+export const createHomeHeroBanner = async (payload: HomeHeroBannerPayload) => {
+  void payload;
+  return throwDeprecatedHomeHeroBannerError();
+};
 /** @deprecated 使用 updateHeroBanner 替代 */
-export const updateHomeHeroBanner = async (id: number, payload: HomeHeroBannerPayload) =>
-  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const updateHomeHeroBanner = async (id: number, payload: HomeHeroBannerPayload) => {
+  void id;
+  void payload;
+  return throwDeprecatedHomeHeroBannerError();
+};
 /** @deprecated 使用 updateHeroBannerStatus 替代 */
-export const updateHomeHeroBannerStatus = async (id: number, status: HomeHeroBannerStatus) =>
-  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const updateHomeHeroBannerStatus = async (id: number, status: HomeHeroBannerStatus) => {
+  void id;
+  void status;
+  return throwDeprecatedHomeHeroBannerError();
+};
 /** @deprecated 使用 deleteHeroBanner 替代 */
-export const deleteHomeHeroBanner = async (id: number) =>
-  request<HomeHeroBanner>(`/home/top-navs/0/hero-banners/${id}`, { method: 'DELETE' });
+export const deleteHomeHeroBanner = async (id: number) => {
+  void id;
+  return throwDeprecatedHomeHeroBannerError();
+};
 
 export type Beverage = {
   id: string;
@@ -1209,6 +1221,110 @@ export const createFamilyInvite = async (payload: { familyId: number; inviterId?
 // 资源接口管理 (Resource Apps, Keys, Permissions, Logs)
 // ==========================================
 
+export const listResourceApiProviders = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: ResourceApiProviderItem['status'];
+  resourceType?: ResourceApiProviderItem['resourceType'];
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  setParam(qs, 'resourceType', params.resourceType);
+  return request<PageResult<ResourceApiProviderItem>>(`/resource-api-providers?${qs.toString()}`);
+};
+
+export const getResourceApiProvider = async (id: number | string) => {
+  return request<ResourceApiProviderItem>(`/resource-api-providers/${id}`);
+};
+
+export const createResourceApiProvider = async (payload: {
+  name: string;
+  providerName: string;
+  resourceType: ResourceApiProviderItem['resourceType'];
+  method: ResourceApiProviderItem['method'];
+  endpointUrl: string;
+  authType: ResourceApiProviderItem['authType'];
+  appKey?: string | null;
+  secret?: string | null;
+  defaultHeaders?: Record<string, unknown> | null;
+  defaultParams?: Record<string, unknown> | null;
+  dataPath: string;
+  timeoutMs: number;
+  dailyLimit: number;
+  description?: string | null;
+  status: ResourceApiProviderItem['status'];
+}) => request<ResourceApiProviderItem>('/resource-api-providers', {
+  method: 'POST',
+  body: JSON.stringify(payload)
+});
+
+export const updateResourceApiProvider = async (
+  id: number | string,
+  payload: {
+    name: string;
+    providerName: string;
+    resourceType: ResourceApiProviderItem['resourceType'];
+    method: ResourceApiProviderItem['method'];
+    endpointUrl: string;
+    authType: ResourceApiProviderItem['authType'];
+    appKey?: string | null;
+    secret?: string | null;
+    defaultHeaders?: Record<string, unknown> | null;
+    defaultParams?: Record<string, unknown> | null;
+    dataPath: string;
+    timeoutMs: number;
+    dailyLimit: number;
+    description?: string | null;
+    status: ResourceApiProviderItem['status'];
+  }
+) => request<ResourceApiProviderItem>(`/resource-api-providers/${id}`, {
+  method: 'PUT',
+  body: JSON.stringify(payload)
+});
+
+export const setResourceApiProviderStatus = async (id: number | string, status: ResourceApiProviderItem['status']) =>
+  request<ResourceApiProviderItem>(`/resource-api-providers/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+
+export const deleteResourceApiProvider = async (id: number | string) =>
+  request<ResourceApiProviderItem>(`/resource-api-providers/${id}`, { method: 'DELETE' });
+
+export const testResourceApiProvider = async (payload: {
+  name: string;
+  providerName: string;
+  resourceType: ResourceApiProviderItem['resourceType'];
+  method: ResourceApiProviderItem['method'];
+  endpointUrl: string;
+  authType: ResourceApiProviderItem['authType'];
+  appKey?: string | null;
+  secret?: string | null;
+  defaultHeaders?: Record<string, unknown> | null;
+  defaultParams?: Record<string, unknown> | null;
+  dataPath: string;
+  timeoutMs: number;
+  dailyLimit: number;
+  description?: string | null;
+  status: ResourceApiProviderItem['status'];
+}) => request<{ total: number; preview: Array<Record<string, unknown>>; requestUrl: string; requestBody: Record<string, unknown> | null; headers: Record<string, string> }>('/resource-api-providers/test', {
+  method: 'POST',
+  body: JSON.stringify(payload)
+});
+
+export const testSavedResourceApiProvider = async (id: number | string) =>
+  request<{ total: number; preview: Array<Record<string, unknown>>; requestUrl: string; requestBody: Record<string, unknown> | null; headers: Record<string, string> }>(`/resource-api-providers/${id}/test`, {
+    method: 'POST'
+  });
+
+export const syncResourceApiProvider = async (id: number | string, payload: { limit?: number; params?: Record<string, unknown> | null } = {}) =>
+  request<{ batch: ResourceImportBatchItem; summary: { total: number; pending: number; failed: number; imported: number; ignored: number }; preview: Array<Record<string, unknown>> }>(`/resource-api-providers/${id}/sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+
 export const listResourceApps = async (params: {
   page?: number;
   pageSize?: number;
@@ -1433,11 +1549,15 @@ export const listImportBatches = async (params: {
   q?: string;
   status?: ResourceImportBatchItem['status'];
   importType?: ResourceImportBatchItem['importType'];
+  sourceType?: string;
+  providerId?: number;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   setParam(qs, 'importType', params.importType);
+  setParam(qs, 'sourceType', params.sourceType);
+  setParam(qs, 'providerId', params.providerId);
   return request<PageResult<ResourceImportBatchItem>>(`/resource-imports?${qs.toString()}`);
 };
 
@@ -1452,11 +1572,15 @@ export const listImportItems = async (params: {
   status?: ResourceImportStagedItem['status'];
   batchId?: number;
   importId?: number;
+  providerId?: number;
+  resourceType?: ResourceImportStagedItem['importType'];
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
   setParam(qs, 'importId', params.importId || params.batchId);
+  setParam(qs, 'providerId', params.providerId);
+  setParam(qs, 'resourceType', params.resourceType);
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
 };
 

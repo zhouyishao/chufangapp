@@ -7,7 +7,8 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
-import { listImportBatches, getImportBatchesStats, retryFailedImport } from '../api';
+import { getResourceSourceScopeLabel } from '../utils/resource-source';
+import { listImportBatches, getImportBatchesStats, retryFailedImport, listResourceApiProviders } from '../api';
 import type { ResourceImportBatchItem } from '../types';
 
 const statusOptions = [
@@ -47,6 +48,8 @@ export const ResourceImportRecordsPage = () => {
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
   const [retryLoading, setRetryLoading] = useState(false);
+  const [providerItems, setProviderItems] = useState<Array<{ id: number; providerName: string; name: string }>>([]);
+  const [providerLoading, setProviderLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -64,6 +67,8 @@ export const ResourceImportRecordsPage = () => {
   const [q, setQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ResourceImportBatchItem['status'] | ''>('');
+  const [sourceTypeFilter, setSourceTypeFilter] = useState('');
+  const [providerFilter, setProviderFilter] = useState<number | ''>('');
 
   // Selected batch for drawer details
   const [detailBatch, setDetailBatch] = useState<ResourceImportBatchItem | null>(null);
@@ -80,7 +85,9 @@ export const ResourceImportRecordsPage = () => {
         page,
         pageSize,
         q: appliedQ.trim() || undefined,
-        status: statusFilter || undefined
+        status: statusFilter || undefined,
+        sourceType: sourceTypeFilter || undefined,
+        providerId: providerFilter || undefined
       });
       setBatches(data.list);
       setTotal(data.total);
@@ -104,12 +111,28 @@ export const ResourceImportRecordsPage = () => {
     }
   };
 
+  const fetchProviders = async () => {
+    setProviderLoading(true);
+    try {
+      const data = await listResourceApiProviders({ page: 1, pageSize: 100 });
+      setProviderItems(data.list.map((item) => ({ id: item.id, providerName: item.providerName, name: item.name })));
+    } catch {
+      // Ignore provider filter errors, batch list still works
+    } finally {
+      setProviderLoading(false);
+    }
+  };
+
   useEffect(() => {
     void fetchBatches();
-  }, [page, pageSize, appliedQ, statusFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, sourceTypeFilter, providerFilter]);
 
   useEffect(() => {
     void fetchStats();
+  }, []);
+
+  useEffect(() => {
+    void fetchProviders();
   }, []);
 
   const handleSearch = () => {
@@ -122,6 +145,8 @@ export const ResourceImportRecordsPage = () => {
     setQ('');
     setAppliedQ('');
     setStatusFilter('');
+    setSourceTypeFilter('');
+    setProviderFilter('');
     setNotice('筛选条件已重置');
     setTimeout(() => setNotice(null), 3000);
   };
@@ -175,11 +200,25 @@ export const ResourceImportRecordsPage = () => {
     },
     {
       key: 'sourceType',
-      title: '数据格式',
+      title: '来源格式',
       render: (batch) => (
         <span className="inline-flex items-center rounded-md bg-zinc-50 border border-zinc-150 px-2 py-0.5 text-xs font-semibold text-zinc-600">
           {batch.sourceType}
         </span>
+      )
+    },
+    {
+      key: 'providerName',
+      title: '提供方',
+      render: (batch) => (
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-[#2f2f2f]">
+            {batch.providerName || batch.provider?.providerName || batch.sourceName || '-'}
+          </span>
+          <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+            {getResourceSourceScopeLabel(batch.providerName || batch.provider?.providerName || batch.sourceName)}
+          </span>
+        </div>
       )
     },
     {
@@ -219,6 +258,15 @@ export const ResourceImportRecordsPage = () => {
       render: (batch) => (
         <span className="text-zinc-500 text-xs whitespace-nowrap">
           {new Date(batch.createdAt).toLocaleString()}
+        </span>
+      )
+    },
+    {
+      key: 'finishedAt',
+      title: '完成时间',
+      render: (batch) => (
+        <span className="text-zinc-500 text-xs whitespace-nowrap">
+          {batch.finishedAt ? new Date(batch.finishedAt).toLocaleString() : '-'}
         </span>
       )
     },
@@ -264,7 +312,7 @@ export const ResourceImportRecordsPage = () => {
 
       {/* Filter Panel */}
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
-        <div className="grid gap-4 xl:grid-cols-[1.5fr_2.5fr_auto] items-end">
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_1.2fr_1.2fr_1.8fr_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">导入状态</span>
             <select
@@ -274,10 +322,48 @@ export const ResourceImportRecordsPage = () => {
                 setStatusFilter(e.target.value as ResourceImportBatchItem['status'] | '');
                 setPage(1);
               }}
-            >
+              >
               {statusOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">来源格式</span>
+            <select
+              className={selectClass}
+              value={sourceTypeFilter}
+              onChange={(e) => {
+                setSourceTypeFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">全部格式</option>
+              <option value="API">API</option>
+              <option value="JSON">JSON</option>
+              <option value="XLSX">XLSX</option>
+              <option value="CSV">CSV</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">提供方</span>
+            <select
+              className={selectClass}
+              value={providerFilter}
+              onChange={(e) => {
+                setProviderFilter(e.target.value ? Number(e.target.value) : '');
+                setPage(1);
+              }}
+              disabled={providerLoading}
+            >
+              <option value="">{providerLoading ? '加载中...' : '全部提供方'}</option>
+              {providerItems.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.providerName} - {provider.name}
                 </option>
               ))}
             </select>
@@ -382,6 +468,15 @@ export const ResourceImportRecordsPage = () => {
                   <span className="text-zinc-400 block mb-0.5">文件格式</span>
                   <span className="font-semibold text-zinc-800">{detailBatch.sourceType}</span>
                 </div>
+                <div>
+                  <span className="text-zinc-400 block mb-0.5">提供方</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold text-zinc-800">{detailBatch.providerName || detailBatch.provider?.providerName || detailBatch.sourceName || '-'}</span>
+                    <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+                      {getResourceSourceScopeLabel(detailBatch.providerName || detailBatch.provider?.providerName || detailBatch.sourceName)}
+                    </span>
+                  </div>
+                </div>
                 <div className="col-span-2">
                   <span className="text-zinc-400 block mb-0.5">文件名称</span>
                   <span className="font-semibold text-zinc-800 break-all">{detailBatch.fileName}</span>
@@ -414,6 +509,12 @@ export const ResourceImportRecordsPage = () => {
                   <span className="text-zinc-400 block mb-0.5">导入时间</span>
                   <span className="font-semibold text-zinc-800 text-xs">
                     {new Date(detailBatch.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-zinc-400 block mb-0.5">完成时间</span>
+                  <span className="font-semibold text-zinc-800 text-xs">
+                    {detailBatch.finishedAt ? new Date(detailBatch.finishedAt).toLocaleString() : '-'}
                   </span>
                 </div>
               </div>

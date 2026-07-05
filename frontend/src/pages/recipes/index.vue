@@ -186,7 +186,7 @@ const basketItemIds = ref<string[]>([]);
 const basketItems = ref<BasketItem[]>([]);
 const tabs = ref<HomeTab[]>([
   { id: 'home', label: '首页', active: false },
-  { id: 'ingredients', label: '食材', active: true },
+  { id: 'categories', label: '分类', active: true },
   { id: 'basket', label: '菜篮子', active: false },
   { id: 'mine', label: '我的', active: false }
 ]);

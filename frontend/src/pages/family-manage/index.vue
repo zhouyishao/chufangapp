@@ -9,7 +9,7 @@
       </button>
     </view>
 
-    <view class="title-block" @tap="toggleFamilySelect">
+    <view v-if="hasFamilies" class="title-block" @tap="toggleFamilySelect">
       <view class="title-row">
         <text class="family-title">{{ currentFamily.name }}</text>
         <app-icon :class="['title-arrow', { 'is-open': isFamilySelectVisible }]" name="chevron-down" size="22rpx" />
@@ -19,7 +19,29 @@
       </text>
     </view>
 
-    <view v-if="isFamilySelectVisible" class="select-mask" @tap="closeFamilySelect">
+    <view v-else class="title-block">
+      <text class="family-title">家庭管理</text>
+      <text class="family-subtitle">创建家庭后，可以共享菜篮子、偏好和常做菜。</text>
+    </view>
+
+    <view v-if="isLoading" class="state-card glass-card">
+      <text class="state-title">正在加载家庭</text>
+      <text class="state-desc">正在同步家庭成员和偏好设置。</text>
+    </view>
+
+    <view v-else-if="errorMessage" class="state-card glass-card">
+      <text class="state-title">家庭加载失败</text>
+      <text class="state-desc">{{ errorMessage }}</text>
+      <button class="primary-button state-button" @tap="retryLoadFamilies">重试</button>
+    </view>
+
+    <view v-else-if="!hasFamilies" class="state-card glass-card">
+      <text class="state-title">还没有家庭</text>
+      <text class="state-desc">先创建一个家庭，再邀请家人一起维护菜篮子和口味偏好。</text>
+      <button class="primary-button state-button" @tap="goToCreateFamily">创建家庭</button>
+    </view>
+
+    <view v-if="hasFamilies && isFamilySelectVisible" class="select-mask" @tap="closeFamilySelect">
       <view class="select-sheet glass-card" @tap.stop>
         <text class="sheet-title">切换家庭</text>
         <view class="sheet-list">
@@ -39,6 +61,7 @@
       </view>
     </view>
 
+    <template v-if="hasFamilies">
     <view class="section glass-card">
       <text class="section-label">家庭成员（{{ currentFamily.members.length }}）</text>
       <view class="cell-list">
@@ -90,7 +113,9 @@
     </view>
 
     <view class="action-section glass-card">
-      <button class="danger-button danger-button--soft" @tap="confirmLeaveFamily">退出家庭</button>
+      <button class="danger-button danger-button--soft" :disabled="isLeaving" @tap="confirmLeaveFamily">
+        {{ isLeaving ? '退出中...' : '退出家庭' }}
+      </button>
     </view>
 
     <view v-if="isEditPanelVisible" class="edit-mask" @tap="closeEdit">
@@ -115,10 +140,11 @@
         />
         <view class="edit-actions">
           <button class="ghost-button" @tap="closeEdit">取消</button>
-          <button class="primary-button" @tap="saveEdit">保存</button>
+          <button class="primary-button" :disabled="isSaving" @tap="saveEdit">{{ isSaving ? '保存中...' : '保存' }}</button>
         </view>
       </view>
     </view>
+    </template>
   </view>
 </template>
 
@@ -138,25 +164,36 @@ import {
 import type { FamilyProfile } from '../../types/family';
 
 type EditField = 'name' | 'rules';
+type RefreshOptions = {
+  showLoading?: boolean;
+};
 
 const families = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
+const isLoading = ref(false);
+const hasLoaded = ref(false);
+const isSaving = ref(false);
+const isLeaving = ref(false);
+const errorMessage = ref('');
 const isFamilySelectVisible = ref(false);
 const isEditPanelVisible = ref(false);
 const editingField = ref<EditField>('name');
 const editValue = ref('');
 
+const emptyFamily: FamilyProfile = {
+  id: '',
+  name: '家庭管理',
+  description: '',
+  commonRecipes: 0,
+  pendingItems: 0,
+  members: []
+};
+
 const currentFamily = computed<FamilyProfile>(() => {
-  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? {
-    id: '',
-    name: '家庭管理',
-    description: '',
-    commonRecipes: 0,
-    pendingItems: 0,
-    members: []
-  };
+  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? emptyFamily;
 });
 
+const hasFamilies = computed(() => families.value.length > 0 && Boolean(currentFamily.value.id));
 const editTitle = computed(() => (editingField.value === 'name' ? '家庭名称' : '家庭规矩'));
 const editPlaceholder = computed(() => (editingField.value === 'name' ? '例如：周末小家' : '例如：少油少盐，晚餐不吃太辣'));
 
@@ -178,6 +215,15 @@ const selectFamily = (familyId: string) => {
   closeFamilySelect();
 };
 
+const requireCurrentFamilyId = () => {
+  const familyId = currentFamily.value.id;
+  if (!familyId) {
+    uni.showToast({ title: '请先创建家庭', icon: 'none' });
+    return '';
+  }
+  return familyId;
+};
+
 const isCurrentUserMember = (member: { userId?: number; accountId?: string }) => {
   const currentUser = loadAuthUser();
   if (!currentUser) return false;
@@ -189,20 +235,31 @@ const formatMemberTitle = (member: { name: string; userId?: number; accountId?: 
 };
 
 const openMember = (memberId: string) => {
+  const familyId = requireCurrentFamilyId();
+  if (!familyId) return;
   uni.navigateTo({
-    url: `/pages/family-member/index?familyId=${encodeURIComponent(activeFamilyId.value)}&memberId=${encodeURIComponent(memberId)}`
+    url: `/pages/family-member/index?familyId=${encodeURIComponent(familyId)}&memberId=${encodeURIComponent(memberId)}`
   });
 };
 
 const goToInvite = () => {
-  uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(activeFamilyId.value)}` });
+  const familyId = requireCurrentFamilyId();
+  if (!familyId) return;
+  uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(familyId)}` });
 };
 
 const goToPreferences = () => {
-  uni.navigateTo({ url: `/pages/family-preferences/index?familyId=${encodeURIComponent(activeFamilyId.value)}` });
+  const familyId = requireCurrentFamilyId();
+  if (!familyId) return;
+  uni.navigateTo({ url: `/pages/family-preferences/index?familyId=${encodeURIComponent(familyId)}` });
+};
+
+const goToCreateFamily = () => {
+  uni.navigateTo({ url: '/pages/family-create/index' });
 };
 
 const openEdit = (field: EditField) => {
+  if (!requireCurrentFamilyId()) return;
   editingField.value = field;
   editValue.value = field === 'name' ? currentFamily.value.name : currentFamily.value.rules ?? '';
   isEditPanelVisible.value = true;
@@ -213,6 +270,7 @@ const closeEdit = () => {
 };
 
 const saveEdit = async () => {
+  if (isSaving.value || !requireCurrentFamilyId()) return;
   const trimmedValue = editValue.value.trim();
   if (editingField.value === 'name' && !trimmedValue) {
     uni.showToast({ title: '请填写家庭名称', icon: 'none' });
@@ -224,9 +282,16 @@ const saveEdit = async () => {
     name: editingField.value === 'name' ? trimmedValue : currentFamily.value.name,
     rules: editingField.value === 'rules' ? trimmedValue : currentFamily.value.rules
   };
-  families.value = await updateFamily(nextFamily);
-  closeEdit();
-  uni.showToast({ title: '已保存', icon: 'success' });
+  isSaving.value = true;
+  try {
+    families.value = await updateFamily(nextFamily);
+    closeEdit();
+    uni.showToast({ title: '已保存', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' });
+  } finally {
+    isSaving.value = false;
+  }
 };
 
 const getFamilyIdFromLocation = () => {
@@ -236,17 +301,47 @@ const getFamilyIdFromLocation = () => {
   return new URLSearchParams(queryText).get('id') ?? '';
 };
 
-const refreshFamilyPage = async (familyId = '') => {
-  families.value = await loadFamilies();
-  if (familyId && families.value.some((family) => family.id === familyId)) {
-    activeFamilyId.value = familyId;
-    saveActiveFamilyId(familyId);
-  } else {
-    activeFamilyId.value = loadActiveFamilyId();
+const resolveActiveFamilyId = (requestedFamilyId = '') => {
+  const storedFamilyId = loadActiveFamilyId();
+  if (requestedFamilyId && families.value.some((family) => family.id === requestedFamilyId)) {
+    return requestedFamilyId;
+  }
+  if (storedFamilyId && families.value.some((family) => family.id === storedFamilyId)) {
+    return storedFamilyId;
+  }
+  return families.value[0]?.id ?? '';
+};
+
+const refreshFamilyPage = async (familyId = '', options: RefreshOptions = {}) => {
+  const shouldShowLoading = options.showLoading ?? !hasLoaded.value;
+  if (shouldShowLoading) {
+    isLoading.value = true;
+  }
+  errorMessage.value = '';
+  try {
+    families.value = await loadFamilies();
+    const nextFamilyId = resolveActiveFamilyId(familyId.trim());
+    activeFamilyId.value = nextFamilyId;
+    if (nextFamilyId) {
+      saveActiveFamilyId(nextFamilyId);
+    }
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '家庭加载失败';
+    families.value = [];
+    activeFamilyId.value = '';
+  } finally {
+    isLoading.value = false;
+    hasLoaded.value = true;
   }
 };
 
+const retryLoadFamilies = () => {
+  void refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: true });
+};
+
 const confirmLeaveFamily = () => {
+  const familyId = requireCurrentFamilyId();
+  if (!familyId || isLeaving.value) return;
   if (!canCurrentUserLeaveFamily(currentFamily.value)) {
     uni.showToast({ title: '请先设置其他管理员', icon: 'none' });
     return;
@@ -262,27 +357,36 @@ const confirmLeaveFamily = () => {
         return;
       }
 
-      families.value = await leaveFamilyAsCurrentUser(currentFamily.value.id);
-      activeFamilyId.value = loadActiveFamilyId();
-      uni.showToast({ title: '已退出家庭', icon: 'none' });
-      uni.navigateBack();
+      isLeaving.value = true;
+      try {
+        families.value = await leaveFamilyAsCurrentUser(familyId);
+        activeFamilyId.value = loadActiveFamilyId();
+        uni.showToast({ title: '已退出家庭', icon: 'none' });
+        uni.navigateBack();
+      } catch (error) {
+        uni.showToast({ title: error instanceof Error ? error.message : '退出失败', icon: 'none' });
+      } finally {
+        isLeaving.value = false;
+      }
     }
   });
 };
 
 onLoad(async (options) => {
   const familyId = typeof options?.id === 'string' ? options.id : '';
-  await refreshFamilyPage(familyId);
+  await refreshFamilyPage(familyId, { showLoading: true });
 });
 
 onMounted(() => {
-  void refreshFamilyPage(getFamilyIdFromLocation()).catch((error) => {
-    uni.showToast({ title: error instanceof Error ? error.message : '家庭加载失败', icon: 'none' });
-  });
+  if (!hasLoaded.value) {
+    void refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: true });
+  }
 });
 
 onShow(async () => {
-  await refreshFamilyPage(getFamilyIdFromLocation());
+  if (hasLoaded.value) {
+    await refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: false });
+  }
 });
 </script>
 
@@ -382,6 +486,42 @@ onShow(async () => {
   color: var(--app-danger);
   font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
+}
+
+.danger-button[disabled],
+.primary-button[disabled] {
+  opacity: 0.58;
+}
+
+.state-card {
+  margin-top: 26rpx;
+  padding: 34rpx 30rpx;
+  border-radius: var(--app-radius-card);
+  background: rgba(255, 253, 252, 0.92);
+}
+
+.state-title,
+.state-desc {
+  display: block;
+}
+
+.state-title {
+  color: var(--app-text);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-card-title);
+}
+
+.state-desc {
+  margin-top: 10rpx;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-body-sm);
+}
+
+.state-button {
+  width: 100%;
+  margin-top: 28rpx;
 }
 
 .danger-button--soft {

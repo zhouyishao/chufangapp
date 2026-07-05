@@ -212,6 +212,32 @@ export type ResourceAppItem = {
   updatedAt: string;
 };
 
+export type ResourceApiProviderItem = {
+  id: number;
+  name: string;
+  providerName: string;
+  resourceType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  method: 'GET' | 'POST';
+  endpointUrl: string;
+  authType: 'NONE' | 'HEADER_TOKEN' | 'QUERY_KEY' | 'CUSTOM_HEADERS';
+  appKey: string | null;
+  hasSecret?: boolean;
+  secretPreview?: string | null;
+  defaultHeaders: Record<string, unknown> | null;
+  defaultParams: Record<string, unknown> | null;
+  dataPath: string;
+  timeoutMs: number;
+  dailyLimit: number;
+  description: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  lastSyncedAt: string | null;
+  lastTestedAt: string | null;
+  lastError: string | null;
+  importBatchCount?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ResourceApiKeyItem = {
   id: number;
   name: string;
@@ -258,6 +284,9 @@ export type ResourceLogItem = {
 export type ResourceImportBatchItem = {
   id: number;
   importType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  providerId?: number | null;
+  providerName?: string | null;
+  provider?: { id: number; name: string; providerName: string } | null;
   sourceType: string;
   fileName: string;
   status: 'PENDING' | 'COMPLETED' | 'FAILED';
@@ -266,6 +295,8 @@ export type ResourceImportBatchItem = {
   failedCount: number;
   errorMessage: string | null;
   createdBy: string;
+  sourceName?: string | null;
+  requestSnapshot?: Record<string, unknown> | null;
   createdAt: string;
   finishedAt: string | null;
 };
@@ -274,11 +305,17 @@ export type ResourceImportStagedItem = {
   id: number;
   importId: number;
   importType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  providerId?: number | null;
+  providerName?: string | null;
   rowIndex: number;
   rawData: Record<string, any>;
   mappedData: Record<string, any>;
   status: 'PENDING' | 'IMPORTED' | 'FAILED' | 'IGNORED';
   errorMessage: string | null;
   targetId: number | null;
+  externalId?: string | null;
+  externalUrl?: string | null;
+  filterCode?: string | null;
+  duplicateTargetId?: number | null;
   createdAt: string;
 };

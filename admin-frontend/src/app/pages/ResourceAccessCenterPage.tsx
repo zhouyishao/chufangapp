@@ -8,14 +8,18 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import { getResourceSourceScopeLabel } from '../utils/resource-source';
 import {
+  listResourceApiProviders,
+  syncResourceApiProvider,
+  testSavedResourceApiProvider,
   listImportItems,
   createImportBatch,
   updateImportItem,
   setImportItemStatus,
   confirmImportBatch
 } from '../api';
-import type { ResourceImportStagedItem } from '../types';
+import type { ResourceApiProviderItem, ResourceImportStagedItem } from '../types';
 
 type ResourceType = ResourceImportStagedItem['importType'];
 type ImportStatus = ResourceImportStagedItem['status'];
@@ -35,6 +39,23 @@ const resourceTypeOptions = [
   { label: '调料', value: 'SEASONING' },
   { label: '酒水', value: 'BEVERAGE' }
 ] as const;
+
+const resourceTypeFilterOptions = [
+  { label: '全部分类', value: '' },
+  ...resourceTypeOptions
+] as const;
+
+const buildSyncParamsTemplate = (provider?: ResourceApiProviderItem) => {
+  if (!provider) return '{\n  "page": 1,\n  "pageSize": 100\n}';
+  const providerName = `${provider.providerName} ${provider.name}`.toLowerCase();
+  if (providerName.includes('juhe') || providerName.includes('聚合')) {
+    return '{\n  "__appKeyEnv": "JUHE_COOK_KEY",\n  "__appKeyParam": "key",\n  "menu": "黄瓜",\n  "rn": 10,\n  "pn": 0\n}';
+  }
+  if (providerName.includes('tianapi') || providerName.includes('天行') || providerName.includes('天聚')) {
+    return '{\n  "__appKeyEnv": "TIANAPI_KEY",\n  "__appKeyParam": "key",\n  "word": "黄瓜",\n  "num": 10,\n  "page": 1\n}';
+  }
+  return '{\n  "page": 1,\n  "pageSize": 100\n}';
+};
 
 const importStatusOptions = [
   { label: '全部状态', value: '' },
@@ -78,7 +99,15 @@ export const ResourceAccessCenterPage = () => {
   const [q, setQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
+  const [resourceTypeFilter, setResourceTypeFilter] = useState<ResourceType | ''>('');
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
+  const [providerItems, setProviderItems] = useState<ResourceApiProviderItem[]>([]);
+  const [providerLoading, setProviderLoading] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<number | ''>('');
+  const [syncLimit, setSyncLimit] = useState(100);
+  const [syncParamsText, setSyncParamsText] = useState(buildSyncParamsTemplate());
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [previewItem, setPreviewItem] = useState<ResourceImportStagedItem | null>(null);
@@ -98,7 +127,8 @@ export const ResourceAccessCenterPage = () => {
         pageSize,
         q: appliedQ.trim() || undefined,
         status: statusFilter || undefined,
-        batchId: batchIdFilter
+        batchId: batchIdFilter,
+        resourceType: resourceTypeFilter || undefined
       });
       setItems(data.list);
       setTotal(data.total);
@@ -109,9 +139,46 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
+  const refreshProviders = async () => {
+    setProviderLoading(true);
+    try {
+      const data = await listResourceApiProviders({
+        page: 1,
+        pageSize: 100,
+        status: 'ACTIVE',
+        resourceType: uploadType
+      });
+      setProviderItems(data.list);
+      setSelectedProviderId((current) => {
+        const matched = typeof current === 'number' ? data.list.find((item) => item.id === current) : null;
+        const nextProvider = matched ?? data.list[0] ?? null;
+        if (nextProvider) {
+          setSyncParamsText(buildSyncParamsTemplate(nextProvider));
+          return nextProvider.id;
+        }
+        setSyncParamsText(buildSyncParamsTemplate());
+        return '';
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载接口提供方失败');
+    } finally {
+      setProviderLoading(false);
+    }
+  };
+
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, resourceTypeFilter]);
+
+  useEffect(() => {
+    void refreshProviders();
+  }, [uploadType]);
+
+  useEffect(() => {
+    if (typeof selectedProviderId !== 'number') return;
+    const provider = providerItems.find((item) => item.id === selectedProviderId);
+    setSyncParamsText(buildSyncParamsTemplate(provider));
+  }, [selectedProviderId, providerItems]);
 
   const handleSearch = () => {
     setPage(1);
@@ -123,10 +190,62 @@ export const ResourceAccessCenterPage = () => {
     setQ('');
     setAppliedQ('');
     setStatusFilter('');
+    setResourceTypeFilter('');
     if (searchParams.has('batchId')) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
       setSearchParams(nextParams);
+    }
+  };
+
+  const handleTestProvider = async () => {
+    if (typeof selectedProviderId !== 'number') {
+      setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    setTestLoading(true);
+    setError(null);
+    try {
+      const result = await testSavedResourceApiProvider(selectedProviderId);
+      setNotice(`测试通过：解析 ${result.total} 条，预览 ${result.preview.length} 条`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '测试连接失败');
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleSyncProvider = async () => {
+    if (typeof selectedProviderId !== 'number') {
+      setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    let parsedParams: Record<string, unknown> | null = null;
+    if (syncParamsText.trim()) {
+      try {
+        parsedParams = JSON.parse(syncParamsText) as Record<string, unknown>;
+      } catch {
+        setError('同步参数 JSON 格式无效');
+        return;
+      }
+    }
+
+    setSyncLoading(true);
+    setError(null);
+    try {
+      const result = await syncResourceApiProvider(selectedProviderId, {
+        limit: Math.min(500, Math.max(1, syncLimit || 100)),
+        params: parsedParams
+      });
+      setNotice(`已同步到导入池，批次 #${result.batch.id}，待处理 ${result.summary.pending} 条，失败 ${result.summary.failed} 条`);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('batchId', String(result.batch.id));
+      setSearchParams(nextParams);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '同步失败');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -449,9 +568,36 @@ export const ResourceAccessCenterPage = () => {
       render: (item) => <span className="text-zinc-600 text-sm">{item.mappedData?.categoryName || '-'}</span>
     },
     {
+      key: 'provider',
+      title: '提供方',
+      render: (item) => (
+        <div className="flex flex-col gap-1">
+          <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
+          <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+            {getResourceSourceScopeLabel(item.providerName)}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'externalId',
+      title: '外部 ID',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.externalId || '-'}</span>
+    },
+    {
       key: 'importStatus',
       title: '导入状态',
       render: (item) => <StatusTag label={item.status === 'PENDING' ? '待处理' : item.status === 'IMPORTED' ? '已导入' : item.status === 'FAILED' ? '导入失败' : '已忽略'} tone={importStatusTone[item.status]} />
+    },
+    {
+      key: 'filterCode',
+      title: '过滤码',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.filterCode || '-'}</span>
+    },
+    {
+      key: 'duplicateTargetId',
+      title: '重复目标',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.duplicateTargetId || '-'}</span>
     },
     {
       key: 'duplicateStatus',
@@ -550,6 +696,87 @@ export const ResourceAccessCenterPage = () => {
           </button>
         </div>
       ) : null}
+
+      <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-[#2f2f2f]">导入分类</span>
+          {resourceTypeFilterOptions.map((opt) => {
+            const active = resourceTypeFilter === opt.value;
+            return (
+              <button
+                key={opt.value || 'ALL'}
+                type="button"
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  active
+                    ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                    : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                }`}
+                onClick={() => {
+                  setResourceTypeFilter(opt.value as ResourceType | '');
+                  setPage(1);
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr_auto] items-end">
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">API 提供方</span>
+            <select
+              className={selectClass}
+              value={selectedProviderId}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : '';
+                setSelectedProviderId(nextId);
+                if (typeof nextId === 'number') {
+                  const provider = providerItems.find((item) => item.id === nextId);
+                  setSyncParamsText(buildSyncParamsTemplate(provider));
+                } else {
+                  setSyncParamsText(buildSyncParamsTemplate());
+                }
+              }}
+              disabled={providerLoading}
+            >
+              <option value="">{providerLoading ? '加载中...' : '请选择提供方'}</option>
+              {providerItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.providerName} - {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">同步条数</span>
+            <Input
+              type="number"
+              value={syncLimit}
+              onChange={(e) => setSyncLimit(Number(e.target.value))}
+              min={1}
+              max={500}
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">请求参数 JSON</span>
+            <textarea
+              className="min-h-11 rounded-xl border border-[#e9e2d6] bg-white px-3 py-2 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10"
+              value={syncParamsText}
+              onChange={(e) => setSyncParamsText(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 xl:justify-end">
+            <Button variant="ghost" className="h-11 px-5" onClick={handleTestProvider} disabled={testLoading}>
+              {testLoading ? '测试中...' : '测试连接'}
+            </Button>
+            <Button className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]" onClick={handleSyncProvider} disabled={syncLoading}>
+              {syncLoading ? '同步中...' : '同步到导入池'}
+            </Button>
+          </div>
+        </div>
+      </section>
 
       {/* Filter Options */}
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">

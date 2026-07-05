@@ -40,6 +40,17 @@
 - `AGENTS.md`
 - `docs/codex/coding-rules.md`
 - `docs/codex/checklist.md`
+- `docs/codex/skill-tool-routing.md`
+
+### 通用工具 / Skill 调度规则
+
+- 本机已安装并启用三类通用能力：`Headroom`、`Superpowers`、`pm-product-discovery`。
+- 每次任务开始前，必须按 `docs/codex/skill-tool-routing.md` 先判断是否要调用这些工具或 skill。
+- 默认顺序：
+  1. 先判断 `Headroom`，用于 shell 输出压缩和上下文控制。
+  2. 再判断 `Superpowers`，用于排障、计划、完成前验证。
+  3. 最后判断 `pm-product-discovery`，用于需求发现、假设、优先级、访谈脚本、机会树。
+- 如果命中对应场景，必须先读取对应说明或 skill，再开始后续执行。
 
 ### C 端 UI / Figma / 移动端 / 视觉设计任务必须阅读
 
