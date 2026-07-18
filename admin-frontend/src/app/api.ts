@@ -164,6 +164,29 @@ export const uploadImage = async (file: File): Promise<UploadImageResult> => upl
 export const uploadVideo = async (file: File): Promise<UploadMediaResult> => uploadFile<UploadMediaResult>(file, 'video');
 export const uploadMedia = async (file: File): Promise<UploadMediaResult> => uploadFile<UploadMediaResult>(file, 'media');
 
+export type StoredFileItem = {
+  id: number;
+  name: string;
+  url: string;
+  mimeType: string;
+  size: number;
+  storageKind: 'LOCAL' | 'OBJECT';
+  uploaderId: number | null;
+  referenceCount: number;
+  createdAt: string;
+};
+
+export const listStoredFiles = (params: { page?: number; pageSize?: number; q?: string; type?: 'image' | 'video' }) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set('page', String(params.page));
+  if (params.pageSize) qs.set('pageSize', String(params.pageSize));
+  if (params.q) qs.set('q', params.q);
+  if (params.type) qs.set('type', params.type);
+  return request<PageResult<StoredFileItem>>(`/files?${qs.toString()}`);
+};
+
+export const deleteStoredFile = (id: number) => request<{ id: number; deleted: true }>(`/files/${id}`, { method: 'DELETE' });
+
 export const login = async (username: string, password: string) => {
   return request<LoginResult>('/auth/login', {
     method: 'POST',

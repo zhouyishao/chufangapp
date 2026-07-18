@@ -108,13 +108,56 @@ const removeFile = async (req: Request, res: Response) => {
   res.json(ok({ id, deleted: true }));
 };
 
-const makeRouter = (auth: typeof requireAppAuth | typeof requireAdminAuth) => {
+const listFiles = async (req: Request, res: Response) => {
+  const parsed = z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+    q: z.string().trim().optional(),
+    type: z.enum(['image', 'video']).optional()
+  }).safeParse(req.query);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const { page, pageSize, q, type } = parsed.data;
+  const where = {
+    deletedAt: null,
+    ...(type ? { mimeType: { startsWith: `${type}/` } } : {}),
+    ...(q ? { OR: [{ path: { contains: q, mode: 'insensitive' as const } }, { mimeType: { contains: q, mode: 'insensitive' as const } }] } : {})
+  };
+  const [rows, total] = await Promise.all([
+    prisma.file.findMany({
+      where,
+      include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    }),
+    prisma.file.count({ where })
+  ]);
+  res.json(ok({
+    list: rows.map((file) => ({
+      id: file.id,
+      name: path.basename(file.path),
+      url: file.url,
+      mimeType: file.mimeType,
+      size: file.size,
+      storageKind: file.storageKind,
+      uploaderId: file.uploaderId,
+      referenceCount: file._count.references + file._count.recipeSteps + file._count.beverageSteps,
+      createdAt: file.createdAt
+    })),
+    total,
+    page,
+    pageSize
+  }));
+};
+
+const makeRouter = (auth: typeof requireAppAuth | typeof requireAdminAuth, allowList = false) => {
   const router = Router();
   router.post('/', auth, upload);
+  if (allowList) router.get('/', auth, listFiles);
   router.get('/:id', auth, getFile);
   router.delete('/:id', auth, removeFile);
   return router;
 };
 
 export const filesRouter = makeRouter(requireAppAuth);
-export const adminFilesRouter = makeRouter(requireAdminAuth);
+export const adminFilesRouter = makeRouter(requireAdminAuth, true);
