@@ -31,7 +31,7 @@ const publicRecipeWhere = {
 };
 
 const favoriteTargetSchema = z.object({
-  userId: z.coerce.number().int().positive(),
+  userId: z.coerce.number().int().positive().optional(),
   recipeId: z.coerce.number().int().positive().nullable().optional(),
   ingredientId: z.coerce.number().int().positive().nullable().optional()
 });
@@ -506,9 +506,10 @@ apiMobileRouter.get('/seasonal-foods', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.get('/search', async (req, res) => {
+apiMobileRouter.get('/search', requireAppAuth, async (req, res) => {
   const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const keyword = parsed.data.q ?? '';
   const where = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true };
   const [recipes, ingredients] = await Promise.all([
@@ -524,20 +525,21 @@ apiMobileRouter.get('/search', async (req, res) => {
     })
   ]);
   const resultCount = recipes.length + ingredients.length;
-  if (parsed.data.userId && keyword) {
+  if (keyword) {
     await prisma.searchHistory.upsert({
-      where: { userId_keyword: { userId: parsed.data.userId, keyword } },
-      create: { userId: parsed.data.userId, keyword, resultCount },
+      where: { userId_keyword: { userId, keyword } },
+      create: { userId, keyword, resultCount },
       update: { resultCount, deletedAt: null, status: 'ACTIVE', updatedAt: new Date() }
     });
   }
   res.json(ok({ recipes, ingredients }));
 });
 
-apiMobileRouter.get('/search-histories', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive() }).safeParse(req.query);
+apiMobileRouter.get('/search-histories', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize } = parsed.data;
+  const { page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = { userId, deletedAt: null };
   const [list, total] = await Promise.all([
@@ -548,11 +550,12 @@ apiMobileRouter.get('/search-histories', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.delete('/search-histories', async (req, res) => {
-  const parsed = userIdSchema.safeParse(req.query);
+apiMobileRouter.delete('/search-histories', requireAppAuth, async (req, res) => {
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const result = await prisma.searchHistory.updateMany({
-    where: { userId: parsed.data.userId, deletedAt: null },
+    where: { userId, deletedAt: null },
     data: { deletedAt: new Date(), status: 'DISABLED' }
   });
   res.json(ok(result));
@@ -622,10 +625,11 @@ apiMobileRouter.delete('/ingredient-price-records/:id', async (req, res) => {
   res.json(ok(toIngredientPriceRecord(deleted)));
 });
 
-apiMobileRouter.get('/favorites', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int() }).safeParse(req.query);
+apiMobileRouter.get('/favorites', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize } = parsed.data;
+  const { page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = { userId, deletedAt: null };
   const [list, total] = await Promise.all([
@@ -645,10 +649,11 @@ apiMobileRouter.get('/favorites', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.get('/view-histories', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive() }).safeParse(req.query);
+apiMobileRouter.get('/view-histories', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize } = parsed.data;
+  const { page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = { userId, deletedAt: null };
   const [list, total] = await Promise.all([
@@ -1090,10 +1095,11 @@ apiMobileRouter.delete('/basket-items/:id', requireAppAuth, async (req, res) => 
   res.json(ok(toPurchaseItem(item)));
 });
 
-apiMobileRouter.post('/favorites', async (req, res) => {
+apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
   const parsed = favoriteTargetSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, recipeId = null, ingredientId = null } = parsed.data;
+  const { recipeId = null, ingredientId = null } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   assertSingleTarget(recipeId, ingredientId);
 
   const targetWhere = recipeId ? { recipeId, ingredientId: null } : { recipeId: null, ingredientId };
@@ -1132,9 +1138,12 @@ apiMobileRouter.post('/favorites', async (req, res) => {
   res.json(ok(created));
 });
 
-apiMobileRouter.delete('/favorites/:id', async (req, res) => {
+apiMobileRouter.delete('/favorites/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const favorite = await prisma.favorite.findUnique({ where: { id } });
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse({ ...req.query, ...req.body });
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const favorite = await prisma.favorite.findFirst({ where: { id, userId } });
   if (!favorite) throw new HttpError('收藏不存在', 404, 404);
   const updated = await prisma.favorite.update({ where: { id }, data: { deletedAt: new Date() } });
   if (favorite.recipeId && !favorite.deletedAt) {
@@ -1143,10 +1152,11 @@ apiMobileRouter.delete('/favorites/:id', async (req, res) => {
   res.json(ok(updated));
 });
 
-apiMobileRouter.post('/view-histories', async (req, res) => {
+apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
   const parsed = favoriteTargetSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, recipeId = null, ingredientId = null } = parsed.data;
+  const { recipeId = null, ingredientId = null } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   assertSingleTarget(recipeId, ingredientId);
 
   const targetWhere = recipeId ? { recipeId, ingredientId: null } : { recipeId: null, ingredientId };

@@ -7,6 +7,14 @@
   "routes": [
     {
       "method": "GET",
+      "path": "/api/mobile/search",
+      "auth": "app-jwt",
+      "request": { "query": ["q?", "page?", "pageSize?", "userId? deprecated"] },
+      "response": "{recipes,ingredients}",
+      "compatibility": "userId may be omitted; if present it must equal JWT sub; non-empty q records history for JWT sub"
+    },
+    {
+      "method": "GET",
       "path": "/api/mobile/search-histories",
       "auth": "app-jwt",
       "request": { "query": ["page?", "pageSize?", "userId? deprecated"] },
@@ -62,7 +70,6 @@
     }
   ],
   "knownGaps": [
-    "GET /api/mobile/search can still write search history from a client userId and must be separated or JWT-scoped",
     "profile, ingredient price records, family, my recipes, preferences, notifications and uploads are not yet frozen here",
     "current pagination uses list and target pagination will use items plus hasMore"
   ]
