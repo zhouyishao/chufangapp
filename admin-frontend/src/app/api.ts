@@ -822,6 +822,24 @@ export type Beverage = {
   sortOrder?: number;
   isPublish: boolean;
   isRecommend: boolean;
+  kind: 'ORDINARY' | 'MIXED';
+  cocktailMethod: string | null;
+  baseSpirit: string | null;
+  glassType: string | null;
+  garnish: string | null;
+  instructions: string | null;
+  ingredientsV2?: Array<{ id: number; name: string; amount: string | null; isBase: boolean; sortIndex: number }>;
+  tools?: Array<{ id: number; name: string; sortIndex: number }>;
+  steps?: Array<{
+    id: number;
+    title: string;
+    description: string;
+    sortIndex: number;
+    mediaFileId: number | null;
+    timerSeconds: number | null;
+    tip: string | null;
+    mediaFile?: { id: number; url: string; mimeType: string } | null;
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -839,6 +857,15 @@ export type BeverageWritePayload = {
   sortOrder?: number;
   isPublish: boolean;
   isRecommend: boolean;
+  kind: Beverage['kind'];
+  cocktailMethod: string | null;
+  baseSpirit: string | null;
+  glassType: string | null;
+  garnish: string | null;
+  instructions: string | null;
+  ingredientsV2: Array<{ name: string; amount?: string | null; isBase: boolean }>;
+  tools: Array<{ name: string }>;
+  steps: Array<{ title: string; description: string; mediaFileId?: number | null; timerSeconds?: number | null; tip?: string | null }>;
 };
 
 export const listBeverages = async (params: {

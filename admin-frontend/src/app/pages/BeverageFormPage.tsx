@@ -256,7 +256,24 @@ const serializeDraftToPayload = (draft: Draft, extra: BeverageExtra) => {
     sort: draft.sort,
     status: draft.status,
     isPublish: draft.isPublish,
-    isRecommend: draft.isRecommend
+    isRecommend: draft.isRecommend,
+    kind: extra.showMixMethod && extra.mixSteps.length > 0 ? 'MIXED' as const : 'ORDINARY' as const,
+    cocktailMethod: extra.mixMethod.trim() || null,
+    baseSpirit: extra.baseLiquor.trim() || null,
+    glassType: extra.glassType.trim() || null,
+    garnish: extra.garnish.trim() || null,
+    instructions: extra.mixTips.trim() || null,
+    ingredientsV2: [
+      ...(extra.baseLiquor.trim() ? [{ name: extra.baseLiquor.trim(), amount: null, isBase: true }] : []),
+      ...extra.mixIngredients.split(/[、,，;；\n]/).map((name) => name.trim()).filter(Boolean).map((name) => ({ name, amount: null, isBase: false }))
+    ],
+    tools: extra.accessories.split(/[、,，;；\n]/).map((name) => name.trim()).filter(Boolean).map((name) => ({ name })),
+    steps: extra.mixSteps.map((step, index) => ({
+      title: `步骤 ${index + 1}`,
+      description: step.description,
+      timerSeconds: step.estimatedTime,
+      tip: index === extra.mixSteps.length - 1 ? extra.mixTips.trim() || null : null
+    }))
   };
 };
 
@@ -313,16 +330,23 @@ const deserializePayloadToDraft = (beverage: Beverage): { draft: Draft; extra: B
 
     drinkingNotes: Array.isArray(extra.drinkingNotes) ? extra.drinkingNotes : [''],
 
-    mixMethod: extra.mixMethod ?? '摇和',
-    baseLiquor: extra.baseLiquor ?? '',
-    mixIngredients: extra.mixIngredients ?? '',
-    accessories: extra.accessories ?? '',
-    garnish: extra.garnish ?? '',
-    glassType: extra.glassType ?? '',
+    mixMethod: beverage.cocktailMethod ?? extra.mixMethod ?? '摇和',
+    baseLiquor: beverage.baseSpirit ?? extra.baseLiquor ?? '',
+    mixIngredients: beverage.ingredientsV2?.filter((item) => !item.isBase).map((item) => item.name).join('、') || extra.mixIngredients || '',
+    accessories: beverage.tools?.map((item) => item.name).join('、') || extra.accessories || '',
+    garnish: beverage.garnish ?? extra.garnish ?? '',
+    glassType: beverage.glassType ?? extra.glassType ?? '',
     iceType: extra.iceType ?? '',
-    mixSteps: Array.isArray(extra.mixSteps) ? extra.mixSteps : [],
-    mixTips: extra.mixTips ?? '',
-    showMixMethod: typeof extra.showMixMethod === 'boolean' ? extra.showMixMethod : true,
+    mixSteps: beverage.steps?.map((step) => ({
+      id: String(step.id),
+      stepNo: step.sortIndex + 1,
+      description: step.description,
+      image: step.mediaFile?.url ?? null,
+      estimatedTime: step.timerSeconds,
+      sort: step.sortIndex + 1
+    })) ?? (Array.isArray(extra.mixSteps) ? extra.mixSteps : []),
+    mixTips: beverage.instructions ?? extra.mixTips ?? '',
+    showMixMethod: beverage.kind === 'MIXED' || (typeof extra.showMixMethod === 'boolean' ? extra.showMixMethod : true),
 
     estimatedPrice: extra.estimatedPrice ?? null,
     priceUnit: extra.priceUnit ?? '瓶',

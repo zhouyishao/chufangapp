@@ -16,12 +16,12 @@ apiBeveragesRouter.get('/:id/guided-flow', async (req, res) => {
       bizId: true,
       code: true,
       name: true,
-      isMixable: true,
+      kind: true,
       steps: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }], include: { mediaFile: true } }
     }
   });
   if (!beverage) throw new HttpError('not found', 404, 404);
-  if (!beverage.isMixable || beverage.steps.length === 0) throw new HttpError('该饮品无需分步制作', 409, 409);
+  if (beverage.kind !== 'MIXED' || beverage.steps.length === 0) throw new HttpError('该饮品无需分步制作', 409, 409);
 
   res.json(ok(buildGuidedFlow({
     id: String(getPublicId('beverage', beverage)),
@@ -35,7 +35,7 @@ apiBeveragesRouter.get('/:id', async (req, res) => {
     where: { ...buildPublicIdWhere(req.params.id), deletedAt: null, isPublish: true, status: 'ACTIVE' },
     include: {
       category: { select: { id: true, name: true, type: true } },
-      ingredients: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+      ingredientsV2: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
       tools: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
       steps: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }], include: { mediaFile: true } }
     }
