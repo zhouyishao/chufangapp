@@ -18,6 +18,11 @@ export const signAppAccessToken = (userId: number, secret = config.jwtAppSecret)
   expiresIn: APP_ACCESS_TOKEN_EXPIRES_IN
 });
 
+export const buildAppAuthSession = <T extends { id: number }>(user: T, secret = config.jwtAppSecret) => ({
+  user,
+  ...signAppAccessToken(user.id, secret)
+});
+
 export const verifyAppAccessToken = (token: string, secret = config.jwtAppSecret): AppJwtPayload => {
   const payload = jwt.verify(token, secret) as Partial<AppJwtPayload>;
   const userId = Number(payload.sub);

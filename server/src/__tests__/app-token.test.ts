@@ -37,3 +37,21 @@ test('Bearer Header 必须完整且非空', async () => {
   assert.equal(parseBearerToken('Bearer   '), null);
   assert.equal(parseBearerToken(undefined), null);
 });
+
+test('登录会话同时返回用户、Token 和过期时间', async () => {
+  const module = (await loadAppTokenModule()) as AppTokenModule & {
+    buildAppAuthSession?: <T extends { id: number }>(user: T, secret?: string) => {
+      user: T;
+      accessToken: string;
+      expiresIn: number;
+    };
+  };
+
+  assert.equal(typeof module.buildAppAuthSession, 'function');
+  const user = { id: 12, nickname: '小周' };
+  const session = module.buildAppAuthSession!(user, 'test-app-secret');
+
+  assert.deepEqual(session.user, user);
+  assert.equal(module.verifyAppAccessToken(session.accessToken, 'test-app-secret').sub, '12');
+  assert.equal(session.expiresIn, 604800);
+});
