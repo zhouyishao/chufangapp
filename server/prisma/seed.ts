@@ -704,7 +704,9 @@ const main = async () => {
   });
 
   await prisma.favorite.deleteMany({ where: { userId: user.id, recipeId: recipe.id } });
-  await prisma.favorite.create({ data: { userId: user.id, recipeId: recipe.id } });
+  await prisma.favorite.create({
+    data: { userId: user.id, recipeId: recipe.id, targetType: 'RECIPE', targetId: String(recipe.id) }
+  });
 
   // ====== 资源接口管理表初始化数据 ======
   console.log('Seeding resource apps...');

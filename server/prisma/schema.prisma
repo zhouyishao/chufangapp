@@ -97,87 +97,150 @@ enum BannerStatus {
   DISABLED
 }
 
+enum ContentType {
+  RECIPE
+  INGREDIENT
+  FRUIT
+  BEVERAGE
+  SEASONING
+}
+
+enum PreferenceKind {
+  LIKE
+  AVOID
+  ALLERGY
+}
+
+enum ShareScope {
+  PRIVATE
+  FAMILY
+}
+
+enum PurchaseBatchStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum NotificationType {
+  SYSTEM
+  FAMILY_EVENT
+  MEAL_READY
+}
+
+enum FamilyEventStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum BeverageKind {
+  ORDINARY
+  MIXED
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum FileStorageKind {
+  LOCAL
+  OBJECT
+}
+
 model User {
-  id            Int           @id @default(autoincrement())
-  bizId         String?       @unique @map("biz_id") @db.VarChar(64)
-  code          String?       @unique @db.VarChar(32)
-  phone         String?       @unique @db.VarChar(32)
-  openid        String?       @unique @db.VarChar(80)
-  nickname      String?       @db.VarChar(60)
-  avatar        String?       @db.VarChar(255)
-  gender        String?       @db.VarChar(16)
-  email         String?       @unique @db.VarChar(120)
-  passwordHash  String?       @map("password_hash") @db.VarChar(255)
-  role          String        @default("USER") @db.VarChar(32)
-  source        String        @default("USER") @db.VarChar(32)
-  birthday      DateTime?     @db.Date
-  region        String?       @db.VarChar(100)
-  lastLoginAt   DateTime?     @map("last_login_at")
+  id           Int       @id @default(autoincrement())
+  bizId        String?   @unique @map("biz_id") @db.VarChar(64)
+  code         String?   @unique @db.VarChar(32)
+  phone        String?   @unique @db.VarChar(32)
+  openid       String?   @unique @db.VarChar(80)
+  nickname     String?   @db.VarChar(60)
+  avatar       String?   @db.VarChar(255)
+  gender       String?   @db.VarChar(16)
+  email        String?   @unique @db.VarChar(120)
+  passwordHash String?   @map("password_hash") @db.VarChar(255)
+  role         String    @default("USER") @db.VarChar(32)
+  source       String    @default("USER") @db.VarChar(32)
+  birthday     DateTime? @db.Date
+  region       String?   @db.VarChar(100)
+  lastLoginAt  DateTime? @map("last_login_at")
 
-  recipes       Recipe[]      @relation("UserRecipes")
-  favorites     Favorite[]
-  viewHistories ViewHistory[]
-  comments      Comment[]
-  posts         Post[]
-  ownedFamilies Family[]      @relation("FamilyOwner")
-  familyMembers FamilyMember[]
-  sentFamilyInvites FamilyInvite[] @relation("FamilyInviter")
-  acceptedFamilyInvites FamilyInvite[] @relation("FamilyInvitee")
-  purchaseListItems PurchaseListItem[]
-  searchHistories SearchHistory[]
+  recipes                Recipe[]                @relation("UserRecipes")
+  favorites              Favorite[]
+  viewHistories          ViewHistory[]
+  comments               Comment[]
+  posts                  Post[]
+  ownedFamilies          Family[]                @relation("FamilyOwner")
+  familyMembers          FamilyMember[]
+  sentFamilyInvites      FamilyInvite[]          @relation("FamilyInviter")
+  acceptedFamilyInvites  FamilyInvite[]          @relation("FamilyInvitee")
+  purchaseListItems      PurchaseListItem[]
+  searchHistories        SearchHistory[]
   ingredientPriceRecords IngredientPriceRecord[]
+  preferences            UserPreference[]
+  purchaseBatches        PurchaseBatch[]
+  sentNotifications      Notification[]          @relation("NotificationSender")
+  receivedNotifications  Notification[]          @relation("NotificationRecipient")
+  notificationReceipts   NotificationReceipt[]
+  createdFamilyEvents    FamilyEvent[]
+  uploadedFiles          File[]                  @relation("FileUploader")
 
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  deletedAt     DateTime?     @map("deleted_at")
-  status        RecordStatus  @default(ACTIVE) @map("status")
-  sort          Int           @default(0) @map("sort")
-  sortOrder     Int           @default(0) @map("sort_order")
-  isDeleted     Boolean       @default(false) @map("is_deleted")
-  isPublish     Boolean       @default(false) @map("is_publish")
-  isRecommend   Boolean       @default(false) @map("is_recommend")
-  sourceType    SourceType    @default(USER) @map("source_type")
-  sourceId      Int?          @map("source_id")
-  auditStatus   AuditStatus   @default(APPROVED) @map("audit_status")
-  createdBy     Int?          @map("created_by")
-  updatedBy     Int?          @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("users")
 }
 
 model Family {
-  id             Int          @id @default(autoincrement())
-  bizId          String?      @unique @map("biz_id") @db.VarChar(64)
-  code           String?      @unique @db.VarChar(32)
-  name           String       @db.VarChar(80)
-  avatar         String?      @db.VarChar(255)
-  city           String?      @db.VarChar(40)
-  district       String?      @db.VarChar(40)
-  ownerId        Int?         @map("owner_id")
-  memberLimit    Int          @default(8) @map("member_limit")
-  activeAt       DateTime?    @map("active_at")
-  description    String?      @db.VarChar(255)
+  id          Int       @id @default(autoincrement())
+  bizId       String?   @unique @map("biz_id") @db.VarChar(64)
+  code        String?   @unique @db.VarChar(32)
+  name        String    @db.VarChar(80)
+  avatar      String?   @db.VarChar(255)
+  city        String?   @db.VarChar(40)
+  district    String?   @db.VarChar(40)
+  ownerId     Int?      @map("owner_id")
+  memberLimit Int       @default(8) @map("member_limit")
+  activeAt    DateTime? @map("active_at")
+  description String?   @db.VarChar(255)
 
-  owner          User?        @relation("FamilyOwner", fields: [ownerId], references: [id])
-  members        FamilyMember[]
-  invites        FamilyInvite[]
+  owner             User?              @relation("FamilyOwner", fields: [ownerId], references: [id])
+  members           FamilyMember[]
+  invites           FamilyInvite[]
   purchaseListItems PurchaseListItem[]
-  preferences    FamilyPreference?
+  preferences       FamilyPreference?
+  purchaseBatches   PurchaseBatch[]
+  events            FamilyEvent[]
+  notifications     Notification[]
 
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  status         RecordStatus @default(ACTIVE) @map("status")
-  sort           Int          @default(0) @map("sort")
-  sortOrder      Int          @default(0) @map("sort_order")
-  isDeleted      Boolean      @default(false) @map("is_deleted")
-  isPublish      Boolean      @default(false) @map("is_publish")
-  isRecommend    Boolean      @default(false) @map("is_recommend")
-  sourceType     SourceType   @default(USER) @map("source_type")
-  sourceId       Int?         @map("source_id")
-  auditStatus    AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy      Int?         @map("created_by")
-  updatedBy      Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([ownerId])
   @@map("families")
@@ -194,21 +257,21 @@ model FamilyMember {
   memberStatus FamilyMemberStatus @default(ACTIVE) @map("member_status")
   remark       String?            @db.VarChar(255)
 
-  family       Family             @relation(fields: [familyId], references: [id])
-  user         User               @relation(fields: [userId], references: [id])
+  family Family @relation(fields: [familyId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
-  deletedAt    DateTime?          @map("deleted_at")
-  status       RecordStatus       @default(ACTIVE) @map("status")
-  sort         Int                @default(0) @map("sort")
-  isPublish    Boolean            @default(false) @map("is_publish")
-  isRecommend  Boolean            @default(false) @map("is_recommend")
-  sourceType   SourceType         @default(USER) @map("source_type")
-  sourceId     Int?               @map("source_id")
-  auditStatus  AuditStatus        @default(APPROVED) @map("audit_status")
-  createdBy    Int?               @map("created_by")
-  updatedBy    Int?               @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([familyId, userId])
   @@index([familyId])
@@ -235,22 +298,22 @@ model FamilyInvite {
   expiresAt    DateTime?          @map("expires_at")
   revokedAt    DateTime?          @map("revoked_at")
 
-  family       Family             @relation(fields: [familyId], references: [id])
-  inviter      User?              @relation("FamilyInviter", fields: [inviterId], references: [id])
-  invitee      User?              @relation("FamilyInvitee", fields: [inviteeId], references: [id])
+  family  Family @relation(fields: [familyId], references: [id])
+  inviter User?  @relation("FamilyInviter", fields: [inviterId], references: [id])
+  invitee User?  @relation("FamilyInvitee", fields: [inviteeId], references: [id])
 
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
-  deletedAt    DateTime?          @map("deleted_at")
-  status       RecordStatus       @default(ACTIVE) @map("status")
-  sort         Int                @default(0) @map("sort")
-  isPublish    Boolean            @default(false) @map("is_publish")
-  isRecommend  Boolean            @default(false) @map("is_recommend")
-  sourceType   SourceType         @default(USER) @map("source_type")
-  sourceId     Int?               @map("source_id")
-  auditStatus  AuditStatus        @default(APPROVED) @map("audit_status")
-  createdBy    Int?               @map("created_by")
-  updatedBy    Int?               @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([familyId])
   @@index([inviterId])
@@ -259,203 +322,204 @@ model FamilyInvite {
 }
 
 model Admin {
-  id           Int          @id @default(autoincrement())
-  username     String       @unique @db.VarChar(32)
-  passwordHash String       @map("password_hash") @db.VarChar(255)
-  nickname     String?      @db.VarChar(32)
+  id           Int     @id @default(autoincrement())
+  username     String  @unique @db.VarChar(32)
+  passwordHash String  @map("password_hash") @db.VarChar(255)
+  nickname     String? @db.VarChar(32)
 
-  roles        AdminRole[]
+  roles AdminRole[]
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("admins")
 }
 
 model Role {
-  id           Int            @id @default(autoincrement())
-  name         String         @unique @db.VarChar(50)
-  description  String?        @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(50)
+  description String? @db.VarChar(255)
 
-  admins       AdminRole[]
-  permissions  RolePermission[]
+  admins      AdminRole[]
+  permissions RolePermission[]
 
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
-  deletedAt    DateTime?      @map("deleted_at")
-  status       RecordStatus   @default(ACTIVE) @map("status")
-  sort         Int            @default(0) @map("sort")
-  isPublish    Boolean        @default(false) @map("is_publish")
-  isRecommend  Boolean        @default(false) @map("is_recommend")
-  sourceType   SourceType     @default(ADMIN) @map("source_type")
-  sourceId     Int?           @map("source_id")
-  auditStatus  AuditStatus    @default(APPROVED) @map("audit_status")
-  createdBy    Int?           @map("created_by")
-  updatedBy    Int?           @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("roles")
 }
 
 model Permission {
-  id           Int            @id @default(autoincrement())
-  key          String         @unique @db.VarChar(80)
-  name         String         @db.VarChar(80)
-  description  String?        @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  key         String  @unique @db.VarChar(80)
+  name        String  @db.VarChar(80)
+  description String? @db.VarChar(255)
 
-  roles        RolePermission[]
+  roles RolePermission[]
 
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
-  deletedAt    DateTime?      @map("deleted_at")
-  status       RecordStatus   @default(ACTIVE) @map("status")
-  sort         Int            @default(0) @map("sort")
-  isPublish    Boolean        @default(false) @map("is_publish")
-  isRecommend  Boolean        @default(false) @map("is_recommend")
-  sourceType   SourceType     @default(ADMIN) @map("source_type")
-  sourceId     Int?           @map("source_id")
-  auditStatus  AuditStatus    @default(APPROVED) @map("audit_status")
-  createdBy    Int?           @map("created_by")
-  updatedBy    Int?           @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("permissions")
 }
 
 model AdminRole {
-  id           Int          @id @default(autoincrement())
-  adminId      Int          @map("admin_id")
-  roleId       Int          @map("role_id")
+  id      Int @id @default(autoincrement())
+  adminId Int @map("admin_id")
+  roleId  Int @map("role_id")
 
-  admin        Admin        @relation(fields: [adminId], references: [id])
-  role         Role         @relation(fields: [roleId], references: [id])
+  admin Admin @relation(fields: [adminId], references: [id])
+  role  Role  @relation(fields: [roleId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([adminId, roleId])
   @@map("admin_roles")
 }
 
 model RolePermission {
-  id           Int          @id @default(autoincrement())
-  roleId       Int          @map("role_id")
-  permissionId Int          @map("permission_id")
+  id           Int @id @default(autoincrement())
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
 
-  role         Role         @relation(fields: [roleId], references: [id])
-  permission   Permission   @relation(fields: [permissionId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
 
 model Category {
-  id           Int          @id @default(autoincrement())
-  bizId        String?      @unique @map("biz_id") @db.VarChar(64)
-  code         String?      @unique @db.VarChar(32)
-  type         CategoryType @map("type")
-  name         String       @db.VarChar(80)
+  id    Int          @id @default(autoincrement())
+  bizId String?      @unique @map("biz_id") @db.VarChar(64)
+  code  String?      @unique @db.VarChar(32)
+  type  CategoryType @map("type")
+  name  String       @db.VarChar(80)
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  sortOrder    Int          @default(0) @map("sort_order")
-  isDeleted    Boolean      @default(false) @map("is_deleted")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
-  ingredients  Ingredient[]
-  recipes      Recipe[]
+  ingredients     Ingredient[]
+  recipes         Recipe[]
   recommendations Recommendation[]
-  beverages    Beverage[]
+  beverages       Beverage[]
 
   @@unique([type, name])
   @@map("categories")
 }
 
 model Ingredient {
-  id             Int          @id @default(autoincrement())
-  bizId          String?      @unique @map("biz_id") @db.VarChar(64)
-  code           String?      @unique @db.VarChar(32)
-  name           String       @db.VarChar(80)
-  cover          String?      @db.VarChar(255)
-  categoryId     Int?         @map("category_id")
-  seasonMonth    String?      @map("season_month") @db.VarChar(64)
-  nutrition      String?      @db.Text
-  selectionTips  String?      @map("selection_tips") @db.Text
-  storageMethod  String?      @map("storage_method") @db.Text
-  taboo          String?      @db.Text
-  detailImages   Json?        @map("detail_images")
-  selectionMedia String?      @map("selection_media") @db.VarChar(255)
-  relatedRecipes Json?        @map("related_recipes")
-  currentPrice   Float?       @map("current_price")
-  priceUnit      String?      @map("price_unit") @db.VarChar(20)
-  priceSource    String?      @map("price_source") @db.VarChar(80)
-  priceDate      DateTime?    @map("price_date")
+  id             Int       @id @default(autoincrement())
+  bizId          String?   @unique @map("biz_id") @db.VarChar(64)
+  code           String?   @unique @db.VarChar(32)
+  name           String    @db.VarChar(80)
+  cover          String?   @db.VarChar(255)
+  categoryId     Int?      @map("category_id")
+  seasonMonth    String?   @map("season_month") @db.VarChar(64)
+  nutrition      String?   @db.Text
+  selectionTips  String?   @map("selection_tips") @db.Text
+  storageMethod  String?   @map("storage_method") @db.Text
+  taboo          String?   @db.Text
+  detailImages   Json?     @map("detail_images")
+  selectionMedia String?   @map("selection_media") @db.VarChar(255)
+  relatedRecipes Json?     @map("related_recipes")
+  currentPrice   Float?    @map("current_price")
+  priceUnit      String?   @map("price_unit") @db.VarChar(20)
+  priceSource    String?   @map("price_source") @db.VarChar(80)
+  priceDate      DateTime? @map("price_date")
 
-  category       Category?    @relation(fields: [categoryId], references: [id])
-  ingredientTags IngredientTag[]
-  recipeIngredients RecipeIngredient[]
-  tips           IngredientTip[]
-  seasonalFoods  SeasonalFood[]
-  recommendations Recommendation[]
-  favorites      Favorite[]
-  viewHistories  ViewHistory[]
-  purchaseListItems PurchaseListItem[]
-  priceRecords   IngredientPriceRecord[]
+  category           Category?                        @relation(fields: [categoryId], references: [id])
+  ingredientTags     IngredientTag[]
+  recipeIngredients  RecipeIngredient[]
+  tips               IngredientTip[]
+  seasonalFoods      SeasonalFood[]
+  recommendations    Recommendation[]
+  favorites          Favorite[]
+  viewHistories      ViewHistory[]
+  purchaseListItems  PurchaseListItem[]
+  priceRecords       IngredientPriceRecord[]
+  relatedRecipeLinks IngredientRecipeRecommendation[]
 
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  status         RecordStatus @default(ACTIVE) @map("status")
-  sort           Int          @default(0) @map("sort")
-  sortOrder      Int          @default(0) @map("sort_order")
-  isDeleted      Boolean      @default(false) @map("is_deleted")
-  isPublish      Boolean      @default(false) @map("is_publish")
-  isRecommend    Boolean      @default(false) @map("is_recommend")
-  sourceType     SourceType   @default(ADMIN) @map("source_type")
-  sourceId       Int?         @map("source_id")
-  auditStatus    AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy      Int?         @map("created_by")
-  updatedBy      Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([name])
   @@index([categoryId])
@@ -465,29 +529,29 @@ model Ingredient {
 }
 
 model IngredientPriceRecord {
-  id           Int          @id @default(autoincrement())
-  ingredientId Int          @map("ingredient_id")
-  userId       Int?         @map("user_id")
+  id           Int      @id @default(autoincrement())
+  ingredientId Int      @map("ingredient_id")
+  userId       Int?     @map("user_id")
   price        Float
-  unit         String       @db.VarChar(20)
-  priceDate    DateTime     @map("price_date") @db.Date
-  source       String?      @map("price_source") @db.VarChar(80)
+  unit         String   @db.VarChar(20)
+  priceDate    DateTime @map("price_date") @db.Date
+  source       String?  @map("price_source") @db.VarChar(80)
 
-  ingredient   Ingredient   @relation(fields: [ingredientId], references: [id])
-  user         User?        @relation(fields: [userId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  user       User?      @relation(fields: [userId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([ingredientId])
   @@index([userId])
@@ -496,117 +560,118 @@ model IngredientPriceRecord {
 }
 
 model IngredientTip {
-  id           Int          @id @default(autoincrement())
-  ingredientId Int          @map("ingredient_id")
-  title        String       @db.VarChar(120)
-  content      String       @db.Text
+  id           Int    @id @default(autoincrement())
+  ingredientId Int    @map("ingredient_id")
+  title        String @db.VarChar(120)
+  content      String @db.Text
 
-  ingredient   Ingredient   @relation(fields: [ingredientId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([ingredientId])
   @@map("ingredient_tips")
 }
 
 model Cuisine {
-  id           Int          @id @default(autoincrement())
-  name         String       @unique @db.VarChar(80)
-  cover        String?      @db.VarChar(255)
-  description  String?      @db.Text
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(80)
+  cover       String? @db.VarChar(255)
+  description String? @db.Text
 
-  recipes      Recipe[]
+  recipes Recipe[]
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("cuisines")
 }
 
 model Recipe {
-  id             Int          @id @default(autoincrement())
-  bizId          String?      @unique @map("biz_id") @db.VarChar(64)
-  code           String?      @unique @db.VarChar(32)
-  title          String       @db.VarChar(120)
-  subtitle       String?      @db.VarChar(255)
-  cover          String?      @db.VarChar(255)
-  images         Json?        @map("images")
-  video          String?      @db.VarChar(255)
-  visibility     String?      @db.VarChar(32)
-  description    String?      @db.Text
+  id          Int     @id @default(autoincrement())
+  bizId       String? @unique @map("biz_id") @db.VarChar(64)
+  code        String? @unique @db.VarChar(32)
+  title       String  @db.VarChar(120)
+  subtitle    String? @db.VarChar(255)
+  cover       String? @db.VarChar(255)
+  images      Json?   @map("images")
+  video       String? @db.VarChar(255)
+  visibility  String? @db.VarChar(32)
+  description String? @db.Text
 
-  categoryId     Int?         @map("category_id")
-  cuisineId      Int?         @map("cuisine_id")
-  difficulty     String?      @db.VarChar(20)
-  cookTime       Int?         @map("cook_time")
-  servings       Int?
-  calories       Int?
-  taste          String?      @db.VarChar(50)
-  scene          String?      @db.VarChar(50)
-  tips           String?      @db.Text
+  categoryId Int?    @map("category_id")
+  cuisineId  Int?    @map("cuisine_id")
+  difficulty String? @db.VarChar(20)
+  cookTime   Int?    @map("cook_time")
+  servings   Int?
+  calories   Int?
+  taste      String? @db.VarChar(50)
+  scene      String? @db.VarChar(50)
+  tips       String? @db.Text
 
-  authorId       Int?         @map("author_id")
-  rejectReason   String?      @map("reject_reason") @db.Text
-  importSourceType String?    @map("source_type_external") @db.VarChar(80)
-  sourceName     String?      @map("source_name") @db.VarChar(120)
-  sourceRecipeId String?      @map("source_recipe_id") @db.VarChar(120)
-  sourceUrl      String?      @map("source_url") @db.VarChar(255)
-  isDraft        Boolean      @default(true) @map("is_draft")
-  viewCount      Int          @default(0) @map("view_count")
-  favoriteCount  Int          @default(0) @map("favorite_count")
-  commentCount   Int          @default(0) @map("comment_count")
+  authorId         Int?    @map("author_id")
+  rejectReason     String? @map("reject_reason") @db.Text
+  importSourceType String? @map("source_type_external") @db.VarChar(80)
+  sourceName       String? @map("source_name") @db.VarChar(120)
+  sourceRecipeId   String? @map("source_recipe_id") @db.VarChar(120)
+  sourceUrl        String? @map("source_url") @db.VarChar(255)
+  isDraft          Boolean @default(true) @map("is_draft")
+  viewCount        Int     @default(0) @map("view_count")
+  favoriteCount    Int     @default(0) @map("favorite_count")
+  commentCount     Int     @default(0) @map("comment_count")
 
-  category       Category?    @relation(fields: [categoryId], references: [id])
-  cuisine        Cuisine?     @relation(fields: [cuisineId], references: [id])
-  author         User?        @relation("UserRecipes", fields: [authorId], references: [id])
-  steps          RecipeStep[]
-  ingredients    RecipeIngredient[]
-  menuRecipes    MenuRecipe[]
-  recipeTags     RecipeTag[]
-  recommendations Recommendation[]
-  banners        Banner[]
-  favorites      Favorite[]
-  viewHistories  ViewHistory[]
-  comments       Comment[]
-  posts          Post[]
-  beverages      RecipeBeverage[]
-  purchaseListItems PurchaseListItem[]
+  category               Category?                        @relation(fields: [categoryId], references: [id])
+  cuisine                Cuisine?                         @relation(fields: [cuisineId], references: [id])
+  author                 User?                            @relation("UserRecipes", fields: [authorId], references: [id])
+  steps                  RecipeStep[]
+  ingredients            RecipeIngredient[]
+  menuRecipes            MenuRecipe[]
+  recipeTags             RecipeTag[]
+  recommendations        Recommendation[]
+  banners                Banner[]
+  favorites              Favorite[]
+  viewHistories          ViewHistory[]
+  comments               Comment[]
+  posts                  Post[]
+  beverages              RecipeBeverage[]
+  purchaseListItems      PurchaseListItem[]
+  relatedIngredientLinks IngredientRecipeRecommendation[]
 
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  status         RecordStatus @default(ACTIVE) @map("status")
-  sort           Int          @default(0) @map("sort")
-  sortOrder      Int          @default(0) @map("sort_order")
-  isDeleted      Boolean      @default(false) @map("is_deleted")
-  isPublish      Boolean      @default(false) @map("is_publish")
-  isRecommend    Boolean      @default(false) @map("is_recommend")
-  sourceType     SourceType   @default(ADMIN) @map("source_type")
-  sourceId       Int?         @map("source_id")
-  auditStatus    AuditStatus  @default(DRAFT) @map("audit_status")
-  createdBy      Int?         @map("created_by")
-  updatedBy      Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(DRAFT) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([importSourceType, sourceName, sourceRecipeId])
   @@index([deletedAt, status, isPublish, auditStatus, isRecommend, sort(sort: Desc), id(sort: Desc)], map: "recipes_public_list_idx")
@@ -617,27 +682,27 @@ model Recipe {
 }
 
 model SeasonalFood {
-  id           Int          @id @default(autoincrement())
-  ingredientId Int?         @map("ingredient_id")
-  name         String       @db.VarChar(80)
+  id           Int     @id @default(autoincrement())
+  ingredientId Int?    @map("ingredient_id")
+  name         String  @db.VarChar(80)
   month        Int
-  cover        String?      @db.VarChar(255)
-  reason       String?      @db.Text
+  cover        String? @db.VarChar(255)
+  reason       String? @db.Text
 
-  ingredient   Ingredient?  @relation(fields: [ingredientId], references: [id])
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([ingredientId])
   @@index([month])
@@ -645,38 +710,38 @@ model SeasonalFood {
 }
 
 model Recommendation {
-  id           Int          @id @default(autoincrement())
-  bizId        String?      @unique @map("biz_id") @db.VarChar(64)
-  code         String?      @unique @db.VarChar(32)
-  title        String       @db.VarChar(120)
-  description  String?      @db.Text
-  cover        String?      @db.VarChar(255)
-  targetType   TargetType   @default(RECIPE) @map("target_type")
-  targetUrl    String?      @map("target_url") @db.VarChar(255)
-  recipeId     Int?         @map("recipe_id")
-  ingredientId Int?         @map("ingredient_id")
-  categoryId   Int?         @map("category_id")
-  startAt      DateTime?    @map("start_at")
-  endAt        DateTime?    @map("end_at")
+  id           Int        @id @default(autoincrement())
+  bizId        String?    @unique @map("biz_id") @db.VarChar(64)
+  code         String?    @unique @db.VarChar(32)
+  title        String     @db.VarChar(120)
+  description  String?    @db.Text
+  cover        String?    @db.VarChar(255)
+  targetType   TargetType @default(RECIPE) @map("target_type")
+  targetUrl    String?    @map("target_url") @db.VarChar(255)
+  recipeId     Int?       @map("recipe_id")
+  ingredientId Int?       @map("ingredient_id")
+  categoryId   Int?       @map("category_id")
+  startAt      DateTime?  @map("start_at")
+  endAt        DateTime?  @map("end_at")
 
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
-  ingredient   Ingredient?  @relation(fields: [ingredientId], references: [id])
-  category     Category?    @relation(fields: [categoryId], references: [id])
+  recipe     Recipe?     @relation(fields: [recipeId], references: [id])
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
+  category   Category?   @relation(fields: [categoryId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  sortOrder    Int          @default(0) @map("sort_order")
-  isDeleted    Boolean      @default(false) @map("is_deleted")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(true) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(true) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([recipeId])
   @@index([ingredientId])
@@ -685,77 +750,83 @@ model Recommendation {
 }
 
 model Menu {
-  id           Int          @id @default(autoincrement())
-  bizId        String?      @unique @map("biz_id") @db.VarChar(64)
-  code         String?      @unique @db.VarChar(32)
-  name         String       @db.VarChar(120)
-  scene        String?      @db.VarChar(80)
-  cover        String?      @db.VarChar(255)
-  description  String?      @db.Text
+  id          Int     @id @default(autoincrement())
+  bizId       String? @unique @map("biz_id") @db.VarChar(64)
+  code        String? @unique @db.VarChar(32)
+  name        String  @db.VarChar(120)
+  scene       String? @db.VarChar(80)
+  cover       String? @db.VarChar(255)
+  description String? @db.Text
 
-  recipes      MenuRecipe[]
+  recipes MenuRecipe[]
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  sortOrder    Int          @default(0) @map("sort_order")
-  isDeleted    Boolean      @default(false) @map("is_deleted")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("menus")
 }
 
 model Beverage {
-  id             Int          @id @default(autoincrement())
-  bizId          String?      @unique @map("biz_id") @db.VarChar(64)
-  code           String?      @unique @db.VarChar(32)
-  name           String       @db.VarChar(120)
-  coverImage     String?      @map("cover_image") @db.VarChar(255)
-  categoryId     Int?         @map("category_id")
-  beverageType   String?      @map("beverage_type") @db.VarChar(80)
-  isAlcoholic    Boolean      @default(false) @map("is_alcoholic")
-  alcoholDegree  Float?       @map("alcohol_degree")
-  description    String?      @db.Text
-  drinkType      String?      @map("drink_type") @db.VarChar(80)
-  cocktailMethod String?      @map("cocktail_method") @db.VarChar(80)
-  baseSpirit     String?      @map("base_spirit") @db.VarChar(120)
-  glassType      String?      @map("glass_type") @db.VarChar(120)
-  alcoholicType  String?      @map("alcoholic_type") @db.VarChar(80)
-  ingredients    Json?        @map("ingredients")
-  measures       Json?        @map("measures")
-  garnish        String?      @db.VarChar(255)
-  instructions   String?      @db.Text
-  flavorTags     Json?        @map("flavor_tags")
-  sceneTags      Json?        @map("scene_tags")
-  sourceName     String?      @map("source_name") @db.VarChar(120)
-  sourceExternalId String?    @map("source_external_id") @db.VarChar(120)
-  rawJson        Json?        @map("raw_json")
+  id               Int          @id @default(autoincrement())
+  bizId            String?      @unique @map("biz_id") @db.VarChar(64)
+  code             String?      @unique @db.VarChar(32)
+  name             String       @db.VarChar(120)
+  coverImage       String?      @map("cover_image") @db.VarChar(255)
+  categoryId       Int?         @map("category_id")
+  beverageType     String?      @map("beverage_type") @db.VarChar(80)
+  isAlcoholic      Boolean      @default(false) @map("is_alcoholic")
+  alcoholDegree    Float?       @map("alcohol_degree")
+  description      String?      @db.Text
+  drinkType        String?      @map("drink_type") @db.VarChar(80)
+  cocktailMethod   String?      @map("cocktail_method") @db.VarChar(80)
+  baseSpirit       String?      @map("base_spirit") @db.VarChar(120)
+  glassType        String?      @map("glass_type") @db.VarChar(120)
+  alcoholicType    String?      @map("alcoholic_type") @db.VarChar(80)
+  ingredients      Json?        @map("ingredients")
+  measures         Json?        @map("measures")
+  garnish          String?      @db.VarChar(255)
+  instructions     String?      @db.Text
+  flavorTags       Json?        @map("flavor_tags")
+  sceneTags        Json?        @map("scene_tags")
+  sourceName       String?      @map("source_name") @db.VarChar(120)
+  sourceExternalId String?      @map("source_external_id") @db.VarChar(120)
+  rawJson          Json?        @map("raw_json")
+  kind             BeverageKind @default(ORDINARY)
 
-  category       Category?    @relation(fields: [categoryId], references: [id])
-  recipes        RecipeBeverage[]
+  category      Category?            @relation(fields: [categoryId], references: [id])
+  recipes       RecipeBeverage[]
+  ingredientsV2 BeverageIngredient[]
+  tools         BeverageTool[]
+  steps         BeverageStep[]
+  favorites     Favorite[]
+  viewHistories ViewHistory[]
 
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  status         RecordStatus @default(ACTIVE) @map("status")
-  sort           Int          @default(0) @map("sort")
-  sortOrder      Int          @default(0) @map("sort_order")
-  isDeleted      Boolean      @default(false) @map("is_deleted")
-  isPublish      Boolean      @default(true) @map("is_publish")
-  isRecommend    Boolean      @default(false) @map("is_recommend")
-  sourceType     SourceType   @default(ADMIN) @map("source_type")
-  sourceId       Int?         @map("source_id")
-  auditStatus    AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy      Int?         @map("created_by")
-  updatedBy      Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  sortOrder   Int          @default(0) @map("sort_order")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([name])
   @@index([sourceName, sourceExternalId])
@@ -766,17 +837,17 @@ model Beverage {
 }
 
 model RecipeBeverage {
-  id              Int          @id @default(autoincrement())
-  recipeId        Int          @map("recipe_id")
-  beverageId      Int          @map("beverage_id")
-  recommendReason String?      @map("recommend_reason") @db.Text
-  sortOrder       Int          @default(0) @map("sort_order")
+  id              Int     @id @default(autoincrement())
+  recipeId        Int     @map("recipe_id")
+  beverageId      Int     @map("beverage_id")
+  recommendReason String? @map("recommend_reason") @db.Text
+  sortOrder       Int     @default(0) @map("sort_order")
 
-  recipe          Recipe       @relation(fields: [recipeId], references: [id])
-  beverage        Beverage     @relation(fields: [beverageId], references: [id])
+  recipe   Recipe   @relation(fields: [recipeId], references: [id])
+  beverage Beverage @relation(fields: [beverageId], references: [id])
 
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([recipeId, beverageId])
   @@index([recipeId])
@@ -785,26 +856,26 @@ model RecipeBeverage {
 }
 
 model MenuRecipe {
-  id           Int          @id @default(autoincrement())
-  menuId       Int          @map("menu_id")
-  recipeId     Int          @map("recipe_id")
-  sortIndex    Int          @default(0) @map("sort_index")
+  id        Int @id @default(autoincrement())
+  menuId    Int @map("menu_id")
+  recipeId  Int @map("recipe_id")
+  sortIndex Int @default(0) @map("sort_index")
 
-  menu         Menu         @relation(fields: [menuId], references: [id])
-  recipe       Recipe       @relation(fields: [recipeId], references: [id])
+  menu   Menu   @relation(fields: [menuId], references: [id])
+  recipe Recipe @relation(fields: [recipeId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([menuId, recipeId])
   @@index([recipeId])
@@ -812,95 +883,101 @@ model MenuRecipe {
 }
 
 model Banner {
-  id           Int          @id @default(autoincrement())
-  title        String       @db.VarChar(120)
-  image        String       @db.VarChar(255)
-  targetType   TargetType   @default(NONE) @map("target_type")
-  targetUrl    String?      @map("target_url") @db.VarChar(255)
-  recipeId     Int?         @map("recipe_id")
+  id         Int        @id @default(autoincrement())
+  title      String     @db.VarChar(120)
+  image      String     @db.VarChar(255)
+  targetType TargetType @default(NONE) @map("target_type")
+  targetUrl  String?    @map("target_url") @db.VarChar(255)
+  recipeId   Int?       @map("recipe_id")
 
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
+  recipe Recipe? @relation(fields: [recipeId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([recipeId])
   @@map("banners")
 }
 
 model HomeHeroBanner {
-  id                  Int          @id @default(autoincrement())
-  navId               Int          @map("nav_id")
-  title               String       @db.VarChar(120)
-  subtitle            String?      @db.VarChar(160)
-  buttonText          String?      @map("button_text") @db.VarChar(32)
-  cover               String       @db.VarChar(255)
-  imageFocus          String       @default("center") @map("image_focus") @db.VarChar(20)
-  targetType          TargetType   @default(NONE) @map("target_type")
-  targetId            String?      @map("target_id") @db.VarChar(64)
-  targetTitleSnapshot String?      @map("target_title_snapshot") @db.VarChar(120)
-  link                String?      @db.VarChar(255)
-  sortOrder           Int          @default(1) @map("sort_order")
-  startAt             DateTime?    @map("start_at")
-  endAt               DateTime?    @map("end_at")
-  remark              String?      @db.VarChar(255)
+  id                  Int        @id @default(autoincrement())
+  navId               Int        @map("nav_id")
+  title               String     @db.VarChar(120)
+  subtitle            String?    @db.VarChar(160)
+  buttonText          String?    @map("button_text") @db.VarChar(32)
+  cover               String     @db.VarChar(255)
+  imageFocus          String     @default("center") @map("image_focus") @db.VarChar(20)
+  targetType          TargetType @default(NONE) @map("target_type")
+  targetId            String?    @map("target_id") @db.VarChar(64)
+  targetTitleSnapshot String?    @map("target_title_snapshot") @db.VarChar(120)
+  link                String?    @db.VarChar(255)
+  sortOrder           Int        @default(1) @map("sort_order")
+  startAt             DateTime?  @map("start_at")
+  endAt               DateTime?  @map("end_at")
+  remark              String?    @db.VarChar(255)
 
-  nav                 HomeTopNav   @relation(fields: [navId], references: [id], onDelete: Cascade)
+  nav HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
-  deletedAt           DateTime?    @map("deleted_at")
-  status              BannerStatus @default(DRAFT) @map("status")
-  sort                Int          @default(0) @map("sort")
-  isDeleted           Boolean      @default(false) @map("is_deleted")
-  isPublish           Boolean      @default(true) @map("is_publish")
-  isRecommend         Boolean      @default(false) @map("is_recommend")
-  sourceType          SourceType   @default(ADMIN) @map("source_type")
-  sourceId            Int?         @map("source_id")
-  auditStatus         AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy           Int?         @map("created_by")
-  updatedBy           Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      BannerStatus @default(DRAFT) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isDeleted   Boolean      @default(false) @map("is_deleted")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([navId, status, sortOrder])
   @@map("home_hero_banners")
 }
 
 model Favorite {
-  id           Int          @id @default(autoincrement())
-  userId       Int          @map("user_id")
-  recipeId     Int?         @map("recipe_id")
-  ingredientId Int?         @map("ingredient_id")
+  id           Int         @id @default(autoincrement())
+  userId       Int         @map("user_id")
+  recipeId     Int?        @map("recipe_id")
+  ingredientId Int?        @map("ingredient_id")
+  beverageId   Int?        @map("beverage_id")
+  targetType   ContentType @map("target_type")
+  targetId     String      @map("target_id") @db.VarChar(64)
 
-  user         User         @relation(fields: [userId], references: [id])
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
-  ingredient   Ingredient?  @relation(fields: [ingredientId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+  recipe     Recipe?     @relation(fields: [recipeId], references: [id])
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
+  beverage   Beverage?   @relation(fields: [beverageId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
+  @@index([userId, targetType, targetId, deletedAt], map: "favorites_target_active_idx")
   @@index([userId])
   @@index([recipeId])
   @@index([ingredientId])
+  @@index([beverageId])
   @@index([userId, deletedAt, updatedAt(sort: Desc), id(sort: Desc)], map: "favorites_user_active_updated_idx")
   @@index([userId, deletedAt, recipeId, updatedAt(sort: Desc)], map: "favorites_user_active_recipe_idx")
   @@index([userId, deletedAt, ingredientId, updatedAt(sort: Desc)], map: "favorites_user_active_ingredient_idx")
@@ -908,31 +985,37 @@ model Favorite {
 }
 
 model ViewHistory {
-  id           Int          @id @default(autoincrement())
-  userId       Int          @map("user_id")
-  recipeId     Int?         @map("recipe_id")
-  ingredientId Int?         @map("ingredient_id")
+  id           Int         @id @default(autoincrement())
+  userId       Int         @map("user_id")
+  recipeId     Int?        @map("recipe_id")
+  ingredientId Int?        @map("ingredient_id")
+  beverageId   Int?        @map("beverage_id")
+  targetType   ContentType @map("target_type")
+  targetId     String      @map("target_id") @db.VarChar(64)
 
-  user         User         @relation(fields: [userId], references: [id])
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
-  ingredient   Ingredient?  @relation(fields: [ingredientId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+  recipe     Recipe?     @relation(fields: [recipeId], references: [id])
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
+  beverage   Beverage?   @relation(fields: [beverageId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
+  @@index([userId, targetType, targetId, deletedAt], map: "view_histories_target_active_idx")
   @@index([userId])
   @@index([recipeId])
   @@index([ingredientId])
+  @@index([beverageId])
   @@index([userId, deletedAt, updatedAt(sort: Desc), id(sort: Desc)], map: "view_histories_user_active_updated_idx")
   @@index([userId, recipeId, deletedAt], map: "view_histories_user_recipe_active_idx")
   @@index([userId, ingredientId, deletedAt], map: "view_histories_user_ingredient_active_idx")
@@ -940,67 +1023,70 @@ model ViewHistory {
 }
 
 model PurchaseListItem {
-  id           Int          @id @default(autoincrement())
-  userId       Int          @map("user_id")
-  familyId     Int?         @map("family_id")
-  recipeId     Int?         @map("recipe_id")
-  ingredientId Int?         @map("ingredient_id")
-  recipeName   String?      @map("recipe_name") @db.VarChar(120)
-  name         String       @db.VarChar(80)
-  amountText   String?      @map("amount_text") @db.VarChar(80)
-  quantity     Decimal      @default(1) @db.Decimal(10, 2)
-  unit         String?      @db.VarChar(24)
-  purchaseText String?      @map("purchase_text") @db.VarChar(120)
-  checked      Boolean      @default(false)
-  checkedAt    DateTime?    @map("checked_at")
+  id           Int       @id @default(autoincrement())
+  userId       Int       @map("user_id")
+  familyId     Int?      @map("family_id")
+  recipeId     Int?      @map("recipe_id")
+  ingredientId Int?      @map("ingredient_id")
+  batchId      Int?      @map("batch_id")
+  recipeName   String?   @map("recipe_name") @db.VarChar(120)
+  name         String    @db.VarChar(80)
+  amountText   String?   @map("amount_text") @db.VarChar(80)
+  quantity     Decimal   @default(1) @db.Decimal(10, 2)
+  unit         String?   @db.VarChar(24)
+  purchaseText String?   @map("purchase_text") @db.VarChar(120)
+  checked      Boolean   @default(false)
+  checkedAt    DateTime? @map("checked_at")
 
-  user         User         @relation(fields: [userId], references: [id])
-  family       Family?      @relation(fields: [familyId], references: [id])
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
-  ingredient   Ingredient?  @relation(fields: [ingredientId], references: [id])
+  user       User           @relation(fields: [userId], references: [id])
+  family     Family?        @relation(fields: [familyId], references: [id])
+  recipe     Recipe?        @relation(fields: [recipeId], references: [id])
+  ingredient Ingredient?    @relation(fields: [ingredientId], references: [id])
+  batch      PurchaseBatch? @relation(fields: [batchId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([userId])
   @@index([familyId])
   @@index([recipeId])
   @@index([ingredientId])
+  @@index([batchId])
   @@index([userId, deletedAt, checked, updatedAt(sort: Desc), id(sort: Desc)], map: "purchase_list_items_user_active_idx")
   @@index([familyId, deletedAt, checked, updatedAt(sort: Desc), id(sort: Desc)], map: "purchase_list_items_family_active_idx")
   @@map("purchase_list_items")
 }
 
 model SearchHistory {
-  id           Int          @id @default(autoincrement())
-  userId       Int          @map("user_id")
-  keyword      String       @db.VarChar(80)
-  resultCount  Int          @default(0) @map("result_count")
+  id          Int    @id @default(autoincrement())
+  userId      Int    @map("user_id")
+  keyword     String @db.VarChar(80)
+  resultCount Int    @default(0) @map("result_count")
 
-  user         User         @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([userId, keyword])
   @@index([userId])
@@ -1009,55 +1095,55 @@ model SearchHistory {
 }
 
 model FamilyPreference {
-  id           Int          @id @default(autoincrement())
-  familyId     Int          @unique @map("family_id")
-  avoidItems   Json         @default("[]") @map("avoid_items")
-  allergies    Json         @default("[]")
-  preferences  Json         @default("[]")
-  taste         String?      @db.VarChar(80)
-  note          String?      @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  familyId    Int     @unique @map("family_id")
+  avoidItems  Json    @default("[]") @map("avoid_items")
+  allergies   Json    @default("[]")
+  preferences Json    @default("[]")
+  taste       String? @db.VarChar(80)
+  note        String? @db.VarChar(255)
 
-  family       Family       @relation(fields: [familyId], references: [id])
+  family Family @relation(fields: [familyId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("family_preferences")
 }
 
 model Comment {
-  id           Int          @id @default(autoincrement())
-  userId       Int?         @map("user_id")
-  recipeId     Int?         @map("recipe_id")
-  postId       Int?         @map("post_id")
-  content      String       @db.Text
+  id       Int    @id @default(autoincrement())
+  userId   Int?   @map("user_id")
+  recipeId Int?   @map("recipe_id")
+  postId   Int?   @map("post_id")
+  content  String @db.Text
 
-  user         User?        @relation(fields: [userId], references: [id])
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
-  post         Post?        @relation(fields: [postId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+  recipe Recipe? @relation(fields: [recipeId], references: [id])
+  post   Post?   @relation(fields: [postId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([userId])
   @@index([recipeId])
@@ -1066,30 +1152,30 @@ model Comment {
 }
 
 model Post {
-  id           Int          @id @default(autoincrement())
-  userId       Int?         @map("user_id")
-  recipeId     Int?         @map("recipe_id")
-  title        String       @db.VarChar(120)
-  content      String?      @db.Text
-  images       Json?
-  postStatus   PostStatus   @default(PUBLISHED) @map("post_status")
+  id         Int        @id @default(autoincrement())
+  userId     Int?       @map("user_id")
+  recipeId   Int?       @map("recipe_id")
+  title      String     @db.VarChar(120)
+  content    String?    @db.Text
+  images     Json?
+  postStatus PostStatus @default(PUBLISHED) @map("post_status")
 
-  user         User?        @relation(fields: [userId], references: [id])
-  recipe       Recipe?      @relation(fields: [recipeId], references: [id])
-  comments     Comment[]
+  user     User?     @relation(fields: [userId], references: [id])
+  recipe   Recipe?   @relation(fields: [recipeId], references: [id])
+  comments Comment[]
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(USER) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(USER) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([userId])
   @@index([recipeId])
@@ -1097,60 +1183,67 @@ model Post {
 }
 
 model RecipeStep {
-  id           Int          @id @default(autoincrement())
-  recipeId     Int          @map("recipe_id")
-  sortIndex    Int          @map("sort_index")
-  title        String?      @db.VarChar(120)
-  description  String       @db.Text
-  image        String?      @db.VarChar(255)
-  video        String?      @db.VarChar(255)
+  id           Int        @id @default(autoincrement())
+  recipeId     Int        @map("recipe_id")
+  sortIndex    Int        @map("sort_index")
+  title        String?    @db.VarChar(120)
+  description  String     @db.Text
+  image        String?    @db.VarChar(255)
+  video        String?    @db.VarChar(255)
   duration     Int?
+  mediaFileId  Int?       @map("media_file_id")
+  mediaKind    MediaKind? @map("media_kind")
+  timerSeconds Int?       @map("timer_seconds")
+  tip          String?    @db.Text
 
-  recipe       Recipe       @relation(fields: [recipeId], references: [id])
+  recipe    Recipe @relation(fields: [recipeId], references: [id])
+  mediaFile File?  @relation("RecipeStepMedia", fields: [mediaFileId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
+  @@unique([recipeId, sortIndex])
   @@index([recipeId])
+  @@index([mediaFileId])
   @@map("recipe_steps")
 }
 
 model RecipeIngredient {
-  id           Int          @id @default(autoincrement())
-  recipeId     Int          @map("recipe_id")
-  ingredientId Int?         @map("ingredient_id")
-  name         String       @db.VarChar(120)
-  amount       String?      @db.VarChar(80)
-  unit         String?      @db.VarChar(32)
-  type         String?      @db.VarChar(32)
-  note         String?      @db.Text
-  sortIndex    Int          @map("sort_index")
+  id           Int     @id @default(autoincrement())
+  recipeId     Int     @map("recipe_id")
+  ingredientId Int?    @map("ingredient_id")
+  name         String  @db.VarChar(120)
+  amount       String? @db.VarChar(80)
+  unit         String? @db.VarChar(32)
+  type         String? @db.VarChar(32)
+  note         String? @db.Text
+  sortIndex    Int     @map("sort_index")
 
-  recipe       Recipe       @relation(fields: [recipeId], references: [id])
-  ingredient   Ingredient?  @relation(fields: [ingredientId], references: [id])
+  recipe     Recipe      @relation(fields: [recipeId], references: [id])
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@index([recipeId])
   @@index([ingredientId])
@@ -1158,41 +1251,209 @@ model RecipeIngredient {
 }
 
 model File {
-  id           Int          @id @default(autoincrement())
-  url          String       @db.VarChar(255)
-  path         String       @db.VarChar(255)
-  mimeType     String       @map("mime_type") @db.VarChar(80)
-  size         Int
-  width        Int?
-  height       Int?
+  id              Int             @id @default(autoincrement())
+  url             String          @db.VarChar(255)
+  path            String          @db.VarChar(255)
+  mimeType        String          @map("mime_type") @db.VarChar(80)
+  size            Int
+  width           Int?
+  height          Int?
+  durationSeconds Int?            @map("duration_seconds")
+  sha256          String?         @unique @db.VarChar(64)
+  storageKind     FileStorageKind @default(LOCAL) @map("storage_kind")
+  uploaderId      Int?            @map("uploader_id")
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  uploader      User?           @relation("FileUploader", fields: [uploaderId], references: [id])
+  references    FileReference[]
+  recipeSteps   RecipeStep[]    @relation("RecipeStepMedia")
+  beverageSteps BeverageStep[]  @relation("BeverageStepMedia")
+
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("files")
 }
 
+model UserPreference {
+  id         Int            @id @default(autoincrement())
+  userId     Int            @map("user_id")
+  kind       PreferenceKind
+  value      String         @db.VarChar(80)
+  shareScope ShareScope     @default(PRIVATE) @map("share_scope")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+  deletedAt  DateTime?      @map("deleted_at")
+  user       User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, kind, value])
+  @@index([userId, deletedAt])
+  @@map("user_preferences")
+}
+
+model PurchaseBatch {
+  id          Int                 @id @default(autoincrement())
+  familyId    Int                 @map("family_id")
+  createdById Int                 @map("created_by_id")
+  title       String              @db.VarChar(120)
+  status      PurchaseBatchStatus @default(ACTIVE)
+  completedAt DateTime?           @map("completed_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  deletedAt   DateTime?           @map("deleted_at")
+  family      Family              @relation(fields: [familyId], references: [id])
+  createdBy   User                @relation(fields: [createdById], references: [id])
+  items       PurchaseListItem[]
+
+  @@index([familyId, status, createdAt(sort: Desc)])
+  @@map("purchase_batches")
+}
+
+model FamilyEvent {
+  id            Int               @id @default(autoincrement())
+  familyId      Int               @map("family_id")
+  createdById   Int               @map("created_by_id")
+  title         String            @db.VarChar(120)
+  startsAt      DateTime?         @map("starts_at")
+  mealReadyAt   DateTime?         @map("meal_ready_at")
+  status        FamilyEventStatus @default(PLANNING)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  deletedAt     DateTime?         @map("deleted_at")
+  family        Family            @relation(fields: [familyId], references: [id])
+  createdBy     User              @relation(fields: [createdById], references: [id])
+  notifications Notification[]
+
+  @@index([familyId, startsAt])
+  @@map("family_events")
+}
+
+model Notification {
+  id          Int                   @id @default(autoincrement())
+  type        NotificationType
+  familyId    Int?                  @map("family_id")
+  eventId     Int?                  @map("event_id")
+  senderId    Int?                  @map("sender_id")
+  recipientId Int?                  @map("recipient_id")
+  title       String                @db.VarChar(120)
+  body        String                @db.Text
+  dedupeKey   String?               @unique @map("dedupe_key") @db.VarChar(120)
+  createdAt   DateTime              @default(now()) @map("created_at")
+  deletedAt   DateTime?             @map("deleted_at")
+  family      Family?               @relation(fields: [familyId], references: [id])
+  event       FamilyEvent?          @relation(fields: [eventId], references: [id])
+  sender      User?                 @relation("NotificationSender", fields: [senderId], references: [id])
+  recipient   User?                 @relation("NotificationRecipient", fields: [recipientId], references: [id])
+  receipts    NotificationReceipt[]
+
+  @@index([recipientId, createdAt(sort: Desc)])
+  @@index([familyId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model NotificationReceipt {
+  id             Int          @id @default(autoincrement())
+  notificationId Int          @map("notification_id")
+  userId         Int          @map("user_id")
+  deliveredAt    DateTime?    @map("delivered_at")
+  readAt         DateTime?    @map("read_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  notification   Notification @relation(fields: [notificationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_receipts")
+}
+
+model BeverageIngredient {
+  id         Int      @id @default(autoincrement())
+  beverageId Int      @map("beverage_id")
+  name       String   @db.VarChar(120)
+  amount     String?  @db.VarChar(80)
+  isBase     Boolean  @default(false) @map("is_base")
+  sortIndex  Int      @map("sort_index")
+  beverage   Beverage @relation(fields: [beverageId], references: [id])
+
+  @@unique([beverageId, sortIndex])
+  @@map("beverage_ingredients")
+}
+
+model BeverageTool {
+  id         Int      @id @default(autoincrement())
+  beverageId Int      @map("beverage_id")
+  name       String   @db.VarChar(120)
+  sortIndex  Int      @map("sort_index")
+  beverage   Beverage @relation(fields: [beverageId], references: [id])
+
+  @@unique([beverageId, sortIndex])
+  @@map("beverage_tools")
+}
+
+model BeverageStep {
+  id           Int      @id @default(autoincrement())
+  beverageId   Int      @map("beverage_id")
+  sortIndex    Int      @map("sort_index")
+  title        String   @db.VarChar(120)
+  description  String   @db.Text
+  mediaFileId  Int?     @map("media_file_id")
+  timerSeconds Int?     @map("timer_seconds")
+  tip          String?  @db.Text
+  beverage     Beverage @relation(fields: [beverageId], references: [id])
+  mediaFile    File?    @relation("BeverageStepMedia", fields: [mediaFileId], references: [id])
+
+  @@unique([beverageId, sortIndex])
+  @@index([mediaFileId])
+  @@map("beverage_steps")
+}
+
+model IngredientRecipeRecommendation {
+  id           Int        @id @default(autoincrement())
+  ingredientId Int        @map("ingredient_id")
+  recipeId     Int        @map("recipe_id")
+  sortIndex    Int        @default(0) @map("sort_index")
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  recipe       Recipe     @relation(fields: [recipeId], references: [id])
+
+  @@unique([ingredientId, recipeId])
+  @@map("ingredient_recipe_recommendations")
+}
+
+model FileReference {
+  id        Int      @id @default(autoincrement())
+  fileId    Int      @map("file_id")
+  ownerType String   @map("owner_type") @db.VarChar(40)
+  ownerId   String   @map("owner_id") @db.VarChar(64)
+  field     String   @db.VarChar(40)
+  sortIndex Int      @default(0) @map("sort_index")
+  createdAt DateTime @default(now()) @map("created_at")
+  file      File     @relation(fields: [fileId], references: [id])
+
+  @@unique([fileId, ownerType, ownerId, field, sortIndex])
+  @@index([ownerType, ownerId])
+  @@map("file_references")
+}
+
 model OperationLog {
-  id          Int        @id @default(autoincrement())
-  adminId     Int?       @map("admin_id")
-  module      String?    @db.VarChar(80)
-  action      String?    @db.VarChar(120)
-  method      String?    @db.VarChar(16)
-  path        String?    @db.VarChar(255)
-  ip          String?    @db.VarChar(64)
-  userAgent   String?    @map("user_agent") @db.VarChar(255)
-  requestBody Json?      @map("request_body")
-  responseCode Int?      @map("response_code")
+  id              Int     @id @default(autoincrement())
+  adminId         Int?    @map("admin_id")
+  module          String? @db.VarChar(80)
+  action          String? @db.VarChar(120)
+  method          String? @db.VarChar(16)
+  path            String? @db.VarChar(255)
+  ip              String? @db.VarChar(64)
+  userAgent       String? @map("user_agent") @db.VarChar(255)
+  requestBody     Json?   @map("request_body")
+  responseCode    Int?    @map("response_code")
   responseMessage String? @map("response_message") @db.VarChar(255)
 
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -1213,246 +1474,246 @@ model OperationLog {
 }
 
 model Tag {
-  id           Int          @id @default(autoincrement())
-  name         String       @db.VarChar(80)
-  scope        TagScope     @map("scope")
+  id    Int      @id @default(autoincrement())
+  name  String   @db.VarChar(80)
+  scope TagScope @map("scope")
 
   recipeTags     RecipeTag[]
   ingredientTags IngredientTag[]
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([scope, name])
   @@map("tags")
 }
 
 model RecipeTag {
-  id           Int          @id @default(autoincrement())
-  recipeId     Int          @map("recipe_id")
-  tagId        Int          @map("tag_id")
+  id       Int @id @default(autoincrement())
+  recipeId Int @map("recipe_id")
+  tagId    Int @map("tag_id")
 
-  recipe       Recipe       @relation(fields: [recipeId], references: [id])
-  tag          Tag          @relation(fields: [tagId], references: [id])
+  recipe Recipe @relation(fields: [recipeId], references: [id])
+  tag    Tag    @relation(fields: [tagId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([recipeId, tagId])
   @@map("recipe_tags")
 }
 
 model IngredientTag {
-  id           Int          @id @default(autoincrement())
-  ingredientId Int          @map("ingredient_id")
-  tagId        Int          @map("tag_id")
+  id           Int @id @default(autoincrement())
+  ingredientId Int @map("ingredient_id")
+  tagId        Int @map("tag_id")
 
-  ingredient   Ingredient   @relation(fields: [ingredientId], references: [id])
-  tag          Tag          @relation(fields: [tagId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  tag        Tag        @relation(fields: [tagId], references: [id])
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(false) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(false) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@unique([ingredientId, tagId])
   @@map("ingredient_tags")
 }
 
 model Channel {
-  id           Int          @id @default(autoincrement())
-  name         String       @db.VarChar(80)
-  code         String       @unique @db.VarChar(80)
-  position     String?      @db.VarChar(80)
+  id       Int     @id @default(autoincrement())
+  name     String  @db.VarChar(80)
+  code     String  @unique @db.VarChar(80)
+  position String? @db.VarChar(80)
 
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  deletedAt    DateTime?    @map("deleted_at")
-  status       RecordStatus @default(ACTIVE) @map("status")
-  sort         Int          @default(0) @map("sort")
-  isPublish    Boolean      @default(true) @map("is_publish")
-  isRecommend  Boolean      @default(false) @map("is_recommend")
-  sourceType   SourceType   @default(ADMIN) @map("source_type")
-  sourceId     Int?         @map("source_id")
-  auditStatus  AuditStatus  @default(APPROVED) @map("audit_status")
-  createdBy    Int?         @map("created_by")
-  updatedBy    Int?         @map("updated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  status      RecordStatus @default(ACTIVE) @map("status")
+  sort        Int          @default(0) @map("sort")
+  isPublish   Boolean      @default(true) @map("is_publish")
+  isRecommend Boolean      @default(false) @map("is_recommend")
+  sourceType  SourceType   @default(ADMIN) @map("source_type")
+  sourceId    Int?         @map("source_id")
+  auditStatus AuditStatus  @default(APPROVED) @map("audit_status")
+  createdBy   Int?         @map("created_by")
+  updatedBy   Int?         @map("updated_by")
 
   @@map("channels")
 }
 
 model HomeTopNav {
-  id              Int                   @id @default(autoincrement())
-  bizId           String?               @unique @map("biz_id") @db.VarChar(64)
-  code            String?               @unique @db.VarChar(32)
-  name            String                @db.VarChar(32)
-  alias           String?               @db.VarChar(64)
-  navType         String                @default("recipe_category") @map("nav_type") @db.VarChar(32)
-  contentType     String?               @map("content_type") @db.VarChar(20)
-  displayPosition String                @default("home_top") @map("display_position") @db.VarChar(32)
-  iconUrl         String?               @map("icon_url") @db.VarChar(255)
-  sortOrder       Int                   @default(1) @map("sort_order")
-  status          String                @default("draft") @db.VarChar(20)
-  isDefault       Boolean               @default(false) @map("is_default")
-  isFixed         Boolean               @default(true) @map("is_fixed")
-  showMoreEntry   Boolean               @default(false) @map("show_more_entry")
-  description     String?               @db.VarChar(120)
-  remark          String?               @db.VarChar(200)
-  isDeleted       Boolean               @default(false) @map("is_deleted")
-  createdBy       Int?                  @map("created_by")
-  updatedBy       Int?                  @map("updated_by")
-  createdAt       DateTime              @default(now()) @map("created_at")
-  updatedAt       DateTime              @updatedAt @map("updated_at")
-  deletedAt       DateTime?             @map("deleted_at")
+  id              Int       @id @default(autoincrement())
+  bizId           String?   @unique @map("biz_id") @db.VarChar(64)
+  code            String?   @unique @db.VarChar(32)
+  name            String    @db.VarChar(32)
+  alias           String?   @db.VarChar(64)
+  navType         String    @default("recipe_category") @map("nav_type") @db.VarChar(32)
+  contentType     String?   @map("content_type") @db.VarChar(20)
+  displayPosition String    @default("home_top") @map("display_position") @db.VarChar(32)
+  iconUrl         String?   @map("icon_url") @db.VarChar(255)
+  sortOrder       Int       @default(1) @map("sort_order")
+  status          String    @default("draft") @db.VarChar(20)
+  isDefault       Boolean   @default(false) @map("is_default")
+  isFixed         Boolean   @default(true) @map("is_fixed")
+  showMoreEntry   Boolean   @default(false) @map("show_more_entry")
+  description     String?   @db.VarChar(120)
+  remark          String?   @db.VarChar(200)
+  isDeleted       Boolean   @default(false) @map("is_deleted")
+  createdBy       Int?      @map("created_by")
+  updatedBy       Int?      @map("updated_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
-  relations       HomeTopNavRelation[]
-  heroBanners     HomeHeroBanner[]
-  modules         ContentModule[]
-  style           HomeTopNavStyle?
-  contentRule     HomeTopNavContentRule?
+  relations   HomeTopNavRelation[]
+  heroBanners HomeHeroBanner[]
+  modules     ContentModule[]
+  style       HomeTopNavStyle?
+  contentRule HomeTopNavContentRule?
 
   @@unique([displayPosition, name, deletedAt])
   @@map("home_top_navs")
 }
 
 model HomeTopNavRelation {
-  id           Int        @id @default(autoincrement())
-  navId        Int        @map("nav_id")
-  relationType String     @map("relation_type") @db.VarChar(32)
-  relationId   String     @map("relation_id") @db.VarChar(64)
-  relationName String?    @map("relation_name") @db.VarChar(64)
-  createdAt    DateTime   @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  navId        Int      @map("nav_id")
+  relationType String   @map("relation_type") @db.VarChar(32)
+  relationId   String   @map("relation_id") @db.VarChar(64)
+  relationName String?  @map("relation_name") @db.VarChar(64)
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  nav          HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
+  nav HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
   @@map("home_top_nav_relations")
 }
 
 model HomeTopNavStyle {
-  id              Int        @id @default(autoincrement())
-  navId           Int        @unique @map("nav_id")
-  navStyle        String     @default("text_tab") @map("nav_style") @db.VarChar(32)
-  activeStyle     String     @default("underline") @map("active_style") @db.VarChar(32)
-  layoutMode      String     @default("fixed") @map("layout_mode") @db.VarChar(32)
-  textColor       String     @default("#666666") @map("text_color") @db.VarChar(16)
-  activeTextColor String     @default("#7A8B6F") @map("active_text_color") @db.VarChar(16)
-  showDivider     Boolean    @default(true) @map("show_divider")
-  tabGap          String     @default("medium") @map("tab_gap") @db.VarChar(16)
-  reserveSpace    Boolean    @default(false) @map("reserve_space")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  id              Int      @id @default(autoincrement())
+  navId           Int      @unique @map("nav_id")
+  navStyle        String   @default("text_tab") @map("nav_style") @db.VarChar(32)
+  activeStyle     String   @default("underline") @map("active_style") @db.VarChar(32)
+  layoutMode      String   @default("fixed") @map("layout_mode") @db.VarChar(32)
+  textColor       String   @default("#666666") @map("text_color") @db.VarChar(16)
+  activeTextColor String   @default("#7A8B6F") @map("active_text_color") @db.VarChar(16)
+  showDivider     Boolean  @default(true) @map("show_divider")
+  tabGap          String   @default("medium") @map("tab_gap") @db.VarChar(16)
+  reserveSpace    Boolean  @default(false) @map("reserve_space")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  nav             HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
+  nav HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
   @@map("home_top_nav_styles")
 }
 
 model ContentModule {
-  id            Int        @id @default(autoincrement())
-  navId         Int        @map("nav_id")
-  title         String     @db.VarChar(80)
-  subtitle      String?    @db.VarChar(160)
-  displayStyle  String     @map("display_style") @db.VarChar(40)
-  contentType   String     @map("content_type") @db.VarChar(20)
-  contentSource String     @map("content_source") @db.VarChar(20)
-  displayCount  Int        @default(6) @map("display_count")
-  showMore      Boolean    @default(false) @map("show_more")
-  showTitle     Boolean    @default(true) @map("show_title")
-  moreLink      String?    @map("more_link") @db.VarChar(255)
-  sortOrder     Int        @default(1) @map("sort_order")
-  status        String     @default("ENABLED") @db.VarChar(20)
+  id            Int     @id @default(autoincrement())
+  navId         Int     @map("nav_id")
+  title         String  @db.VarChar(80)
+  subtitle      String? @db.VarChar(160)
+  displayStyle  String  @map("display_style") @db.VarChar(40)
+  contentType   String  @map("content_type") @db.VarChar(20)
+  contentSource String  @map("content_source") @db.VarChar(20)
+  displayCount  Int     @default(6) @map("display_count")
+  showMore      Boolean @default(false) @map("show_more")
+  showTitle     Boolean @default(true) @map("show_title")
+  moreLink      String? @map("more_link") @db.VarChar(255)
+  sortOrder     Int     @default(1) @map("sort_order")
+  status        String  @default("ENABLED") @db.VarChar(20)
   items         Json?
-  categoryId    Int?       @map("category_id")
-  tagId         Int?       @map("tag_id")
+  categoryId    Int?    @map("category_id")
+  tagId         Int?    @map("tag_id")
 
-  nav           HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
+  nav HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([navId, status, sortOrder])
   @@map("content_modules")
 }
 
 model HomeTopNavContentRule {
-  id                  Int        @id @default(autoincrement())
-  navId               Int        @unique @map("nav_id")
-  sourceType          String     @default("category") @map("source_type") @db.VarChar(32)
-  difficultyFilter    String?    @default("all") @map("difficulty_filter") @db.VarChar(32)
-  durationFilter      String?    @default("all") @map("duration_filter") @db.VarChar(32)
-  cookingMethodFilter String?    @default("all") @map("cooking_method_filter") @db.VarChar(32)
-  displayCount        Int        @default(6) @map("display_count")
-  sortRule            String     @default("comprehensive") @map("sort_rule") @db.VarChar(32)
-  moreButtonText      String     @default("查看更多") @map("more_button_text") @db.VarChar(20)
-  jumpRule            String     @default("nav_content_list") @map("jump_rule") @db.VarChar(64)
-  recommendStartAt    DateTime?  @map("recommend_start_at")
-  recommendEndAt      DateTime?  @map("recommend_end_at")
-  createdAt           DateTime   @default(now()) @map("created_at")
-  updatedAt           DateTime   @updatedAt @map("updated_at")
+  id                  Int       @id @default(autoincrement())
+  navId               Int       @unique @map("nav_id")
+  sourceType          String    @default("category") @map("source_type") @db.VarChar(32)
+  difficultyFilter    String?   @default("all") @map("difficulty_filter") @db.VarChar(32)
+  durationFilter      String?   @default("all") @map("duration_filter") @db.VarChar(32)
+  cookingMethodFilter String?   @default("all") @map("cooking_method_filter") @db.VarChar(32)
+  displayCount        Int       @default(6) @map("display_count")
+  sortRule            String    @default("comprehensive") @map("sort_rule") @db.VarChar(32)
+  moreButtonText      String    @default("查看更多") @map("more_button_text") @db.VarChar(20)
+  jumpRule            String    @default("nav_content_list") @map("jump_rule") @db.VarChar(64)
+  recommendStartAt    DateTime? @map("recommend_start_at")
+  recommendEndAt      DateTime? @map("recommend_end_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  nav                 HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
+  nav HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
 
   @@map("home_top_nav_content_rules")
 }
 
 model ResourceApp {
-  id             Int               @id @default(autoincrement())
-  name           String            @db.VarChar(120)
-  appId          String            @unique @map("app_id") @db.VarChar(64)
-  appType        String            @map("app_type") @db.VarChar(32) // ADMIN / APP / THIRD_PARTY
-  owner          String            @db.VarChar(64)
-  status         RecordStatus      @default(ACTIVE)
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  id        Int          @id @default(autoincrement())
+  name      String       @db.VarChar(120)
+  appId     String       @unique @map("app_id") @db.VarChar(64)
+  appType   String       @map("app_type") @db.VarChar(32) // ADMIN / APP / THIRD_PARTY
+  owner     String       @db.VarChar(64)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
 
-  apiKeys        ResourceApiKey[]
-  callLogs       ResourceCallLog[]
+  apiKeys  ResourceApiKey[]
+  callLogs ResourceCallLog[]
 
   @@map("resource_apps")
 }
 
 model ResourceApiKey {
-  id              Int             @id @default(autoincrement())
-  name            String          @db.VarChar(120)
-  appId           Int             @map("app_id")
-  app             ResourceApp     @relation(fields: [appId], references: [id], onDelete: Cascade)
-  keyHash         String          @map("key_hash") @db.VarChar(255)
-  keyPrefix       String          @map("key_prefix") @db.VarChar(32)
-  permissionScope String          @map("permission_scope") @db.VarChar(255)
-  status          String          @default("ACTIVE") @db.VarChar(20) // ACTIVE / DISABLED / EXPIRED
-  expiresAt       DateTime?       @map("expires_at")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id              Int         @id @default(autoincrement())
+  name            String      @db.VarChar(120)
+  appId           Int         @map("app_id")
+  app             ResourceApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  keyHash         String      @map("key_hash") @db.VarChar(255)
+  keyPrefix       String      @map("key_prefix") @db.VarChar(32)
+  permissionScope String      @map("permission_scope") @db.VarChar(255)
+  status          String      @default("ACTIVE") @db.VarChar(20) // ACTIVE / DISABLED / EXPIRED
+  expiresAt       DateTime?   @map("expires_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
 
-  callLogs        ResourceCallLog[]
+  callLogs ResourceCallLog[]
 
   @@index([appId])
   @@map("resource_api_keys")
@@ -1496,33 +1757,33 @@ model ResourceCallLog {
 }
 
 model ResourceApiProvider {
-  id              Int                  @id @default(autoincrement())
-  providerCode    String               @unique @map("provider_code") @db.VarChar(64)
-  name            String               @db.VarChar(120)
-  providerName    String               @map("provider_name") @db.VarChar(120)
-  resourceType    String               @map("resource_type") @db.VarChar(32)
-  sourceKind      String               @default("API") @map("source_kind") @db.VarChar(32)
-  formatHint      String               @default("AUTO") @map("format_hint") @db.VarChar(32)
-  method          String               @default("GET") @db.VarChar(16)
-  endpointUrl     String               @map("endpoint_url") @db.VarChar(500)
-  sourceHomeUrl   String?              @map("source_home_url") @db.VarChar(500)
-  authType        String               @default("NONE") @map("auth_type") @db.VarChar(32)
-  appKey          String?              @map("app_key") @db.VarChar(255)
-  encryptedSecret String?              @map("encrypted_secret") @db.Text
-  defaultHeaders  Json?                @map("default_headers")
-  defaultParams   Json?                @map("default_params")
-  dataPath        String               @default("data.list") @map("data_path") @db.VarChar(120)
-  timeoutMs       Int                  @default(10000) @map("timeout_ms")
-  dailyLimit      Int                  @default(10000) @map("daily_limit")
-  description     String?              @db.Text
-  status          RecordStatus         @default(ACTIVE)
-  lastSyncedAt    DateTime?            @map("last_synced_at")
-  lastTestedAt    DateTime?            @map("last_tested_at")
-  lastError       String?              @map("last_error") @db.Text
-  createdAt       DateTime             @default(now()) @map("created_at")
-  updatedAt       DateTime             @updatedAt @map("updated_at")
+  id              Int          @id @default(autoincrement())
+  providerCode    String       @unique @map("provider_code") @db.VarChar(64)
+  name            String       @db.VarChar(120)
+  providerName    String       @map("provider_name") @db.VarChar(120)
+  resourceType    String       @map("resource_type") @db.VarChar(32)
+  sourceKind      String       @default("API") @map("source_kind") @db.VarChar(32)
+  formatHint      String       @default("AUTO") @map("format_hint") @db.VarChar(32)
+  method          String       @default("GET") @db.VarChar(16)
+  endpointUrl     String       @map("endpoint_url") @db.VarChar(500)
+  sourceHomeUrl   String?      @map("source_home_url") @db.VarChar(500)
+  authType        String       @default("NONE") @map("auth_type") @db.VarChar(32)
+  appKey          String?      @map("app_key") @db.VarChar(255)
+  encryptedSecret String?      @map("encrypted_secret") @db.Text
+  defaultHeaders  Json?        @map("default_headers")
+  defaultParams   Json?        @map("default_params")
+  dataPath        String       @default("data.list") @map("data_path") @db.VarChar(120)
+  timeoutMs       Int          @default(10000) @map("timeout_ms")
+  dailyLimit      Int          @default(10000) @map("daily_limit")
+  description     String?      @db.Text
+  status          RecordStatus @default(ACTIVE)
+  lastSyncedAt    DateTime?    @map("last_synced_at")
+  lastTestedAt    DateTime?    @map("last_tested_at")
+  lastError       String?      @map("last_error") @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
-  importBatches   ResourceImportBatch[]
+  importBatches    ResourceImportBatch[]
   rawImportRecords RawImportRecord[]
 
   @@index([resourceType])
@@ -1532,24 +1793,24 @@ model ResourceApiProvider {
 }
 
 model ResourceImportBatch {
-  id           Int                  @id @default(autoincrement())
-  importType   String               @map("import_type") @db.VarChar(32) // RECIPE / INGREDIENT / FRUIT / SEASONING / BEVERAGE
-  sourceType   String               @map("source_type") @db.VarChar(64) // JSON / EXCEL
-  fileName     String               @map("file_name") @db.VarChar(255)
-  status       String               @default("PENDING") @db.VarChar(20) // PENDING / COMPLETED / FAILED
-  totalCount   Int                  @default(0) @map("total_count")
-  successCount Int                  @default(0) @map("success_count")
-  failedCount  Int                  @default(0) @map("failed_count")
-  errorMessage String?              @map("error_message") @db.Text
-  createdBy    String               @map("created_by") @db.VarChar(64)
-  providerId   Int?                 @map("provider_id")
-  provider     ResourceApiProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
-  sourceName   String?              @map("source_name") @db.VarChar(120)
-  requestSnapshot Json?              @map("request_snapshot")
-  createdAt    DateTime             @default(now()) @map("created_at")
-  finishedAt   DateTime?            @map("finished_at")
+  id              Int                  @id @default(autoincrement())
+  importType      String               @map("import_type") @db.VarChar(32) // RECIPE / INGREDIENT / FRUIT / SEASONING / BEVERAGE
+  sourceType      String               @map("source_type") @db.VarChar(64) // JSON / EXCEL
+  fileName        String               @map("file_name") @db.VarChar(255)
+  status          String               @default("PENDING") @db.VarChar(20) // PENDING / COMPLETED / FAILED
+  totalCount      Int                  @default(0) @map("total_count")
+  successCount    Int                  @default(0) @map("success_count")
+  failedCount     Int                  @default(0) @map("failed_count")
+  errorMessage    String?              @map("error_message") @db.Text
+  createdBy       String               @map("created_by") @db.VarChar(64)
+  providerId      Int?                 @map("provider_id")
+  provider        ResourceApiProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  sourceName      String?              @map("source_name") @db.VarChar(120)
+  requestSnapshot Json?                @map("request_snapshot")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  finishedAt      DateTime?            @map("finished_at")
 
-  items        ResourceImportItem[]
+  items            ResourceImportItem[]
   rawImportRecords RawImportRecord[]
 
   @@index([providerId])
@@ -1557,41 +1818,41 @@ model ResourceImportBatch {
 }
 
 model ResourceImportItem {
-  id           Int                 @id @default(autoincrement())
-  importId     Int                 @map("import_id")
-  batch        ResourceImportBatch @relation(fields: [importId], references: [id], onDelete: Cascade)
-  rowIndex     Int                 @map("row_index")
-  rawData      Json                @map("raw_data") // Original unmapped row payload
-  mappedData   Json                @map("mapped_data") // Formatted payload ready for insertion
-  status       String              @default("PENDING") @db.VarChar(20) // PENDING / IMPORTED / FAILED
-  errorMessage String?             @map("error_message") @db.Text
-  targetId     Int?                @map("target_id") // Inserted row ID in main tables on success
-  externalId   String?             @map("external_id") @db.VarChar(120)
-  externalUrl  String?             @map("external_url") @db.VarChar(500)
-  filterCode   String?             @map("filter_code") @db.VarChar(64)
-  duplicateTargetId Int?            @map("duplicate_target_id")
-  createdAt    DateTime            @default(now()) @map("created_at")
+  id                Int                 @id @default(autoincrement())
+  importId          Int                 @map("import_id")
+  batch             ResourceImportBatch @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rowIndex          Int                 @map("row_index")
+  rawData           Json                @map("raw_data") // Original unmapped row payload
+  mappedData        Json                @map("mapped_data") // Formatted payload ready for insertion
+  status            String              @default("PENDING") @db.VarChar(20) // PENDING / IMPORTED / FAILED
+  errorMessage      String?             @map("error_message") @db.Text
+  targetId          Int?                @map("target_id") // Inserted row ID in main tables on success
+  externalId        String?             @map("external_id") @db.VarChar(120)
+  externalUrl       String?             @map("external_url") @db.VarChar(500)
+  filterCode        String?             @map("filter_code") @db.VarChar(64)
+  duplicateTargetId Int?                @map("duplicate_target_id")
+  createdAt         DateTime            @default(now()) @map("created_at")
 
   @@index([importId])
   @@map("resource_import_items")
 }
 
 model RawImportRecord {
-  id          Int                  @id @default(autoincrement())
-  providerId  Int                  @map("provider_id")
-  provider    ResourceApiProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  batchId     Int?                 @map("batch_id")
-  batch       ResourceImportBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  sourceType  String               @default("DATASET") @map("source_type") @db.VarChar(32)
-  fileName    String               @map("file_name") @db.VarChar(255)
-  sourceUrl   String               @map("source_url") @db.VarChar(500)
-  contentType String?              @map("content_type") @db.VarChar(120)
-  rawText     String?              @map("raw_text") @db.Text
-  rawJson     Json?                @map("raw_json")
-  status      String               @default("PENDING") @db.VarChar(20)
-  parsedCount Int                  @default(0) @map("parsed_count")
-  errorMessage String?             @map("error_message") @db.Text
-  createdAt   DateTime             @default(now()) @map("created_at")
+  id           Int                  @id @default(autoincrement())
+  providerId   Int                  @map("provider_id")
+  provider     ResourceApiProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  batchId      Int?                 @map("batch_id")
+  batch        ResourceImportBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  sourceType   String               @default("DATASET") @map("source_type") @db.VarChar(32)
+  fileName     String               @map("file_name") @db.VarChar(255)
+  sourceUrl    String               @map("source_url") @db.VarChar(500)
+  contentType  String?              @map("content_type") @db.VarChar(120)
+  rawText      String?              @map("raw_text") @db.Text
+  rawJson      Json?                @map("raw_json")
+  status       String               @default("PENDING") @db.VarChar(20)
+  parsedCount  Int                  @default(0) @map("parsed_count")
+  errorMessage String?              @map("error_message") @db.Text
+  createdAt    DateTime             @default(now()) @map("created_at")
 
   @@index([providerId])
   @@index([batchId])
