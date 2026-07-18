@@ -409,6 +409,50 @@ export const getBeverage = async (id: string) => {
   };
 };
 
+export type GuidedFlowDTO = {
+  id: string;
+  title: string;
+  totalMinutes?: number;
+  steps: Array<{
+    id: string;
+    order: number;
+    title: string;
+    description: string;
+    media?: {
+      fileId?: number;
+      url: string;
+      mimeType?: string;
+      width?: number;
+      height?: number;
+      durationSeconds?: number;
+    };
+    timerSeconds?: number;
+    tip?: string;
+  }>;
+};
+
+export const getRecipeGuidedFlow = async (id: string) => {
+  const data = await request<GuidedFlowDTO>(`/recipes/${encodeURIComponent(id)}/guided-flow`);
+  return {
+    ...data,
+    steps: data.steps.map((step) => ({
+      ...step,
+      media: step.media ? { ...step.media, url: resolveAssetUrl(step.media.url) } : undefined
+    }))
+  };
+};
+
+export const getBeverageGuidedFlow = async (id: string) => {
+  const data = await request<GuidedFlowDTO>(`/beverages/${encodeURIComponent(id)}/guided-flow`);
+  return {
+    ...data,
+    steps: data.steps.map((step) => ({
+      ...step,
+      media: step.media ? { ...step.media, url: resolveAssetUrl(step.media.url) } : undefined
+    }))
+  };
+};
+
 export const listMobileIngredientPriceRecords = async (params: { userId: number; ingredientId: number }) => {
   return request<ApiIngredientPriceRecord[]>(
     `/mobile/ingredient-price-records?userId=${params.userId}&ingredientId=${params.ingredientId}`

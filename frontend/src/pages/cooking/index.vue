@@ -107,7 +107,7 @@
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
-import { getRecipe, resolveAssetUrl } from '../../services/public-api';
+import { getRecipeGuidedFlow } from '../../services/public-api';
 
 type CookingStep = {
   title: string;
@@ -273,33 +273,15 @@ const fetchRecipeDetails = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const data = await getRecipe(recipeId.value) as any;
-    recipeName.value = data.title ?? (data.name ?? '');
-    
-    const rawSteps = data.steps ?? (data.cookingSteps ?? []);
-    
-    steps.value = rawSteps.map((s: any, idx: number) => {
-      const title = s.title ?? (s.name ?? `步骤 ${idx + 1}`);
-      const description = s.description ?? (s.content ?? (s.text ?? ''));
-      const image = s.image ? resolveAssetUrl(s.image) : '';
-      
-      let minutes = 0;
-      const rawDur = s.duration ?? (s.time ?? s.minutes);
-      if (rawDur) {
-        const parsed = parseInt(String(rawDur).replace(/[^0-9]/g, ''), 10);
-        if (!isNaN(parsed) && parsed > 0) {
-          minutes = parsed;
-        }
-      }
-      
-      const tipVal = s.tip ?? (s.tips ?? (data.tips ? data.tips.split('\n')[idx]?.trim() : ''));
-      
+    const data = await getRecipeGuidedFlow(recipeId.value);
+    recipeName.value = data.title;
+    steps.value = data.steps.map((step) => {
       return {
-        title,
-        description,
-        image,
-        durationMinutes: minutes,
-        tip: tipVal || undefined
+        title: step.title,
+        description: step.description,
+        image: step.media?.url ?? '',
+        durationMinutes: step.timerSeconds ? Math.ceil(step.timerSeconds / 60) : 0,
+        tip: step.tip
       } satisfies CookingStep;
     });
 

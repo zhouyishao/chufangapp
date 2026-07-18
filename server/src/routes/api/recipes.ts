@@ -5,6 +5,7 @@ import { prisma } from '../../prisma';
 import { HttpError } from '../../http/errors';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, getPublicCode, getPublicId } from '../../lib/business-id';
+import { buildGuidedFlow } from '../../services/guided-flow';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -98,6 +99,32 @@ apiRecipesRouter.get('/', async (req, res) => {
 
   const data: PageResult<ReturnType<typeof serializeRecipe>> = { list: list.map(serializeRecipe), total, page, pageSize };
   res.json(ok(data));
+});
+
+apiRecipesRouter.get('/:id/guided-flow', async (req, res) => {
+  const recipe = await prisma.recipe.findFirst({
+    where: { ...buildPublicIdWhere(req.params.id), deletedAt: null, isPublish: true, status: 'ACTIVE', auditStatus: 'APPROVED' },
+    select: {
+      id: true,
+      bizId: true,
+      code: true,
+      title: true,
+      cookTime: true,
+      steps: {
+        where: { deletedAt: null, status: 'ACTIVE' },
+        orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }],
+        include: { mediaFile: true }
+      }
+    }
+  });
+  if (!recipe) throw new HttpError('not found', 404, 404);
+
+  res.json(ok(buildGuidedFlow({
+    id: String(getPublicId('recipe', recipe)),
+    title: recipe.title,
+    totalMinutes: recipe.cookTime,
+    steps: recipe.steps
+  })));
 });
 
 apiRecipesRouter.get('/:id', async (req, res) => {
