@@ -10,6 +10,7 @@ import { prisma } from '../../prisma';
 import { buildAppAuthSession } from '../../services/app-token';
 import { buildBasketListWhere, canAccessBasketItem } from '../../services/basket-access';
 import { canChangeFamilyRole, canInviteFamilyMember, canRemoveFamilyMember } from '../../services/family-permissions';
+import { resolveContentTarget } from '../../services/content-target';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -33,14 +34,32 @@ const publicRecipeWhere = {
 
 const favoriteTargetSchema = z.object({
   userId: z.coerce.number().int().positive().optional(),
+  targetType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'BEVERAGE', 'SEASONING']).optional(),
+  targetId: z.union([z.string().trim().min(1), z.coerce.number().int().positive()]).optional(),
   recipeId: z.coerce.number().int().positive().nullable().optional(),
-  ingredientId: z.coerce.number().int().positive().nullable().optional()
+  ingredientId: z.coerce.number().int().positive().nullable().optional(),
+  beverageId: z.coerce.number().int().positive().nullable().optional()
 });
 
-const assertSingleTarget = (recipeId?: number | null, ingredientId?: number | null) => {
-  if ((recipeId && ingredientId) || (!recipeId && !ingredientId)) {
-    throw new HttpError('请选择一个收藏或浏览对象', 400, 400);
+const assertPublicContentTarget = async (target: ReturnType<typeof resolveContentTarget>) => {
+  const id = Number(target.targetId);
+  if (target.targetType === 'RECIPE') {
+    const found = await prisma.recipe.findFirst({ where: { id, ...publicRecipeWhere }, select: { id: true } });
+    if (!found) throw new HttpError('内容不存在或已下架', 404, 404);
+    return;
   }
+  if (target.targetType === 'BEVERAGE') {
+    const found = await prisma.beverage.findFirst({ where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE' }, select: { id: true } });
+    if (!found) throw new HttpError('内容不存在或已下架', 404, 404);
+    return;
+  }
+  const found = await prisma.ingredient.findFirst({
+    where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE' },
+    select: { category: { select: { type: true } } }
+  });
+  if (!found) throw new HttpError('内容不存在或已下架', 404, 404);
+  if (target.targetType === 'FRUIT' && found.category?.type !== 'FRUIT') throw new HttpError('内容类型不匹配', 400, 400);
+  if (target.targetType === 'SEASONING' && found.category?.type !== 'SEASONING') throw new HttpError('内容类型不匹配', 400, 400);
 };
 
 const userIdSchema = z.object({ userId: z.coerce.number().int().positive() });
@@ -644,7 +663,8 @@ apiMobileRouter.get('/favorites', requireAppAuth, async (req, res) => {
       where,
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -668,7 +688,8 @@ apiMobileRouter.get('/view-histories', requireAppAuth, async (req, res) => {
       where,
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -1116,18 +1137,18 @@ apiMobileRouter.delete('/basket-items/:id', requireAppAuth, async (req, res) => 
 apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
   const parsed = favoriteTargetSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { recipeId = null, ingredientId = null } = parsed.data;
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
-  assertSingleTarget(recipeId, ingredientId);
-
-  const targetType = recipeId ? 'RECIPE' as const : 'INGREDIENT' as const;
-  const targetId = String(recipeId ?? ingredientId);
+  const target = resolveContentTarget(parsed.data);
+  await assertPublicContentTarget(target);
+  const { recipeId, ingredientId, beverageId, targetType, targetId } = target;
   const targetWhere = { targetType, targetId };
   const existing = await prisma.favorite.findFirst({
     where: { userId, ...targetWhere },
+    orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { updatedAt: 'desc' }],
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
     }
   });
 
@@ -1137,7 +1158,8 @@ apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
       data: { deletedAt: null, status: 'ACTIVE', updatedAt: new Date() },
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
       }
     });
     if (recipeId && existing.deletedAt) {
@@ -1148,10 +1170,11 @@ apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
   }
 
   const created = await prisma.favorite.create({
-    data: { userId, recipeId, ingredientId, targetType, targetId },
+    data: { userId, recipeId, ingredientId, beverageId, targetType, targetId },
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
     }
   });
   if (recipeId) await prisma.recipe.update({ where: { id: recipeId }, data: { favoriteCount: { increment: 1 } } });
@@ -1175,18 +1198,18 @@ apiMobileRouter.delete('/favorites/:id', requireAppAuth, async (req, res) => {
 apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
   const parsed = favoriteTargetSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { recipeId = null, ingredientId = null } = parsed.data;
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
-  assertSingleTarget(recipeId, ingredientId);
-
-  const targetType = recipeId ? 'RECIPE' as const : 'INGREDIENT' as const;
-  const targetId = String(recipeId ?? ingredientId);
+  const target = resolveContentTarget(parsed.data);
+  await assertPublicContentTarget(target);
+  const { recipeId, ingredientId, beverageId, targetType, targetId } = target;
   const targetWhere = { targetType, targetId };
   const existing = await prisma.viewHistory.findFirst({
     where: { userId, ...targetWhere },
+    orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { updatedAt: 'desc' }],
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
     }
   });
 
@@ -1200,7 +1223,8 @@ apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
       data: { deletedAt: null, status: 'ACTIVE', updatedAt: new Date() },
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
       }
     });
     res.json(ok(updated));
@@ -1208,10 +1232,11 @@ apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
   }
 
   const created = await prisma.viewHistory.create({
-    data: { userId, recipeId, ingredientId, targetType, targetId },
+    data: { userId, recipeId, ingredientId, beverageId, targetType, targetId },
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
     }
   });
   res.json(ok(created));

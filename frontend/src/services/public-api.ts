@@ -482,13 +482,30 @@ type MobileActivityIngredient = {
   priceUnit: string | null;
 };
 
+type MobileActivityBeverage = {
+  id: number;
+  name: string;
+  cover: string | null;
+  beverageType: string | null;
+  alcoholDegree: string | null;
+};
+
+export type MobileContentTarget = {
+  targetType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'BEVERAGE' | 'SEASONING';
+  targetId: string | number;
+};
+
 export type ApiMobileFavorite = {
   id: number;
   userId: number;
   recipeId: number | null;
   ingredientId: number | null;
+  beverageId: number | null;
+  targetType: MobileContentTarget['targetType'];
+  targetId: string;
   recipe: MobileActivityRecipe | null;
   ingredient: MobileActivityIngredient | null;
+  beverage: MobileActivityBeverage | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -506,7 +523,8 @@ const resolveMobileActivityAssets = <T extends ApiMobileFavorite | ApiMobileView
           DEFAULT_IMAGE_URL
         )
       }
-    : null
+    : null,
+  beverage: item.beverage ? { ...item.beverage, cover: resolveAssetUrl(item.beverage.cover) } : null
 });
 
 export const listMobileFavorites = async (params: { userId: number; page?: number; pageSize?: number }) => {
@@ -519,7 +537,7 @@ export const listMobileFavorites = async (params: { userId: number; page?: numbe
   return { ...data, list: data.list.map(resolveMobileActivityAssets) };
 };
 
-export const addMobileFavorite = async (payload: { userId: number; recipeId?: number; ingredientId?: number }) => {
+export const addMobileFavorite = async (payload: ({ userId: number } & MobileContentTarget) | { userId: number; recipeId?: number; ingredientId?: number; beverageId?: number }) => {
   const data = await request<ApiMobileFavorite>('/mobile/favorites', {
     method: 'POST',
     data: payload
@@ -543,7 +561,7 @@ export const listMobileViewHistories = async (params: { userId: number; page?: n
   return { ...data, list: data.list.map(resolveMobileActivityAssets) };
 };
 
-export const addMobileViewHistory = async (payload: { userId: number; recipeId?: number; ingredientId?: number }) => {
+export const addMobileViewHistory = async (payload: ({ userId: number } & MobileContentTarget) | { userId: number; recipeId?: number; ingredientId?: number; beverageId?: number }) => {
   const data = await request<ApiMobileViewHistory>('/mobile/view-histories', {
     method: 'POST',
     data: payload
