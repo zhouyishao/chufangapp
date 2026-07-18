@@ -1,50 +1,18 @@
 import { loginMobileAuth } from './public-api';
+import {
+  clearAuthUser,
+  loadAuthUser,
+  saveAuthUser,
+  type AuthUser
+} from './auth-session';
 
-export interface AuthUser {
-  id?: number;
-  phone: string;
-  nickname: string;
-  token: string;
-}
+export { clearAuthUser, loadAuthUser, saveAuthUser, type AuthUser } from './auth-session';
 
 export interface AuthAccount {
   phone: string;
   password: string;
   nickname: string;
 }
-
-const AUTH_STORAGE_KEY = 'recipe-app-auth-user';
-
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null;
-};
-
-const isAuthUser = (value: unknown): value is AuthUser => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    (value.id === undefined || typeof value.id === 'number') &&
-    typeof value.phone === 'string' &&
-    typeof value.nickname === 'string' &&
-    typeof value.token === 'string'
-  );
-};
-
-const unwrapStoredValue = (value: unknown): unknown => {
-  if (typeof value === 'string') {
-    try {
-      return unwrapStoredValue(JSON.parse(value));
-    } catch {
-      return value;
-    }
-  }
-  if (isRecord(value) && 'data' in value && typeof value.type === 'string') {
-    return unwrapStoredValue(value.data);
-  }
-  return value;
-};
 
 export const isValidPhone = (phone: string) => /^1[3-9]\d{9}$/.test(phone.trim());
 
@@ -57,20 +25,6 @@ export const maskPhone = (phone: string) => {
   }
 
   return `${trimmedPhone.slice(0, 3)}****${trimmedPhone.slice(7)}`;
-};
-
-export const loadAuthUser = (): AuthUser | null => {
-  const storedUser = uni.getStorageSync(AUTH_STORAGE_KEY) as unknown;
-  const unwrappedUser = unwrapStoredValue(storedUser);
-  return isAuthUser(unwrappedUser) ? unwrappedUser : null;
-};
-
-export const saveAuthUser = (user: AuthUser) => {
-  uni.setStorageSync(AUTH_STORAGE_KEY, user);
-};
-
-export const clearAuthUser = () => {
-  uni.removeStorageSync(AUTH_STORAGE_KEY);
 };
 
 export const registerAuthAccount = (phone: string, password: string) => {
@@ -102,17 +56,17 @@ export const createAuthUser = (phone: string, nickname?: string): AuthUser => {
 
 export const syncAuthUserWithBackend = async (user: AuthUser | null = loadAuthUser()) => {
   if (!user) return null;
-  if (user.id) return user;
+  if (user.id && user.token.split('.').length === 3) return user;
 
-  const remoteUser = await loginMobileAuth({
+  const session = await loginMobileAuth({
     phone: user.phone,
     nickname: user.nickname
   });
   const nextUser: AuthUser = {
     ...user,
-    id: remoteUser.id,
-    nickname: remoteUser.nickname || user.nickname,
-    token: `mobile-user-${remoteUser.id}`
+    id: session.user.id,
+    nickname: session.user.nickname || user.nickname,
+    token: session.accessToken
   };
   saveAuthUser(nextUser);
   return nextUser;

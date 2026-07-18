@@ -1,3 +1,5 @@
+import { getAuthToken, handleAuthExpired } from './auth-session';
+
 type ApiOk<T> = { code: 0; message: string; data: T };
 type ApiFail = { code: number; message: string; data: null };
 type ApiResponse<T> = ApiOk<T> | ApiFail;
@@ -52,20 +54,31 @@ type RequestOptions = {
   data?: UniApp.RequestOptions['data'];
   header?: UniApp.RequestOptions['header'];
   timeout?: number;
+  auth?: boolean;
 };
 
 const request = async <T>(path: string, options: RequestOptions = {}) => {
-  const result = await new Promise<ApiResponse<T>>((resolve, reject) => {
+  const token = options.auth === false ? null : getAuthToken();
+  const response = await new Promise<{ data: ApiResponse<T>; statusCode: number }>((resolve, reject) => {
     uni.request({
       url: `${API_BASE}${path}`,
       method: options.method ?? 'GET',
       data: options.data,
-      header: options.header,
+      header: {
+        ...options.header,
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
       timeout: options.timeout ?? 15000,
-      success: (res) => resolve(res.data as ApiResponse<T>),
+      success: (res) => resolve({ data: res.data as ApiResponse<T>, statusCode: res.statusCode }),
       fail: reject
     });
   });
+
+  const result = response.data;
+  if (response.statusCode === 401 || result.code === 401) {
+    handleAuthExpired();
+    throw new ApiError(result.message || 'unauthorized', 401);
+  }
 
   if (result.code !== 0) throw new ApiError(result.message, result.code);
 
@@ -431,15 +444,22 @@ export type ApiMobileUser = {
   avatar: string | null;
 };
 
+export type ApiMobileAuthSession = {
+  user: ApiMobileUser;
+  accessToken: string;
+  expiresIn: number;
+};
+
 export const loginMobileAuth = async (payload: {
   phone?: string;
   openid?: string;
   nickname?: string;
   avatar?: string;
 }) => {
-  return request<ApiMobileUser>('/mobile/auth/login', {
+  return request<ApiMobileAuthSession>('/mobile/auth/login', {
     method: 'POST',
-    data: payload
+    data: payload,
+    auth: false
   });
 };
 
