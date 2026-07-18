@@ -15,7 +15,7 @@ assert(/html\[data-scale="2"\] \.detail-info-strip[^}]*grid-template-columns:\s*
 assert(css.includes('.detail-guide-cards') && css.includes('.detail-guide-card img'), '挑选方法必须使用图文识别卡片');
 assert(js.includes('function ingredientRelatedRecipesPanel('), '食材详情缺少相关菜谱模块渲染器');
 assert(js.includes("type === 'ingredient' ? ingredientRelatedRecipesPanel(data.name) : ''"), '相关菜谱模块必须只在食材详情显示');
-assert(js.includes('${detailIngredientDiscovery}</section>'), '相关菜谱模块必须位于详情 Tab 模块之后');
+assert(js.includes('${detailDiscovery}${detailIngredientDiscovery}${detailFruitDiscovery}${detailDrinkDiscovery}${detailSeasoningDiscovery}</section>'), '相关菜谱模块必须位于详情 Tab 模块之后');
 ['recipe:tomato-egg', 'recipe:tomato-beef', 'recipe:tomato-soup'].forEach((route) => assert(js.includes(`data-route="${route}"`), `相关菜谱缺少路由: ${route}`));
 assert(js.includes('data-detail-ingredient-more'), '相关菜谱缺少更多入口');
 assert(css.includes('.ingredient-related-rail') && css.includes('grid-auto-columns:calc((100% - 20px) / 2.3)'), '相关菜谱必须横向露出约 2.3 张');
