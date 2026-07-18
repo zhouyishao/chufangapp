@@ -41,6 +41,7 @@ import { apiPageModulesRouter } from './routes/api/page-modules';
 import { apiIngredientsRouter } from './routes/api/ingredients';
 import { apiMobileRouter } from './routes/api/mobile';
 import { apiRecipesRouter } from './routes/api/recipes';
+import { adminFilesRouter, filesRouter } from './routes/files';
 
 const isLocalDevOrigin = (origin: string) =>
   config.env !== 'prod' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
@@ -87,6 +88,7 @@ export const createApp = () => {
   app.use('/api/admin/beverages', adminBeveragesRouter);
   app.use('/api/admin/families', adminFamiliesRouter);
   app.use('/api/admin/upload', adminUploadRouter);
+  app.use('/api/admin/files', adminFilesRouter);
   app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/admin/posts', adminPostsRouter);
   app.use('/api/admin/comments', adminCommentsRouter);
@@ -109,6 +111,7 @@ export const createApp = () => {
   app.use('/api/mobile', apiMobileRouter);
   app.use('/api/mobile/ingredients', apiIngredientsRouter);
   app.use('/api/mobile/recipes', apiRecipesRouter);
+  app.use('/api/files', filesRouter);
 
   app.use(errorHandler);
 

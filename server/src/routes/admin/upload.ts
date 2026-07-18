@@ -8,31 +8,7 @@ import { config } from '../../config';
 import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok } from '../../http/response';
-
-type MediaType = 'image' | 'video';
-
-const mediaRules: Record<MediaType, { maxSize: number; mimeTypes: Record<string, string>; sizeMessage: string; typeMessage: string }> = {
-  image: {
-    maxSize: 5 * 1024 * 1024,
-    mimeTypes: {
-      'image/jpeg': 'jpg',
-      'image/png': 'png',
-      'image/webp': 'webp'
-    },
-    sizeMessage: '图片不能超过 5MB',
-    typeMessage: '图片格式不支持'
-  },
-  video: {
-    maxSize: 50 * 1024 * 1024,
-    mimeTypes: {
-      'video/mp4': 'mp4',
-      'video/quicktime': 'mov',
-      'video/webm': 'webm'
-    },
-    sizeMessage: '视频不能超过 50MB',
-    typeMessage: '视频格式不支持'
-  }
-};
+import { mediaRules, type MediaType, validateMediaFile } from '../../services/media-file';
 
 const maxMultipartSize = mediaRules.video.maxSize + 1024 * 1024;
 const uploadDir = () => path.resolve(process.cwd(), config.uploadDir);
@@ -114,34 +90,36 @@ const extractUploadedFile = (body: Buffer, boundary: string, expectedType: Media
     const detectedType = getMediaType(mimeType);
     const mediaType = expectedType === 'media' ? detectedType : expectedType;
     if (!detectedType || !mediaType || detectedType !== mediaType) {
-      throw new HttpError(expectedType === 'video' ? mediaRules.video.typeMessage : expectedType === 'image' ? mediaRules.image.typeMessage : '文件格式不支持', 400, 400);
+      throw new HttpError(expectedType === 'video' ? '视频格式不支持' : expectedType === 'image' ? '图片格式不支持' : '文件格式不支持', 400, 400);
     }
 
-    const rule = mediaRules[mediaType];
-    const extension = rule.mimeTypes[mimeType];
     const content = trimPart(part.subarray(headerEnd + 4));
-    if (!content.length) throw new HttpError('未找到上传文件', 400, 400);
-    if (content.length > rule.maxSize) throw new HttpError(rule.sizeMessage, 400, 400);
+    const validated = validateMediaFile(content, mimeType);
 
     return {
       content,
-      extension,
-      mimeType,
-      name: nameMatch?.[1] ?? `upload.${extension}`,
-      size: content.length,
-      type: mediaType
+      extension: validated.extension,
+      mimeType: validated.mimeType,
+      name: nameMatch?.[1] ?? `upload.${validated.extension}`,
+      size: validated.size,
+      type: mediaType,
+      sha256: validated.sha256,
+      width: validated.width,
+      height: validated.height
     };
   }
 
   throw new HttpError('未找到上传文件', 400, 400);
 };
 
-const handleUpload = (expectedType: MediaType | 'media') => async (req: Request, res: Response) => {
+export const readUploadedMedia = async (req: Request, expectedType: MediaType | 'media' = 'media') => {
   const boundary = getBoundary(req.header('content-type'));
   if (!boundary) throw new HttpError('参数错误', 400, 400);
+  return extractUploadedFile(await collectBody(req), boundary, expectedType);
+};
 
-  const body = await collectBody(req);
-  const file = extractUploadedFile(body, boundary, expectedType);
+const handleUpload = (expectedType: MediaType | 'media') => async (req: Request, res: Response) => {
+  const file = await readUploadedMedia(req, expectedType);
   const filename = `${Date.now()}-${randomUUID()}.${file.extension}`;
   await fs.mkdir(uploadDir(), { recursive: true });
   await fs.writeFile(path.join(uploadDir(), filename), file.content);
