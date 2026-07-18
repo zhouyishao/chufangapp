@@ -59,6 +59,29 @@
 - `GET/POST/DELETE /api/mobile/favorites`
 - `GET /api/mobile/profile`
 
+### C 端认证会话
+
+`POST /api/mobile/auth/login` 成功后返回真实 App 会话：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "user": { "id": 12, "phone": "13800000000", "nickname": "小周" },
+    "accessToken": "<jwt>",
+    "expiresIn": 604800
+  }
+}
+```
+
+- App Token 使用 `Authorization: Bearer <accessToken>` 传递，有效期 7 天。
+- Token 缺失、过期、签名错误、类型错误，或用户已禁用时返回 HTTP 401。
+- 已登录但无资源权限，或兼容 `userId` 与 Token 用户不一致时返回 HTTP 403。
+- `GET/POST/PUT/DELETE /api/mobile/basket-items` 必须携带 App Token。
+- 菜篮接口在兼容期仍允许传 `userId`，但它不再是可信身份；服务端始终以 Token 用户为准。
+- 登录接口和公开内容接口不要求 App Token。
+
 ## 字段变更规则
 
 新增或修改字段时必须同步检查：
