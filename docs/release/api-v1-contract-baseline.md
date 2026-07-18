@@ -2,6 +2,8 @@
 
 本文件冻结当前接口事实并定义迁移目标。当前服务尚无统一 `/api/v1` 前缀，不在阶段 0 机械增加新前缀。
 
+机器可比对的核心路由快照见 `docs/release/api-v1-route-snapshot.json`。后续修改核心接口必须同时更新快照，并由契约测试比较 method/path/auth/envelope/request/response/compatibility 字段；本文只解释迁移策略，不代替该快照。
+
 ## 当前挂载面
 
 | 范围 | 路径 | 当前鉴权 |
@@ -76,4 +78,3 @@ type PageResult<T> = {
 5. 去烹饪返回 GuidedFlow 并支持计时和完成。
 6. 收藏、取消收藏和浏览记录出现在“我的”。
 7. 后台下架后，列表、搜索和直接详情均不可继续读取。
-

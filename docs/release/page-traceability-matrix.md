@@ -43,3 +43,19 @@
 
 每个页面进入实现前，还需在任务 brief 中补齐：入口、参数、API、鉴权、Loading/Empty/Error/Retry、主要交互、响应式验收和自动化命令。
 
+## 核心纵向切片实现映射
+
+此表补齐“页面→API→数据表→后台页面→遗留数据”的可执行维度；详细 method/path 由 `api-v1-route-snapshot.json` 锁定。
+
+| 页面/流程 | API 域 | Prisma 主要表 | 后台配置页面 | 当前 mock/localStorage/hardcode | 替换任务 |
+|---|---|---|---|---|---|
+| 首页频道/Banner/模块 | `/api/app/home`、`/api/admin/home/*` | `home_top_navs`、`home_banners`、`home_modules`、模块内容关联 | 首页配置 | C 端旧首页静态模块；后台顶部导航 localStorage | 阶段 3–5 统一发布 DTO，移除本地配置 |
+| 菜谱列表/详情/烹饪 | `/api/recipes`、`/api/mobile/recipes`、Guided Flow 待建 | `recipes`、`recipe_ingredients`、`recipe_steps`、`recipe_tips` | 菜谱管理 | 部分详情与步骤媒体硬编码 | 阶段 1/3/4/5 补媒体步骤并逐页切换 |
+| 食材/水果/调料详情 | `/api/ingredients`、类型详情 DTO 待收敛 | `ingredients`、`categories`、价格/指南/推荐关联待补 | 食材/分类/单位管理 | 五类页面字段映射不一致 | 阶段 1/3/4/5 建统一内容 DTO |
+| 饮品/调制流程 | `/api/beverages`、Guided Flow 待建 | `beverages`、基酒/辅料/器具/步骤待补 | 饮品管理 | 普通和可调制饮品尚未真实区分 | 阶段 1/3/4/5 动态表单与制作流 |
+| 收藏/最近浏览/搜索历史 | `/api/mobile/favorites`、`view-histories`、`search-histories` | `favorites`、`view_histories`、`search_histories` | 无内容配置；只做运营审计 | 客户端 `userId` 兼容参数；搜索写历史仍需 JWT 收敛 | 阶段 1/4/5 JWT sub + 五类内容统一 |
+| 家庭/成员/偏好 | `/api/mobile/families*` 待拆分 | `families`、`family_members`、偏好/共享范围待补 | 家庭审计/用户管理 | 部分资料来自 C 端 storage | 阶段 1/4/5 权限矩阵和真实落库 |
+| 菜篮/采购/提醒 | `/api/mobile/purchase-list*`、通知待建 | `purchase_list_items`、采购批次/通知/接收记录待补 | 通知/活动运营待建 | 采购批次与开饭提醒未闭环 | 阶段 1/4/5 完成家庭协同闭环 |
+| 头像/封面/步骤媒体 | `/api/files` 待建 | 文件、引用、生命周期表待补 | 统一上传组件 | 临时 URL、静态资源和 data URL 混用 | 阶段 2 建文件 ID 协议并迁移 |
+| 我的菜谱/添加菜谱 | `/api/mobile/my-recipes*` 待收敛 | `recipes`、用料、步骤、媒体、共享范围 | 菜谱审核 | 正式页存在未完整落库字段 | 阶段 1–5 使用同一 DTO 和媒体服务 |
+| 通知/家庭聚餐 | `/api/mobile/notifications*`、`family-events*` 待建 | 通知、活动、接收记录待补 | 首发仅必要通知运营 | 正式页面/接口缺失 | 阶段 1/3/4/5 新增并做权限/E2E |

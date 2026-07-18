@@ -28,6 +28,18 @@
 - 原型 `verify*.mjs` 与 `node --check app.js`：通过。
 - `git diff --check`：通过。
 
+### 数据库可恢复性证据
+
+2026-07-18 在本机开发 PostgreSQL 16.14 执行：
+
+- `npx prisma migrate status`：24/24 migration 已应用，schema up to date。
+- `pg_dump --format=custom`：成功生成 `/private/tmp/chufangapp-stage0-20260718.dump`，635483 bytes、564 个 TOC 条目。
+- 将备份恢复到隔离临时库 `chufangapp_stage0_restore_20260718`：成功。
+- 恢复后验证：`_prisma_migrations` 24 条，`public` schema 52 张表。
+- 验证完成后只删除临时恢复库，源数据库未执行写入或清理。
+
+以上是开发基线证据；staging/prod 上线前仍必须分别生成对应环境备份与恢复演练记录，开发备份不能替代生产备份。
+
 ## 首发范围
 
 - 首发平台：iOS + Android。
@@ -39,7 +51,7 @@
 
 - DCloud AppID、iOS Bundle ID、Android Package Name、签名证书未配置。
 - 生产域名、对象存储、推送服务和隐私政策正式 URL 未配置。
-- 资源 provider migration 固定使用数据库 ID 回填，不能部署到未知存量数据库。
+- 资源 provider migration 已改为业务字段哈希并按主键稳定处理重复项；部署到 staging 前仍需在复制数据上执行耗时、锁表和 checksum 检查。
 - 多数用户私有接口仍可接受客户端身份参数，必须 JWT 化。
 - 后台 mock/占位页面不得作为已完成功能发布。
 
@@ -47,4 +59,11 @@
 
 - 有效频道截图：`screenshots/channel-recipe.png`、`channel-ingredient.png`、`channel-fruit.png`、`channel-drink.png`，宽度均为 393px。
 - `mine-393x852.png`、`mine-full-393.png` 实际为 JPEG 且宽度 378px，只作视觉参考，不作像素基准。
-
+- 冻结提交：`b7e0d3b`。
+- 冻结文件 SHA-256：
+  - `index.html`：`78b99a47899458b70461b0b24d92aaab7a608a365510149669be42cd37465f78`
+  - `app.js`：`4fc7b951a2f5eb0c194a7cca1741600d5c712a22f3387a0fff0cc4577d1bcf0b`
+  - `styles.css`：`65022cf3a3cd81825c4483149b981d1a1d53d64a3949dfc9d0be13b78d3e414a`
+  - `fixes.css`：`d1d99b68b84afb3715d8f7bb7c670dfe7a727ca2e9e7be42575098f6994f6b65`
+- 自动证据：`verify.mjs`、`verify-category.mjs`、`verify-basket.mjs`、`verify-mine.mjs`、`verify-mine-subpages.mjs`、`verify-detail-pages.mjs`、`verify-add-recipe.mjs`、`verify-interactions.mjs` 均通过；它们分别锁定首页、分类、菜篮、我的、二级页、五类详情、添加菜谱和交互入口。
+- 截图缺口：菜篮、我的、五类详情和制作流程暂无可信 393px 自动截图；实现阶段必须以冻结 DOM/验证脚本为功能基准，并在正式 C 端逐页替换时补齐视觉回归截图，不能用缺失截图推翻已确认规格。

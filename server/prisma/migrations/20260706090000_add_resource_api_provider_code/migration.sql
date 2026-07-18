@@ -1,17 +1,39 @@
 ALTER TABLE "resource_api_providers"
   ADD COLUMN IF NOT EXISTS "provider_code" VARCHAR(64);
 
-UPDATE "resource_api_providers" SET "provider_code" = 'mock_recipe' WHERE "id" = 1;
-UPDATE "resource_api_providers" SET "provider_code" = 'themealdb_recipe' WHERE "id" = 2;
-UPDATE "resource_api_providers" SET "provider_code" = 'usda_fdc_fruit' WHERE "id" = 3;
-UPDATE "resource_api_providers" SET "provider_code" = 'openfoodfacts_ingredient' WHERE "id" = 4;
-UPDATE "resource_api_providers" SET "provider_code" = 'usda_fdc_seasoning' WHERE "id" = 5;
-UPDATE "resource_api_providers" SET "provider_code" = 'thecocktaildb' WHERE "id" = 6;
-UPDATE "resource_api_providers" SET "provider_code" = 'tianapi_caipu' WHERE "id" = 7;
-UPDATE "resource_api_providers" SET "provider_code" = 'tianapi_nutrient_ingredient' WHERE "id" = 8;
-UPDATE "resource_api_providers" SET "provider_code" = 'tianapi_nutrient_fruit' WHERE "id" = 9;
-UPDATE "resource_api_providers" SET "provider_code" = 'tianapi_nutrient_seasoning' WHERE "id" = 10;
-UPDATE "resource_api_providers" SET "provider_code" = 'usda_fdc' WHERE "id" = 11;
+WITH provider_codes AS (
+  SELECT
+    "id" AS row_id,
+    'provider_' || md5(concat_ws(
+      E'\x1f',
+      "name",
+      "provider_name",
+      "resource_type",
+      "method",
+      "endpoint_url",
+      "auth_type",
+      "data_path"
+    )) AS base_code
+  FROM "resource_api_providers"
+  WHERE "provider_code" IS NULL
+), ranked_provider_codes AS (
+  SELECT
+    row_id,
+    base_code,
+    row_number() OVER (
+      PARTITION BY base_code
+      ORDER BY row_id
+    ) AS duplicate_number
+  FROM provider_codes
+)
+UPDATE "resource_api_providers" AS provider
+SET "provider_code" = ranked.base_code
+  || CASE
+    WHEN ranked.duplicate_number = 1 THEN ''
+    ELSE '_' || ranked.duplicate_number::text
+  END
+FROM ranked_provider_codes AS ranked
+WHERE provider."id" = ranked.row_id;
 
 ALTER TABLE "resource_api_providers"
   ALTER COLUMN "provider_code" SET NOT NULL;

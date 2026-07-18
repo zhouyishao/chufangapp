@@ -4,7 +4,7 @@
 
 | migration | 目的 | 风险 | 进入基线条件 |
 |---|---|---|---|
-| `20260706090000_add_resource_api_provider_code` | provider code 及来源字段 | 固定按 ID 1–11 回填，其他存量记录会在 `SET NOT NULL` 时失败；唯一值也可能冲突 | 改为数据无关、幂等的 code 生成；增加 NULL/重复预检和测试 |
+| `20260706090000_add_resource_api_provider_code` | provider code 及来源字段 | 已改为业务字段哈希；重复数据按稳定主键生成后缀。该 migration 已在本机早期版本执行，提交前需记录 checksum/rebaseline 策略 | 静态迁移测试通过；staging 复制数据上验证 checksum、耗时、锁和唯一约束 |
 | `20260707113000_add_raw_import_records_and_provider_source_kind` | 原始导入记录及来源类型 | 需确认保留期、增长量、索引、审计模型例外 | 明确保留/清理策略并通过测试库部署 |
 
 ## 每次迁移强制记录
@@ -38,3 +38,11 @@
 
 所有新增迁移遵循：新增表/字段 → 双写/回填 → 切读 → 稳定后移除旧字段；禁止清空数据库。
 
+## 2026-07-18 开发库状态与恢复点
+
+- PostgreSQL：16.14（Homebrew）。
+- Prisma：24 个 migration，状态 `Database schema is up to date!`。
+- 逻辑备份：`/private/tmp/chufangapp-stage0-20260718.dump`，custom/gzip，635483 bytes、564 TOC 条目。
+- 恢复演练：隔离临时库恢复成功；24 条 migration、52 张 public 表；临时库随后删除。
+- 注意：备份位于临时目录，不进入 Git，也不作为长期保留或生产恢复点。
+- 已应用 migration 被修改的处理：本开发库仅用于基线；进入 staging 前必须以全新库从 0 执行全部 migration，并在 staging 复制数据上执行一次升级演练。若 Prisma 报已应用 migration checksum 变化，不得直接修改生产 `_prisma_migrations`，应停止部署并走重新基线/补偿 migration 决策。
