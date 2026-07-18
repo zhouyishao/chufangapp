@@ -1240,11 +1240,15 @@ export const getResourceApiProvider = async (id: number | string) => {
 };
 
 export const createResourceApiProvider = async (payload: {
+  providerCode: string;
   name: string;
   providerName: string;
   resourceType: ResourceApiProviderItem['resourceType'];
+  sourceKind: ResourceApiProviderItem['sourceKind'];
+  formatHint: ResourceApiProviderItem['formatHint'];
   method: ResourceApiProviderItem['method'];
   endpointUrl: string;
+  sourceHomeUrl?: string | null;
   authType: ResourceApiProviderItem['authType'];
   appKey?: string | null;
   secret?: string | null;
@@ -1263,11 +1267,15 @@ export const createResourceApiProvider = async (payload: {
 export const updateResourceApiProvider = async (
   id: number | string,
   payload: {
+    providerCode: string;
     name: string;
     providerName: string;
     resourceType: ResourceApiProviderItem['resourceType'];
+    sourceKind: ResourceApiProviderItem['sourceKind'];
+    formatHint: ResourceApiProviderItem['formatHint'];
     method: ResourceApiProviderItem['method'];
     endpointUrl: string;
+    sourceHomeUrl?: string | null;
     authType: ResourceApiProviderItem['authType'];
     appKey?: string | null;
     secret?: string | null;
@@ -1294,11 +1302,15 @@ export const deleteResourceApiProvider = async (id: number | string) =>
   request<ResourceApiProviderItem>(`/resource-api-providers/${id}`, { method: 'DELETE' });
 
 export const testResourceApiProvider = async (payload: {
+  providerCode: string;
   name: string;
   providerName: string;
   resourceType: ResourceApiProviderItem['resourceType'];
+  sourceKind: ResourceApiProviderItem['sourceKind'];
+  formatHint: ResourceApiProviderItem['formatHint'];
   method: ResourceApiProviderItem['method'];
   endpointUrl: string;
+  sourceHomeUrl?: string | null;
   authType: ResourceApiProviderItem['authType'];
   appKey?: string | null;
   secret?: string | null;
@@ -1574,6 +1586,7 @@ export const listImportItems = async (params: {
   importId?: number;
   providerId?: number;
   resourceType?: ResourceImportStagedItem['importType'];
+  categoryName?: string;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
@@ -1581,7 +1594,23 @@ export const listImportItems = async (params: {
   setParam(qs, 'importId', params.importId || params.batchId);
   setParam(qs, 'providerId', params.providerId);
   setParam(qs, 'resourceType', params.resourceType);
+  setParam(qs, 'categoryName', params.categoryName?.trim());
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
+};
+
+export const listImportItemCategories = async (params: {
+  batchId?: number;
+  importId?: number;
+  providerId?: number;
+  resourceType?: ResourceImportStagedItem['importType'];
+  q?: string;
+} = {}) => {
+  const qs = new URLSearchParams();
+  setParam(qs, 'importId', params.importId || params.batchId);
+  setParam(qs, 'providerId', params.providerId);
+  setParam(qs, 'resourceType', params.resourceType);
+  setParam(qs, 'q', params.q?.trim());
+  return request<{ list: string[] }>(`/resource-imports/categories?${qs.toString()}`);
 };
 
 export const updateImportItem = async (

@@ -11,11 +11,26 @@ import { getResourceSourceScopeLabel } from '../utils/resource-source';
 import { listImportBatches, getImportBatchesStats, retryFailedImport, listResourceApiProviders } from '../api';
 import type { ResourceImportBatchItem } from '../types';
 
+type ResourceType = ResourceImportBatchItem['importType'];
+
 const statusOptions = [
   { label: '全部状态', value: '' },
   { label: '处理中/待确认', value: 'PENDING' },
   { label: '导入完成', value: 'COMPLETED' },
   { label: '导入失败', value: 'FAILED' }
+] as const;
+
+const resourceTypeOptions = [
+  { label: '菜谱', value: 'RECIPE' },
+  { label: '食材', value: 'INGREDIENT' },
+  { label: '水果', value: 'FRUIT' },
+  { label: '调料', value: 'SEASONING' },
+  { label: '酒水', value: 'BEVERAGE' }
+] as const;
+
+const resourceTypeFilterOptions = [
+  { label: '全部分类', value: '' },
+  ...resourceTypeOptions
 ] as const;
 
 const selectClass =
@@ -67,6 +82,7 @@ export const ResourceImportRecordsPage = () => {
   const [q, setQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ResourceImportBatchItem['status'] | ''>('');
+  const [importTypeFilter, setImportTypeFilter] = useState<ResourceType | ''>('');
   const [sourceTypeFilter, setSourceTypeFilter] = useState('');
   const [providerFilter, setProviderFilter] = useState<number | ''>('');
 
@@ -86,6 +102,7 @@ export const ResourceImportRecordsPage = () => {
         pageSize,
         q: appliedQ.trim() || undefined,
         status: statusFilter || undefined,
+        importType: importTypeFilter || undefined,
         sourceType: sourceTypeFilter || undefined,
         providerId: providerFilter || undefined
       });
@@ -125,7 +142,7 @@ export const ResourceImportRecordsPage = () => {
 
   useEffect(() => {
     void fetchBatches();
-  }, [page, pageSize, appliedQ, statusFilter, sourceTypeFilter, providerFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, importTypeFilter, sourceTypeFilter, providerFilter]);
 
   useEffect(() => {
     void fetchStats();
@@ -145,6 +162,7 @@ export const ResourceImportRecordsPage = () => {
     setQ('');
     setAppliedQ('');
     setStatusFilter('');
+    setImportTypeFilter('');
     setSourceTypeFilter('');
     setProviderFilter('');
     setNotice('筛选条件已重置');
@@ -312,6 +330,30 @@ export const ResourceImportRecordsPage = () => {
 
       {/* Filter Panel */}
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-[#2f2f2f]">导入分类</span>
+          {resourceTypeFilterOptions.map((opt) => {
+            const active = importTypeFilter === opt.value;
+            return (
+              <button
+                key={opt.value || 'ALL'}
+                type="button"
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  active
+                    ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                    : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                }`}
+                onClick={() => {
+                  setImportTypeFilter(opt.value as ResourceType | '');
+                  setPage(1);
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="grid gap-4 xl:grid-cols-[1.2fr_1.2fr_1.2fr_1.8fr_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">导入状态</span>

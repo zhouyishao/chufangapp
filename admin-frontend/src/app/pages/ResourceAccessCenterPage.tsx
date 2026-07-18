@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -14,6 +14,7 @@ import {
   syncResourceApiProvider,
   testSavedResourceApiProvider,
   listImportItems,
+  listImportItemCategories,
   createImportBatch,
   updateImportItem,
   setImportItemStatus,
@@ -47,12 +48,28 @@ const resourceTypeFilterOptions = [
 
 const buildSyncParamsTemplate = (provider?: ResourceApiProviderItem) => {
   if (!provider) return '{\n  "page": 1,\n  "pageSize": 100\n}';
+  const providerCode = (provider.providerCode || '').toLowerCase();
   const providerName = `${provider.providerName} ${provider.name}`.toLowerCase();
-  if (providerName.includes('juhe') || providerName.includes('聚合')) {
+  if (providerCode === 'proj_kitchen' || providerName.includes('proj.kitchen') || providerName.includes('厨房计划')) {
+    return '{\n  "__testEndpointUrl": "https://proj.kitchen/api/recipes",\n  "__syncEndpointUrl": "https://proj.kitchen/api/recipes",\n  "__detailEndpointTemplate": "https://proj.kitchen/api/recipes/{id}",\n  "__excludeCategories": ["饮品"],\n  "page": 1,\n  "pageSize": 20\n}';
+  }
+  if (providerCode === 'juhe_recipe' || providerName.includes('juhe') || providerName.includes('聚合')) {
     return '{\n  "__appKeyEnv": "JUHE_COOK_KEY",\n  "__appKeyParam": "key",\n  "menu": "黄瓜",\n  "rn": 10,\n  "pn": 0\n}';
   }
-  if (providerName.includes('tianapi') || providerName.includes('天行') || providerName.includes('天聚')) {
+  if (providerCode === 'tianapi_caipu' || providerCode.startsWith('tianapi_nutrient') || providerName.includes('tianapi') || providerName.includes('天行') || providerName.includes('天聚')) {
     return '{\n  "__appKeyEnv": "TIANAPI_KEY",\n  "__appKeyParam": "key",\n  "word": "黄瓜",\n  "num": 10,\n  "page": 1\n}';
+  }
+  if (providerCode === 'thecocktaildb' || providerName.includes('cocktaildb')) {
+    return '{\n  "s": "margarita"\n}';
+  }
+  if (providerCode === 'fruityvice') {
+    return '{\n  "__pathTemplate": "/api/fruit/{word}",\n  "word": "apple"\n}';
+  }
+  if (providerCode === 'usda_fdc') {
+    return '{\n  "__appKeyEnv": "USDA_FDC_API_KEY",\n  "__appKeyParam": "api_key",\n  "query": "apple",\n  "pageSize": 10,\n  "pageNumber": 1\n}';
+  }
+  if (providerCode === 'open_food_facts') {
+    return '{\n  "search_terms": "salt",\n  "page_size": 20,\n  "fields": "code,product_name,ingredients_text,nutriments,categories_tags,image_url,brands,quantity"\n}';
   }
   return '{\n  "page": 1,\n  "pageSize": 100\n}';
 };
@@ -100,6 +117,9 @@ export const ResourceAccessCenterPage = () => {
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
   const [resourceTypeFilter, setResourceTypeFilter] = useState<ResourceType | ''>('');
+  const [categoryNameFilter, setCategoryNameFilter] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
   const [providerItems, setProviderItems] = useState<ResourceApiProviderItem[]>([]);
   const [providerLoading, setProviderLoading] = useState(false);
@@ -117,10 +137,13 @@ export const ResourceAccessCenterPage = () => {
   const [saveLoading, setSaveLoading] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const selectedProviderFilter = typeof selectedProviderId === 'number' ? selectedProviderId : undefined;
 
   const refresh = async () => {
     setLoading(true);
     setError(null);
+    setItems([]);
+    setTotal(0);
     try {
       const data = await listImportItems({
         page,
@@ -128,7 +151,9 @@ export const ResourceAccessCenterPage = () => {
         q: appliedQ.trim() || undefined,
         status: statusFilter || undefined,
         batchId: batchIdFilter,
-        resourceType: resourceTypeFilter || undefined
+        providerId: selectedProviderFilter,
+        resourceType: resourceTypeFilter || undefined,
+        categoryName: categoryNameFilter || undefined
       });
       setItems(data.list);
       setTotal(data.total);
@@ -145,13 +170,16 @@ export const ResourceAccessCenterPage = () => {
       const data = await listResourceApiProviders({
         page: 1,
         pageSize: 100,
-        status: 'ACTIVE',
         resourceType: uploadType
       });
-      setProviderItems(data.list);
+      const sortedList = [...data.list].sort((left, right) => {
+        if (left.status === right.status) return left.id - right.id;
+        return left.status === 'ACTIVE' ? -1 : 1;
+      });
+      setProviderItems(sortedList);
       setSelectedProviderId((current) => {
-        const matched = typeof current === 'number' ? data.list.find((item) => item.id === current) : null;
-        const nextProvider = matched ?? data.list[0] ?? null;
+        const matched = typeof current === 'number' ? sortedList.find((item) => item.id === current) : null;
+        const nextProvider = matched ?? sortedList.find((item) => item.status === 'ACTIVE') ?? sortedList[0] ?? null;
         if (nextProvider) {
           setSyncParamsText(buildSyncParamsTemplate(nextProvider));
           return nextProvider.id;
@@ -166,9 +194,30 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
+  const refreshCategories = async () => {
+    setCategoryLoading(true);
+    try {
+      const data = await listImportItemCategories({
+        batchId: batchIdFilter,
+        providerId: selectedProviderFilter,
+        resourceType: resourceTypeFilter || undefined,
+        q: appliedQ.trim() || undefined
+      });
+      setCategoryOptions(data.list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载分类失败');
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, resourceTypeFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter]);
+
+  useEffect(() => {
+    void refreshCategories();
+  }, [batchIdFilter, selectedProviderFilter, resourceTypeFilter, appliedQ]);
 
   useEffect(() => {
     void refreshProviders();
@@ -191,6 +240,7 @@ export const ResourceAccessCenterPage = () => {
     setAppliedQ('');
     setStatusFilter('');
     setResourceTypeFilter('');
+    setCategoryNameFilter('');
     if (searchParams.has('batchId')) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
@@ -203,11 +253,20 @@ export const ResourceAccessCenterPage = () => {
       setNotice('请先选择一个 API 提供方');
       return;
     }
+    const selectedProvider = providerItems.find((item) => item.id === selectedProviderId);
+    if (selectedProvider?.status !== 'ACTIVE') {
+      setNotice('当前 Provider 已禁用，请先启用或补齐后端配置');
+      return;
+    }
     setTestLoading(true);
     setError(null);
     try {
       const result = await testSavedResourceApiProvider(selectedProviderId);
-      setNotice(`测试通过：解析 ${result.total} 条，预览 ${result.preview.length} 条`);
+      setNotice(
+        result.total > 0
+          ? `测试通过：解析 ${result.total} 条，预览 ${result.preview.length} 条`
+          : '测试完成，但接口解析到 0 条，请检查关键词、API Key、额度或 dataPath'
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : '测试连接失败');
     } finally {
@@ -218,6 +277,11 @@ export const ResourceAccessCenterPage = () => {
   const handleSyncProvider = async () => {
     if (typeof selectedProviderId !== 'number') {
       setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    const selectedProvider = providerItems.find((item) => item.id === selectedProviderId);
+    if (selectedProvider?.status !== 'ACTIVE') {
+      setNotice('当前 Provider 已禁用，请先启用或补齐后端配置');
       return;
     }
     let parsedParams: Record<string, unknown> | null = null;
@@ -586,7 +650,7 @@ export const ResourceAccessCenterPage = () => {
     },
     {
       key: 'importStatus',
-      title: '导入状态',
+      title: '校验状态',
       render: (item) => <StatusTag label={item.status === 'PENDING' ? '待处理' : item.status === 'IMPORTED' ? '已导入' : item.status === 'FAILED' ? '导入失败' : '已忽略'} tone={importStatusTone[item.status]} />
     },
     {
@@ -698,30 +762,6 @@ export const ResourceAccessCenterPage = () => {
       ) : null}
 
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-[#2f2f2f]">导入分类</span>
-          {resourceTypeFilterOptions.map((opt) => {
-            const active = resourceTypeFilter === opt.value;
-            return (
-              <button
-                key={opt.value || 'ALL'}
-                type="button"
-                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                  active
-                    ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
-                    : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
-                }`}
-                onClick={() => {
-                  setResourceTypeFilter(opt.value as ResourceType | '');
-                  setPage(1);
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-
         <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">API 提供方</span>
@@ -742,8 +782,8 @@ export const ResourceAccessCenterPage = () => {
             >
               <option value="">{providerLoading ? '加载中...' : '请选择提供方'}</option>
               {providerItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.providerName} - {item.name}
+                <option key={item.id} value={item.id} disabled={item.status !== 'ACTIVE'}>
+                  {item.providerName} - {item.name}{item.status !== 'ACTIVE' ? '（已禁用）' : ''}
                 </option>
               ))}
             </select>
@@ -780,7 +820,81 @@ export const ResourceAccessCenterPage = () => {
 
       {/* Filter Options */}
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
-        <div className="grid gap-4 xl:grid-cols-[1.5fr_2fr_auto_auto] items-end">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">资源大类</span>
+            <div className="flex flex-wrap gap-2">
+              {resourceTypeFilterOptions.map((opt) => {
+                const active = resourceTypeFilter === opt.value;
+                return (
+                  <button
+                    key={opt.value || 'ALL'}
+                    type="button"
+                    className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                        : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                    }`}
+                    onClick={() => {
+                      setResourceTypeFilter(opt.value as ResourceType | '');
+                      setCategoryNameFilter('');
+                      setPage(1);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">分类名称</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition ${
+                  !categoryNameFilter
+                    ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                    : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                }`}
+                onClick={() => {
+                  setCategoryNameFilter('');
+                  setPage(1);
+                }}
+              >
+                全部分类
+              </button>
+              {categoryLoading ? (
+                <span className="text-sm text-[#b7aea1]">加载分类中...</span>
+              ) : categoryOptions.length > 0 ? (
+                categoryOptions.map((name) => {
+                  const active = categoryNameFilter === name;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition ${
+                        active
+                          ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                          : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                      }`}
+                      onClick={() => {
+                        setCategoryNameFilter(name);
+                        setPage(1);
+                      }}
+                    >
+                      {name}
+                    </button>
+                  );
+                })
+              ) : (
+                <span className="text-sm text-[#b7aea1]">当前筛选下没有可选分类</span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.5fr_2fr_auto_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">导入状态</span>
             <select
@@ -805,7 +919,7 @@ export const ResourceAccessCenterPage = () => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSearch();
               }}
-              placeholder="请输入资源名称进行搜索..."
+              placeholder="请输入资源名称或分类名称进行搜索..."
               className="h-11 rounded-xl border-[#e9e2d6]"
             />
           </div>
@@ -850,6 +964,7 @@ export const ResourceAccessCenterPage = () => {
             >
               ✓ 批量确认
             </Button>
+          </div>
           </div>
         </div>
       </section>

@@ -1497,11 +1497,15 @@ model ResourceCallLog {
 
 model ResourceApiProvider {
   id              Int                  @id @default(autoincrement())
+  providerCode    String               @unique @map("provider_code") @db.VarChar(64)
   name            String               @db.VarChar(120)
   providerName    String               @map("provider_name") @db.VarChar(120)
   resourceType    String               @map("resource_type") @db.VarChar(32)
+  sourceKind      String               @default("API") @map("source_kind") @db.VarChar(32)
+  formatHint      String               @default("AUTO") @map("format_hint") @db.VarChar(32)
   method          String               @default("GET") @db.VarChar(16)
   endpointUrl     String               @map("endpoint_url") @db.VarChar(500)
+  sourceHomeUrl   String?              @map("source_home_url") @db.VarChar(500)
   authType        String               @default("NONE") @map("auth_type") @db.VarChar(32)
   appKey          String?              @map("app_key") @db.VarChar(255)
   encryptedSecret String?              @map("encrypted_secret") @db.Text
@@ -1519,8 +1523,10 @@ model ResourceApiProvider {
   updatedAt       DateTime             @updatedAt @map("updated_at")
 
   importBatches   ResourceImportBatch[]
+  rawImportRecords RawImportRecord[]
 
   @@index([resourceType])
+  @@index([sourceKind])
   @@index([status])
   @@map("resource_api_providers")
 }
@@ -1544,6 +1550,7 @@ model ResourceImportBatch {
   finishedAt   DateTime?            @map("finished_at")
 
   items        ResourceImportItem[]
+  rawImportRecords RawImportRecord[]
 
   @@index([providerId])
   @@map("resource_import_batches")
@@ -1567,4 +1574,27 @@ model ResourceImportItem {
 
   @@index([importId])
   @@map("resource_import_items")
+}
+
+model RawImportRecord {
+  id          Int                  @id @default(autoincrement())
+  providerId  Int                  @map("provider_id")
+  provider    ResourceApiProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  batchId     Int?                 @map("batch_id")
+  batch       ResourceImportBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  sourceType  String               @default("DATASET") @map("source_type") @db.VarChar(32)
+  fileName    String               @map("file_name") @db.VarChar(255)
+  sourceUrl   String               @map("source_url") @db.VarChar(500)
+  contentType String?              @map("content_type") @db.VarChar(120)
+  rawText     String?              @map("raw_text") @db.Text
+  rawJson     Json?                @map("raw_json")
+  status      String               @default("PENDING") @db.VarChar(20)
+  parsedCount Int                  @default(0) @map("parsed_count")
+  errorMessage String?             @map("error_message") @db.Text
+  createdAt   DateTime             @default(now()) @map("created_at")
+
+  @@index([providerId])
+  @@index([batchId])
+  @@index([status])
+  @@map("raw_import_records")
 }

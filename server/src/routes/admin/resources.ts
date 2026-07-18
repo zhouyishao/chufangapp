@@ -924,7 +924,8 @@ const batchListQuerySchema = baseListQuerySchema.extend({
 const importItemListQuerySchema = baseListQuerySchema.extend({
   status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']).optional(),
   providerId: z.coerce.number().int().optional(),
-  resourceType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional()
+  resourceType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional(),
+  categoryName: z.string().trim().min(1).max(80).optional()
 });
 
 // 3. GET /resource-imports/batches/stats
@@ -995,7 +996,7 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
   }).safeParse(req.query);
 
   if (!parsed.success) throw formatZodError(parsed);
-  const { page, pageSize, q, status, batchId, importId, providerId, resourceType } = parsed.data;
+  const { page, pageSize, q, status, batchId, importId, providerId, resourceType, categoryName } = parsed.data;
   const skip = (page - 1) * pageSize;
 
   const targetImportId = importId || batchId;
@@ -1007,10 +1008,12 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
   const where = {
     ...(targetImportId ? { importId: targetImportId } : {}),
     ...(status ? { status } : {}),
-    ...(Object.keys(batchWhere).length > 0 ? { batch: batchWhere } : {}),
+    ...(Object.keys(batchWhere).length > 0 ? { batch: { is: batchWhere } } : {}),
+    ...(categoryName ? { mappedData: { path: ['categoryName'], string_contains: categoryName } } : {}),
     ...(q ? {
       OR: [
-        { mappedData: { path: ['name'], string_contains: q } }
+        { mappedData: { path: ['name'], string_contains: q } },
+        { mappedData: { path: ['categoryName'], string_contains: q } }
       ]
     } : {})
   };
@@ -1045,6 +1048,50 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
 
   const data: PageResult<any> = { list, total, page, pageSize };
   res.json(ok(data));
+});
+
+adminResourcesRouter.get('/resource-imports/categories', requireAdminAuth, async (req, res) => {
+  const parsed = z.object({
+    batchId: z.coerce.number().int().optional(),
+    importId: z.coerce.number().int().optional(),
+    providerId: z.coerce.number().int().optional(),
+    resourceType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional(),
+    q: z.string().trim().min(1).max(80).optional()
+  }).safeParse(req.query);
+
+  if (!parsed.success) throw formatZodError(parsed);
+  const { batchId, importId, providerId, resourceType, q } = parsed.data;
+  const targetImportId = importId || batchId;
+
+  const batchWhere = {
+    ...(providerId ? { providerId } : {}),
+    ...(resourceType ? { importType: resourceType } : {})
+  };
+
+  const where = {
+    ...(targetImportId ? { importId: targetImportId } : {}),
+    ...(Object.keys(batchWhere).length > 0 ? { batch: { is: batchWhere } } : {}),
+    ...(q ? { mappedData: { path: ['categoryName'], string_contains: q } } : {})
+  };
+
+  const rows = (await prisma.resourceImportItem.findMany({
+    where,
+    select: { mappedData: true },
+    take: 500
+  } as any)) as Array<{ mappedData: Record<string, unknown> | null }>;
+
+  const list = Array.from(
+    new Set(
+      rows
+        .map((row) => {
+          const mappedData = row.mappedData ?? {};
+          return typeof mappedData.categoryName === 'string' ? mappedData.categoryName.trim() : '';
+        })
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+
+  res.json(ok({ list }));
 });
 
 // 6. GET /resource-imports/:id

@@ -214,11 +214,15 @@ export type ResourceAppItem = {
 
 export type ResourceApiProviderItem = {
   id: number;
+  providerCode: string;
   name: string;
   providerName: string;
   resourceType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
+  sourceKind: 'API' | 'GITHUB_DATASET' | 'OPEN_DATASET';
+  formatHint: 'AUTO' | 'JSON' | 'MARKDOWN' | 'CSV';
   method: 'GET' | 'POST';
   endpointUrl: string;
+  sourceHomeUrl: string | null;
   authType: 'NONE' | 'HEADER_TOKEN' | 'QUERY_KEY' | 'CUSTOM_HEADERS';
   appKey: string | null;
   hasSecret?: boolean;

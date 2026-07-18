@@ -227,11 +227,11 @@ const isValidMediaUrl = (value: string | null | undefined): boolean => {
 
 export function normalizeResourcePayload(resourceType: ResourceImportType, rawInput: unknown): NormalizedResourcePayload {
   const raw = asRecord(rawInput);
-  const name = getText(raw, ['name', 'title', '名称', '标题', 'strDrink', 'strMeal', 'food', 'name_cn', 'product_name', 'product_name_en', 'menu', 'cpName']);
+  const name = getText(raw, ['name', 'title', 'description', 'lowercaseDescription', '名称', '标题', 'strDrink', 'strMeal', 'food', 'name_cn', 'product_name', 'product_name_en', 'menu', 'cpName']);
   const payload: NormalizedResourcePayload = {
     name,
     sourceName: getText(raw, ['sourceName', 'providerName', '来源名称']) || null,
-    externalId: getText(raw, ['externalId', 'id', 'ID', 'sourceId', 'idDrink', 'idMeal', 'code', '_id', 'cpId', 'menuId', 'cookId']) || null,
+    externalId: getText(raw, ['externalId', 'id', 'ID', 'fdcId', 'sourceId', 'idDrink', 'idMeal', 'code', '_id', 'cpId', 'menuId', 'cookId']) || null,
     externalUrl: normalizeUrl(raw.sourceUrl ?? raw.url ?? raw.source_url ?? raw.strImageSource ?? raw.strSource ?? raw['链接']) || null,
     rawJson: raw
   };
@@ -264,6 +264,7 @@ export function normalizeResourcePayload(resourceType: ResourceImportType, rawIn
     payload.cuisineName = getText(raw, ['cuisineName', 'strArea', '菜系', '来源菜系']) || null;
     payload.steps = splitLines(raw.steps ?? raw.process ?? raw.content ?? raw.method ?? recipeInstructions ?? raw['步骤']);
     payload.ingredients = splitIngredients(raw.ingredients ?? raw.burden ?? raw.material ?? raw.yl ?? raw.food ?? raw['用料'] ?? raw['食材']);
+    payload.seasonings = splitIngredients(raw.seasonings ?? raw.condiments ?? raw['调料'] ?? raw['佐料']);
     if (payload.ingredients.length === 0) payload.ingredients = numberedIngredients;
   } else if (resourceType === 'BEVERAGE') {
     const cocktailIngredients = collectNumberedIngredients(raw, 15);

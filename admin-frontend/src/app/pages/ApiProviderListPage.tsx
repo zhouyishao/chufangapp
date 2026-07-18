@@ -131,6 +131,11 @@ export const ApiProviderListPage = () => {
 
   const columns: DataTableColumn<ResourceApiProviderItem>[] = [
     {
+      key: 'providerCode',
+      title: 'Provider Code',
+      render: (item) => <span className="font-mono text-xs text-[#6f6a61]">{item.providerCode}</span>
+    },
+    {
       key: 'name',
       title: '接口名称',
       render: (item) => (
@@ -239,6 +244,12 @@ export const ApiProviderListPage = () => {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=PROJ_KITCHEN')}
+          >
+            新建 厨房计划
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() => navigate('/resources/api-providers/create?preset=JUHE_RECIPE')}
           >
             新建 Juhe 菜谱
@@ -248,6 +259,30 @@ export const ApiProviderListPage = () => {
             onClick={() => navigate('/resources/api-providers/create?preset=TIANAPI_RECIPE')}
           >
             新建 TianAPI 菜谱
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=THECOCKTAILDB')}
+          >
+            新建 TheCocktailDB
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=FRUITYVICE')}
+          >
+            新建 Fruityvice
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=USDA_FDC')}
+          >
+            新建 USDA FDC
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/resources/api-providers/create?preset=OPEN_FOOD_FACTS')}
+          >
+            新建 Open Food Facts
           </Button>
           <Button onClick={() => navigate('/resources/api-providers/create')}>新增接口</Button>
         </div>

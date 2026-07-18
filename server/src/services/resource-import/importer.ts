@@ -74,7 +74,17 @@ export async function findDuplicateTargetId(
       return existing?.id ?? null;
     }
     const existing = await db.recipe.findFirst({
-      where: { title: { equals: name, mode: 'insensitive' }, deletedAt: null },
+      where: {
+        title: { equals: name, mode: 'insensitive' },
+        deletedAt: null,
+        ...(mapped.categoryName
+          ? {
+              category: {
+                name: { equals: mapped.categoryName.trim(), mode: 'insensitive' }
+              }
+            }
+          : {})
+      },
       select: { id: true }
     });
     return existing?.id ?? null;
@@ -160,7 +170,7 @@ export async function createOfficialRecord(
           )
         },
         ingredients: {
-          create: (mapped.ingredients ?? []).map((ingredient, index) =>
+          create: [...(mapped.ingredients ?? []), ...(mapped.seasonings ?? [])].map((ingredient, index) =>
             typeof ingredient === 'string'
               ? { sortIndex: index + 1, name: ingredient, sourceType: 'IMPORT', sourceId: importItemId }
               : {

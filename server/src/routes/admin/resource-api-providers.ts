@@ -20,18 +20,24 @@ import {
 } from '../../services/resource-import/provider-client';
 import {
   resourceImportTypes,
+  resourceProviderFormatHints,
   resourceProviderAuthTypes,
-  resourceProviderMethods
+  resourceProviderMethods,
+  resourceProviderSourceKinds
 } from '../../services/resource-import/types';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
 const providerSchema = z.object({
+  providerCode: z.string().trim().min(1).max(64),
   name: z.string().trim().min(1).max(120),
   providerName: z.string().trim().min(1).max(120),
   resourceType: z.enum(resourceImportTypes),
+  sourceKind: z.enum(resourceProviderSourceKinds).default('API'),
+  formatHint: z.enum(resourceProviderFormatHints).default('AUTO'),
   method: z.enum(resourceProviderMethods).default('GET'),
   endpointUrl: z.string().trim().url(),
+  sourceHomeUrl: z.string().trim().url().nullable().optional(),
   authType: z.enum(resourceProviderAuthTypes).default('NONE'),
   appKey: z.string().trim().max(255).nullable().optional(),
   secret: z.string().trim().max(255).nullable().optional(),
@@ -56,30 +62,7 @@ const formatZodError = (error: z.ZodError) => {
   return new HttpError(`参数格式错误: ${message}`, 400, 400);
 };
 
-const serializeProvider = (provider: {
-  id: number;
-  name: string;
-  providerName: string;
-  resourceType: string;
-  method: string;
-  endpointUrl: string;
-  authType: string;
-  appKey: string | null;
-  encryptedSecret: string | null;
-  defaultHeaders: unknown;
-  defaultParams: unknown;
-  dataPath: string;
-  timeoutMs: number;
-  dailyLimit: number;
-  description: string | null;
-  status: 'ACTIVE' | 'DISABLED';
-  lastSyncedAt: Date | null;
-  lastTestedAt: Date | null;
-  lastError: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  _count?: { importBatches: number };
-}) => ({
+const serializeProvider = (provider: any) => ({
   ...provider,
   hasSecret: Boolean(provider.encryptedSecret),
   secretPreview: maskSecret(provider.encryptedSecret),
@@ -91,27 +74,7 @@ const serializeProvider = (provider: {
   importBatchCount: provider._count?.importBatches ?? 0
 });
 
-const toRuntimeProvider = (provider: {
-  id?: number;
-  name: string;
-  providerName: string;
-  resourceType: string;
-  method: string;
-  endpointUrl: string;
-  authType: string;
-  appKey: string | null;
-  encryptedSecret: string | null;
-  defaultHeaders: unknown;
-  defaultParams: unknown;
-  dataPath: string;
-  timeoutMs: number;
-  dailyLimit: number;
-  description: string | null;
-  status: string;
-  lastSyncedAt: Date | null;
-  lastTestedAt: Date | null;
-  lastError: string | null;
-}): ResourceApiProviderRuntime => ({
+const toRuntimeProvider = (provider: any): ResourceApiProviderRuntime => ({
   ...provider,
   defaultHeaders: provider.defaultHeaders && typeof provider.defaultHeaders === 'object' ? (provider.defaultHeaders as Record<string, unknown>) : null,
   defaultParams: provider.defaultParams && typeof provider.defaultParams === 'object' ? (provider.defaultParams as Record<string, unknown>) : null
@@ -142,6 +105,7 @@ adminResourceApiProvidersRouter.get('/', requireAdminAuth, async (req, res) => {
     ...(resourceType ? { resourceType } : {}),
     ...(q ? {
       OR: [
+        { providerCode: { contains: q, mode: 'insensitive' as const } },
         { name: { contains: q, mode: 'insensitive' as const } },
         { providerName: { contains: q, mode: 'insensitive' as const } },
         { endpointUrl: { contains: q, mode: 'insensitive' as const } }
@@ -183,17 +147,21 @@ adminResourceApiProvidersRouter.post('/', requireAdminAuth, async (req, res) => 
   if (!parsed.success) throw formatZodError(parsed.error);
 
   const existing = await prisma.resourceApiProvider.findFirst({
-    where: { name: parsed.data.name, providerName: parsed.data.providerName }
+    where: { providerCode: parsed.data.providerCode }
   });
-  if (existing) throw new HttpError('同名资源提供方已存在', 422, 422);
+  if (existing) throw new HttpError('同编码资源提供方已存在', 422, 422);
 
   const created = await prisma.resourceApiProvider.create({
     data: {
+      providerCode: parsed.data.providerCode,
       name: parsed.data.name,
       providerName: parsed.data.providerName,
       resourceType: parsed.data.resourceType,
+      sourceKind: parsed.data.sourceKind,
+      formatHint: parsed.data.formatHint,
       method: parsed.data.method,
       endpointUrl: parsed.data.endpointUrl,
+      sourceHomeUrl: parsed.data.sourceHomeUrl ?? null,
       authType: parsed.data.authType,
       appKey: parsed.data.appKey ?? null,
       encryptedSecret: parsed.data.secret ? encryptSecret(parsed.data.secret) : null,
@@ -226,25 +194,28 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
   const existing = await prisma.resourceApiProvider.findUnique({ where: { id } });
   if (!existing) throw new HttpError('资源提供方未找到', 404, 404);
 
-  if (existing.name !== parsed.data.name || existing.providerName !== parsed.data.providerName) {
+  if (existing.providerCode !== parsed.data.providerCode) {
     const duplicate = await prisma.resourceApiProvider.findFirst({
       where: {
-        name: parsed.data.name,
-        providerName: parsed.data.providerName,
+        providerCode: parsed.data.providerCode,
         id: { not: id }
       }
     });
-    if (duplicate) throw new HttpError('同名资源提供方已存在', 422, 422);
+    if (duplicate) throw new HttpError('同编码资源提供方已存在', 422, 422);
   }
 
   const updated = await prisma.resourceApiProvider.update({
     where: { id },
     data: {
+      providerCode: parsed.data.providerCode,
       name: parsed.data.name,
       providerName: parsed.data.providerName,
       resourceType: parsed.data.resourceType,
+      sourceKind: parsed.data.sourceKind,
+      formatHint: parsed.data.formatHint,
       method: parsed.data.method,
       endpointUrl: parsed.data.endpointUrl,
+      sourceHomeUrl: parsed.data.sourceHomeUrl ?? null,
       authType: parsed.data.authType,
       appKey: parsed.data.appKey ?? null,
       encryptedSecret: parsed.data.secret ? encryptSecret(parsed.data.secret) : existing.encryptedSecret,
@@ -310,7 +281,8 @@ adminResourceApiProvidersRouter.post('/test', requireAdminAuth, async (req, res)
     defaultHeaders: parsed.data.defaultHeaders ?? null,
     defaultParams: parsed.data.defaultParams ?? null,
     description: parsed.data.description ?? null,
-    secret: parsed.data.secret ?? null
+    secret: parsed.data.secret ?? null,
+    sourceHomeUrl: parsed.data.sourceHomeUrl ?? null
   });
   const preview = await fetchProviderPreview(
     toRuntimeProvider({
@@ -320,7 +292,9 @@ adminResourceApiProvidersRouter.post('/test', requireAdminAuth, async (req, res)
       lastTestedAt: null,
       lastError: null
     }),
-    3
+    3,
+    {},
+    'test'
   );
 
   const mappedPreview = await mapPreviewItems(draft.resourceType, preview.preview);
@@ -339,7 +313,7 @@ adminResourceApiProvidersRouter.post('/:id/test', requireAdminAuth, async (req, 
   if (!provider) throw new HttpError('资源提供方未找到', 404, 404);
 
   const runtime = toRuntimeProvider(provider);
-  const preview = await fetchProviderPreview(runtime, 3);
+  const preview = await fetchProviderPreview(runtime, 3, {}, 'test');
   const mappedPreview = await mapPreviewItems(provider.resourceType as (typeof resourceImportTypes)[number], preview.preview);
 
   await prisma.resourceApiProvider.update({
@@ -365,7 +339,14 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
   if (!parsed.success) throw formatZodError(parsed.error);
 
   const runtime = toRuntimeProvider(provider);
-  const preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {});
+  const preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {}, 'sync');
+  if (preview.rows.length === 0) {
+    throw new HttpError(
+      `${provider.providerName} 未返回可导入数据，请检查关键词、API Key、额度或 dataPath`,
+      422,
+      422
+    );
+  }
   const resourceType = provider.resourceType as (typeof resourceImportTypes)[number];
   const seenKeys = new Set<string>();
   const rows = preview.rows.slice(0, parsed.data.limit);
@@ -450,6 +431,24 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
       duplicateTargetId: item.duplicateTargetId
     }))
   });
+
+  if (preview.rawRecords.length > 0) {
+    await (prisma as any).rawImportRecord.createMany({
+      data: preview.rawRecords.map((record) => ({
+        providerId: provider.id,
+        batchId: batch.id,
+        sourceType: (provider as any).sourceKind || 'API',
+        fileName: record.fileName,
+        sourceUrl: record.sourceUrl,
+        contentType: record.contentType,
+        rawText: record.rawText,
+        rawJson: record.rawJson ? (record.rawJson as Prisma.InputJsonValue) : Prisma.DbNull,
+        status: 'PENDING',
+        parsedCount: record.parsedCount,
+        errorMessage: null
+      }))
+    });
+  }
 
   await prisma.resourceApiProvider.update({
     where: { id: provider.id },

@@ -7,6 +7,12 @@ export type ResourceProviderAuthType = (typeof resourceProviderAuthTypes)[number
 export const resourceProviderMethods = ['GET', 'POST'] as const;
 export type ResourceProviderMethod = (typeof resourceProviderMethods)[number];
 
+export const resourceProviderSourceKinds = ['API', 'GITHUB_DATASET', 'OPEN_DATASET'] as const;
+export type ResourceProviderSourceKind = (typeof resourceProviderSourceKinds)[number];
+
+export const resourceProviderFormatHints = ['AUTO', 'JSON', 'MARKDOWN', 'CSV'] as const;
+export type ResourceProviderFormatHint = (typeof resourceProviderFormatHints)[number];
+
 export const resourceImportRowStatuses = ['PENDING', 'FAILED', 'IGNORED', 'IMPORTED'] as const;
 export type ResourceImportRowStatus = (typeof resourceImportRowStatuses)[number];
 
@@ -28,6 +34,7 @@ export type NormalizedResourcePayload = {
   tips?: string | null;
   steps?: Array<string | { sortIndex?: number; description: string; image?: string | null }>;
   ingredients?: Array<string | { name: string; amount?: string; unit?: string; sortIndex?: number }>;
+  seasonings?: Array<string | { name: string; amount?: string; unit?: string; sortIndex?: number }>;
   seasonMonth?: string | null;
   nutrition?: string | null;
   selectionTips?: string | null;
@@ -66,11 +73,15 @@ export type ResourceImportEvaluation = {
 };
 
 export type ResourceApiProviderDraft = {
+  providerCode: string;
   name: string;
   providerName: string;
   resourceType: ResourceImportType;
+  sourceKind: ResourceProviderSourceKind;
+  formatHint: ResourceProviderFormatHint;
   method: ResourceProviderMethod;
   endpointUrl: string;
+  sourceHomeUrl: string | null;
   authType: ResourceProviderAuthType;
   appKey: string | null;
   secret: string | null;

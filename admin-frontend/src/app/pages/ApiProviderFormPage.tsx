@@ -14,11 +14,15 @@ import { PageHeader } from '../components/PageHeader';
 import type { ResourceApiProviderItem } from '../types';
 
 type Draft = {
+  providerCode: string;
   name: string;
   providerName: string;
   resourceType: ResourceApiProviderItem['resourceType'];
+  sourceKind: ResourceApiProviderItem['sourceKind'];
+  formatHint: ResourceApiProviderItem['formatHint'];
   method: ResourceApiProviderItem['method'];
   endpointUrl: string;
+  sourceHomeUrl: string;
   authType: ResourceApiProviderItem['authType'];
   appKey: string;
   secret: string;
@@ -32,11 +36,15 @@ type Draft = {
 };
 
 const emptyDraft: Draft = {
+  providerCode: '',
   name: '',
   providerName: '',
   resourceType: 'RECIPE',
+  sourceKind: 'API',
+  formatHint: 'JSON',
   method: 'GET',
   endpointUrl: '',
+  sourceHomeUrl: '',
   authType: 'NONE',
   appKey: '',
   secret: '',
@@ -51,7 +59,17 @@ const emptyDraft: Draft = {
 
 type Props = { mode: 'create' | 'edit' };
 
-type ProviderPresetKey = 'JUHE_RECIPE' | 'TIANAPI_RECIPE';
+type ProviderPresetKey =
+  | 'PROJ_KITCHEN'
+  | 'JUHE_RECIPE'
+  | 'TIANAPI_RECIPE'
+  | 'TIANAPI_INGREDIENT'
+  | 'TIANAPI_FRUIT'
+  | 'TIANAPI_SEASONING'
+  | 'THECOCKTAILDB'
+  | 'FRUITYVICE'
+  | 'USDA_FDC'
+  | 'OPEN_FOOD_FACTS';
 
 type ProviderPreset = {
   title: string;
@@ -60,15 +78,55 @@ type ProviderPreset = {
 };
 
 const providerPresets: Record<ProviderPresetKey, ProviderPreset> = {
+  PROJ_KITCHEN: {
+    title: '厨房计划 Proj.Kitchen',
+    description: '中国菜谱主接口，只用于菜谱导入。',
+    draft: {
+      providerCode: 'proj_kitchen',
+      name: '厨房计划 Proj.Kitchen',
+      providerName: '厨房计划 - 中文菜谱 API',
+      resourceType: 'RECIPE',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://proj.kitchen/api/recipes',
+      sourceHomeUrl: 'https://proj.kitchen',
+      authType: 'NONE',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __testEndpointUrl: 'https://proj.kitchen/api/recipes',
+          __syncEndpointUrl: 'https://proj.kitchen/api/recipes',
+          __detailEndpointTemplate: 'https://proj.kitchen/api/recipes/{id}',
+          __excludeCategories: ['饮品'],
+          page: 1,
+          pageSize: 20
+        },
+        null,
+        2
+      ),
+      dataPath: 'data.list',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '中国菜谱主接口，只用于菜谱导入；测试连接只请求测试接口。',
+      status: 'ACTIVE'
+    }
+  },
   JUHE_RECIPE: {
     title: 'Juhe 菜谱大全',
     description: '中文菜谱主源，优先接家常菜和食材检索。',
     draft: {
+      providerCode: 'juhe_recipe',
       name: 'Juhe 菜谱大全',
       providerName: 'Juhe',
       resourceType: 'RECIPE',
+      sourceKind: 'API',
+      formatHint: 'JSON',
       method: 'GET',
       endpointUrl: 'https://apis.juhe.cn/cook/query.php',
+      sourceHomeUrl: 'https://www.juhe.cn',
       authType: 'QUERY_KEY',
       appKey: '',
       secret: '',
@@ -95,11 +153,15 @@ const providerPresets: Record<ProviderPresetKey, ProviderPreset> = {
     title: 'TianAPI 菜谱查询',
     description: '中文菜谱备用源，按关键词补充更多结果。',
     draft: {
+      providerCode: 'tianapi_caipu',
       name: 'TianAPI 菜谱查询',
-      providerName: 'TianAPI',
+      providerName: 'TianAPI - 中国菜谱查询',
       resourceType: 'RECIPE',
+      sourceKind: 'API',
+      formatHint: 'JSON',
       method: 'GET',
       endpointUrl: 'https://apis.tianapi.com/caipu/index',
+      sourceHomeUrl: 'https://www.tianapi.com',
       authType: 'QUERY_KEY',
       appKey: '',
       secret: '',
@@ -119,6 +181,245 @@ const providerPresets: Record<ProviderPresetKey, ProviderPreset> = {
       timeoutMs: 10000,
       dailyLimit: 1000,
       description: '中文菜谱备用源，支持关键词查询',
+      status: 'ACTIVE'
+    }
+  },
+  TIANAPI_INGREDIENT: {
+    title: 'TianAPI 食材营养',
+    description: '食材营养补充源，按关键词查询营养成分。',
+    draft: {
+      providerCode: 'tianapi_nutrient_ingredient',
+      name: 'TianAPI 食材营养',
+      providerName: 'TianAPI - 食材营养',
+      resourceType: 'INGREDIENT',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://apis.tianapi.com/nutrient/index',
+      sourceHomeUrl: 'https://www.tianapi.com',
+      authType: 'QUERY_KEY',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __appKeyEnv: 'TIANAPI_KEY',
+          __appKeyParam: 'key',
+          word: '黄瓜',
+          mode: 0
+        },
+        null,
+        2
+      ),
+      dataPath: 'result.list',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '食材营养补充源，导入前进入待确认池',
+      status: 'ACTIVE'
+    }
+  },
+  TIANAPI_FRUIT: {
+    title: 'TianAPI 水果营养',
+    description: '水果营养补充源，按关键词查询营养成分。',
+    draft: {
+      providerCode: 'tianapi_nutrient_fruit',
+      name: 'TianAPI 水果营养',
+      providerName: 'TianAPI - 水果营养',
+      resourceType: 'FRUIT',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://apis.tianapi.com/nutrient/index',
+      sourceHomeUrl: 'https://www.tianapi.com',
+      authType: 'QUERY_KEY',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __appKeyEnv: 'TIANAPI_KEY',
+          __appKeyParam: 'key',
+          word: '苹果',
+          mode: 0
+        },
+        null,
+        2
+      ),
+      dataPath: 'result.list',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '水果营养补充源，导入前进入待确认池',
+      status: 'ACTIVE'
+    }
+  },
+  TIANAPI_SEASONING: {
+    title: 'TianAPI 调料营养',
+    description: '调料营养补充源，按关键词查询营养成分。',
+    draft: {
+      providerCode: 'tianapi_nutrient_seasoning',
+      name: 'TianAPI 调料营养',
+      providerName: 'TianAPI - 调料营养',
+      resourceType: 'SEASONING',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://apis.tianapi.com/nutrient/index',
+      sourceHomeUrl: 'https://www.tianapi.com',
+      authType: 'QUERY_KEY',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __appKeyEnv: 'TIANAPI_KEY',
+          __appKeyParam: 'key',
+          word: '盐',
+          mode: 0
+        },
+        null,
+        2
+      ),
+      dataPath: 'result.list',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '调料营养补充源，导入前进入待确认池',
+      status: 'ACTIVE'
+    }
+  },
+  THECOCKTAILDB: {
+    title: 'TheCocktailDB 鸡尾酒/调酒',
+    description: '鸡尾酒主接口，支持名称、原料、杯型、是否含酒精和调制步骤。',
+    draft: {
+      providerCode: 'thecocktaildb',
+      name: 'TheCocktailDB 鸡尾酒/调酒',
+      providerName: 'TheCocktailDB - 鸡尾酒/调酒',
+      resourceType: 'BEVERAGE',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://www.thecocktaildb.com/api/json/v1/1/search.php',
+      sourceHomeUrl: 'https://www.thecocktaildb.com',
+      authType: 'NONE',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          s: 'margarita'
+        },
+        null,
+        2
+      ),
+      dataPath: 'drinks',
+      timeoutMs: 10000,
+      dailyLimit: 100000,
+      description: '鸡尾酒主接口，支持名称、原料、杯型、是否含酒精和调制步骤。',
+      status: 'ACTIVE'
+    }
+  },
+  FRUITYVICE: {
+    title: 'Fruityvice 水果营养',
+    description: '水果临时数据源，返回基础营养字段。',
+    draft: {
+      providerCode: 'fruityvice',
+      name: 'Fruityvice 水果营养',
+      providerName: 'Fruityvice - 水果营养',
+      resourceType: 'FRUIT',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://www.fruityvice.com',
+      sourceHomeUrl: 'https://www.fruityvice.com',
+      authType: 'NONE',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __pathTemplate: '/api/fruit/{word}',
+          word: 'apple'
+        },
+        null,
+        2
+      ),
+      dataPath: '',
+      timeoutMs: 10000,
+      dailyLimit: 100000,
+      description: '水果临时数据源，适合开发测试和导入池。',
+      status: 'ACTIVE'
+    }
+  },
+  USDA_FDC: {
+    title: 'USDA FoodData Central 食材营养',
+    description: '英文食材营养备用源，需要后端做中文名称映射。',
+    draft: {
+      providerCode: 'usda_fdc',
+      name: 'USDA FoodData Central 食材营养',
+      providerName: 'USDA FoodData Central - 食材营养',
+      resourceType: 'INGREDIENT',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://api.nal.usda.gov/fdc/v1/foods/search',
+      sourceHomeUrl: 'https://fdc.nal.usda.gov',
+      authType: 'QUERY_KEY',
+      appKey: '',
+      secret: '',
+      defaultHeaders: '',
+      defaultParams: JSON.stringify(
+        {
+          __appKeyEnv: 'USDA_FDC_API_KEY',
+          __appKeyParam: 'api_key',
+          query: 'apple',
+          pageSize: 10,
+          pageNumber: 1
+        },
+        null,
+        2
+      ),
+      dataPath: 'foods',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '食材营养备用源，英文数据需要后端中文映射。',
+      status: 'ACTIVE'
+    }
+  },
+  OPEN_FOOD_FACTS: {
+    title: 'Open Food Facts 包装食品/调料',
+    description: '包装调料和包装食品备用源，包含条码、配料和营养值。',
+    draft: {
+      providerCode: 'open_food_facts',
+      name: 'Open Food Facts 包装食品/调料',
+      providerName: 'Open Food Facts - 包装食品/调料',
+      resourceType: 'SEASONING',
+      sourceKind: 'API',
+      formatHint: 'JSON',
+      method: 'GET',
+      endpointUrl: 'https://world.openfoodfacts.org/api/v2/search',
+      sourceHomeUrl: 'https://world.openfoodfacts.org',
+      authType: 'NONE',
+      appKey: '',
+      secret: '',
+      defaultHeaders: JSON.stringify(
+        {
+          'User-Agent': 'chufangapp-resource-import/1.0'
+        },
+        null,
+        2
+      ),
+      defaultParams: JSON.stringify(
+        {
+          search_terms: 'salt',
+          page_size: 20,
+          fields: 'code,product_name,ingredients_text,nutriments,categories_tags,image_url,brands,quantity'
+        },
+        null,
+        2
+      ),
+      dataPath: 'products',
+      timeoutMs: 10000,
+      dailyLimit: 1000,
+      description: '包装调料和包装食品备用源，包含条码、配料和营养值。',
       status: 'ACTIVE'
     }
   }
@@ -169,11 +470,15 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
       try {
         const item = await getResourceApiProvider(id);
         setDraft({
+          providerCode: item.providerCode,
           name: item.name,
           providerName: item.providerName,
           resourceType: item.resourceType,
+          sourceKind: item.sourceKind,
+          formatHint: item.formatHint,
           method: item.method,
           endpointUrl: item.endpointUrl,
+          sourceHomeUrl: item.sourceHomeUrl ?? '',
           authType: item.authType,
           appKey: item.appKey ?? '',
           secret: '',
@@ -194,7 +499,7 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
     void load();
   }, [id, mode]);
 
-  const canSave = Boolean(draft.name.trim() && draft.providerName.trim() && draft.endpointUrl.trim() && !saving && !loading);
+  const canSave = Boolean(draft.providerCode.trim() && draft.name.trim() && draft.providerName.trim() && draft.endpointUrl.trim() && !saving && !loading);
 
   const applyPreset = (preset: ProviderPresetKey) => {
     const next = providerPresets[preset];
@@ -213,6 +518,10 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
     try {
       const payload = {
         ...draft,
+        providerCode: draft.providerCode.trim(),
+        sourceKind: draft.sourceKind,
+        formatHint: draft.formatHint,
+        sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
         appKey: draft.appKey.trim() || null,
         secret: draft.secret.trim() || null,
         defaultHeaders: parseJsonInput(draft.defaultHeaders),
@@ -239,6 +548,10 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
     try {
       const payload = {
         ...draft,
+        providerCode: draft.providerCode.trim(),
+        sourceKind: draft.sourceKind,
+        formatHint: draft.formatHint,
+        sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
         appKey: draft.appKey.trim() || null,
         secret: draft.secret.trim() || null,
         defaultHeaders: parseJsonInput(draft.defaultHeaders),
@@ -300,6 +613,13 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
 
           <FormSection title="基础信息">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Provider Code *">
+                <Input
+                  value={draft.providerCode}
+                  onChange={(e) => setDraft({ ...draft, providerCode: e.target.value })}
+                  placeholder="例如：tianapi_caipu"
+                />
+              </Field>
               <Field label="接口名称 *">
                 <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="例如：菜谱公共资源接口" />
               </Field>
