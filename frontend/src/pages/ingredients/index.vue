@@ -431,13 +431,13 @@ onPullDownRefresh(() => {
 .category-page {
   min-height: 100vh;
   background: var(--app-bg);
-  padding-top: env(safe-area-inset-top);
+  padding-top: 0;
   padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
 }
 
 // ====== 搜索框 ======
 .category-search {
-  padding: 36rpx 24rpx 16rpx;
+  padding: calc(var(--app-safe-area-top) + 16px) 24rpx 16rpx;
 }
 
 .category-search__bar {

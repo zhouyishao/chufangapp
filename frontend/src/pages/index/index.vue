@@ -701,7 +701,7 @@ void loadHome();
   right: 0;
   z-index: 998;
   width: 100vw;
-  height: 152px;
+  height: calc(152px + var(--app-safe-area-top));
   background: #f5f1ea;
   pointer-events: none;
   transition: opacity 120ms linear;
@@ -819,7 +819,7 @@ void loadHome();
 /* ====== 搜索框悬浮层 ====== */
 .home-hero__search {
   position: fixed;
-  top: 58px;
+  top: calc(var(--app-safe-area-top) + 16px);
   left: 24px;
   right: 24px;
   z-index: 999;
@@ -886,7 +886,7 @@ void loadHome();
 .top-tabs-scroll {
   position: fixed;
   left: 24px;
-  top: 120px;
+  top: calc(var(--app-safe-area-top) + 78px);
   width: calc(100% - 48px);
   height: 36px;
   z-index: 999;
@@ -936,7 +936,7 @@ void loadHome();
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
   box-shadow: none;
-  padding: calc(env(safe-area-inset-top, 0) + 8px) 16px 8px;
+  padding: calc(var(--app-safe-area-top) + 8px) 16px 8px;
   transition: opacity 180ms ease, background 180ms ease, border-color 180ms ease;
 }
 

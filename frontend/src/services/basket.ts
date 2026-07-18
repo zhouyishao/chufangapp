@@ -23,6 +23,10 @@ export interface BasketItem {
   updatedAt?: string;
   familyId?: string | null;
   familyName?: string | null;
+  imageUrl?: string | null;
+  currentPrice?: number | null;
+  priceUnit?: string | null;
+  recipeCoverUrl?: string | null;
 }
 
 const requireUser = async () => {
@@ -63,7 +67,11 @@ const mapBasketItem = (item: ApiBasketItem): BasketItem => ({
   createdAt: item.createdAt,
   updatedAt: item.updatedAt,
   familyId: item.familyId ? String(item.familyId) : null,
-  familyName: item.family?.name ?? null
+  familyName: item.family?.name ?? null,
+  imageUrl: item.ingredient?.cover ?? null,
+  currentPrice: item.ingredient?.currentPrice ?? null,
+  priceUnit: item.ingredient?.priceUnit ?? null,
+  recipeCoverUrl: item.recipe?.cover ?? null
 });
 
 export const getIngredientBasketItemId = (ingredientId: string) => `ingredient-${ingredientId}`;

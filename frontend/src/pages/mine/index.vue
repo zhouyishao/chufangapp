@@ -1,101 +1,133 @@
 <template>
   <view class="app-page mine-page">
-    <view v-if="isLoggedIn" class="mine-hero glass-card">
-      <image class="mine-hero__bg" :src="profileBackgroundUrl" mode="aspectFill" />
-      <view class="mine-hero__shade" />
-      <view class="mine-hero__content">
-        <view class="hero-top">
-          <image class="profile__avatar" :src="profileAvatarUrl" mode="aspectFill" />
-          <view class="hero-actions">
-            <button class="profile__edit" @click="changeBackground">
-              <app-icon name="edit" size="18rpx" />
-              <text>换背景</text>
-            </button>
-            <button class="profile__edit profile__edit--dark" @click="editProfile">
-              <app-icon name="edit" size="18rpx" />
+    <view v-if="isLoggedIn" class="mine-shell">
+      <image class="mine-scene-bg" :src="profileBackgroundUrl" mode="aspectFill" />
+      <view class="profile-head">
+        <view class="profile-head__main">
+          <image class="profile-head__avatar" :src="profileAvatarUrl" mode="aspectFill" />
+          <view class="profile-head__copy">
+            <text class="profile-head__name">{{ displayNickname }}</text>
+            <text class="profile-head__bio">{{ profile.bio }}</text>
+            <button class="profile-edit-button" @click="editProfile">
+              <app-icon name="edit" size="16px" />
               <text>编辑资料</text>
             </button>
           </view>
         </view>
-        <text class="profile__name">{{ profile.nickname }}</text>
-        <text class="profile__desc">{{ profile.bio }}</text>
-
-        <view class="profile-actions">
-          <button class="profile-action" @click="goToFavorites">
-            <text class="profile-action__value">{{ favoriteCount }}</text>
-            <text class="profile-action__label">收藏</text>
-          </button>
-          <button class="profile-action" @click="goToRecentViews">
-            <text class="profile-action__value">{{ recentViewCount }}</text>
-            <text class="profile-action__label">浏览</text>
-          </button>
-          <button class="profile-action" @click="goToMyRecipes">
-            <text class="profile-action__value">{{ myRecipeCount }}</text>
-            <text class="profile-action__label">菜谱</text>
-          </button>
-          <button class="profile-action" @click="goToPurchaseHistory">
-            <text class="profile-action__value">{{ purchaseCount }}</text>
-            <text class="profile-action__label">采购</text>
-          </button>
-        </view>
+        <button class="profile-head__settings" @click="goToSettings">
+          <app-icon name="settings" size="28rpx" />
+        </button>
+        <button class="profile-background-edit" aria-label="更换背景" @click="changeBackground">
+          <view class="camera-icon" />
+        </button>
       </view>
-    </view>
 
-    <view v-if="isLoggedIn" class="family-module glass-card">
-      <view class="family-module__content" @click="goToCurrentFamily">
-        <view class="family-copy">
-          <view class="family-name-wrap">
-            <text class="family-card__name">{{ currentFamily.name }}</text>
+      <view class="family-paper">
+        <view class="family-paper__sheet family-paper__sheet--back" />
+        <view class="family-paper__card" @click="goToCurrentFamily">
+          <view class="family-paper__icon">
+            <app-icon name="home" size="24px" />
           </view>
-          <view class="family-summary">
-            <text>{{ currentFamily.members.length }} 位成员</text>
-            <text>{{ currentFamily.commonRecipes }} 道常做菜</text>
-            <text>{{ currentFamily.pendingItems }} 项待采购</text>
+          <view class="family-paper__main">
+            <text class="family-paper__name">{{ currentFamily.name }}</text>
+            <view class="family-paper__meta">
+              <text>{{ currentFamily.members.length }} 位成员</text>
+              <text>·</text>
+              <text>{{ currentFamily.commonRecipes }} 道常做菜</text>
+              <text>·</text>
+              <text>{{ currentFamily.pendingItems }} 项待采购</text>
+            </view>
           </view>
-        </view>
-        <view class="family-actions">
-          <view class="family-members">
-            <image
-              v-for="member in familyPreviewMembers"
-              :key="member.id"
-              class="family-member-avatar"
-              :src="member.avatar"
-              mode="aspectFill"
-            />
-            <button class="family-add-button" @click.stop="goToFamilyInvite">
-              <app-icon name="plus" size="24rpx" />
-            </button>
+          <view class="family-paper__edit">
+            <app-icon name="chevron-right" size="22rpx" />
           </view>
         </view>
       </view>
-    </view>
 
-    <view v-if="isLoggedIn" class="settings-card glass-card">
-      <view class="settings-item">
-        <view>
-          <text class="settings-title">通知提醒</text>
-          <text class="settings-desc">采购和菜谱提醒</text>
-        </view>
-        <switch :checked="notificationOn" color="#7a8b6f" @change="toggleNotification" />
+      <view class="profile-stats">
+        <button class="profile-stat" @click="goToFavorites">
+          <text class="profile-stat__value">{{ favoriteCount }}</text>
+          <text class="profile-stat__label">收藏</text>
+        </button>
+        <button class="profile-stat" @click="goToRecentViews">
+          <text class="profile-stat__value">{{ recentViewCount }}</text>
+          <text class="profile-stat__label">浏览</text>
+        </button>
+        <button class="profile-stat" @click="goToMyRecipes">
+          <text class="profile-stat__value">{{ myRecipeCount }}</text>
+          <text class="profile-stat__label">菜谱</text>
+        </button>
+        <button class="profile-stat" @click="goToPurchaseHistory">
+          <text class="profile-stat__value">{{ purchaseCount }}</text>
+          <text class="profile-stat__label">采购</text>
+        </button>
       </view>
-      <view class="settings-item">
-        <view>
-          <text class="settings-title">家庭共享</text>
-          <text class="settings-desc">同步家庭菜篮子</text>
+
+      <view class="mine-list">
+        <text class="mine-list__group-title">内容</text>
+        <view class="mine-list__item" @click="goToMyRecipes">
+          <view class="mine-list__icon">
+            <app-icon name="recipe" size="34rpx" />
+          </view>
+          <text class="mine-list__title">我的菜谱</text>
+          <app-icon class="mine-list__arrow" name="chevron-right" size="24rpx" />
         </view>
-        <switch :checked="familyShareOn" color="#7a8b6f" @change="toggleFamilyShare" />
-      </view>
-      <view class="settings-item settings-item--link" @click="goToSettings">
-        <view>
-          <text class="settings-title">设置</text>
-          <text class="settings-desc">账号、家庭偏好和关于信息</text>
+        <view class="mine-list__item" @click="goToFavorites">
+          <view class="mine-list__icon">
+            <app-icon name="heart" size="34rpx" />
+          </view>
+          <text class="mine-list__title">收藏</text>
+          <app-icon class="mine-list__arrow" name="chevron-right" size="24rpx" />
         </view>
-        <app-icon name="chevron-right" size="26rpx" />
+        <view class="mine-list__item" @click="goToRecentViews">
+          <view class="mine-list__icon">
+            <app-icon name="history" size="34rpx" />
+          </view>
+          <text class="mine-list__title">最近浏览</text>
+          <app-icon class="mine-list__arrow" name="chevron-right" size="24rpx" />
+        </view>
+        <text class="mine-list__group-title mine-list__group-title--spaced">家庭</text>
+        <view class="mine-list__item" @click="goToCurrentFamily">
+          <view class="mine-list__icon">
+            <app-icon name="users" size="34rpx" />
+          </view>
+          <text class="mine-list__title">家庭管理</text>
+          <app-icon class="mine-list__arrow" name="chevron-right" size="24rpx" />
+        </view>
+        <view class="mine-list__item mine-list__item--tall">
+          <view class="mine-list__icon">
+            <app-icon name="calendar" size="34rpx" />
+          </view>
+          <view class="mine-list__copy">
+            <text class="mine-list__title">通知提醒</text>
+            <text class="mine-list__desc">菜谱上新与采购提醒</text>
+          </view>
+          <switch :checked="notificationOn" color="#7a8b6f" @change="toggleNotification" />
+        </view>
+        <view class="mine-list__item mine-list__item--tall">
+          <view class="mine-list__icon">
+            <app-icon name="share" size="34rpx" />
+          </view>
+          <view class="mine-list__copy">
+            <text class="mine-list__title">家庭共享</text>
+            <text class="mine-list__desc">同步家庭菜篮子</text>
+          </view>
+          <switch :checked="familyShareOn" color="#7a8b6f" @change="toggleFamilyShare" />
+        </view>
+        <text class="mine-list__group-title mine-list__group-title--spaced">系统</text>
+        <view class="mine-list__item" @click="goToSettings">
+          <view class="mine-list__icon">
+            <app-icon name="settings" size="34rpx" />
+          </view>
+          <view class="mine-list__copy">
+            <text class="mine-list__title">设置</text>
+            <text class="mine-list__desc">账号、隐私与通用设置</text>
+          </view>
+          <app-icon class="mine-list__arrow" name="chevron-right" size="24rpx" />
+        </view>
       </view>
-      <button class="logout-button" @click="logout">
-        <app-icon name="logout" size="20rpx" />
-        <text>退出登录</text>
-      </button>
+
+      <button class="logout-button" @click="logout">退出登录</button>
     </view>
 
     <view v-if="!isLoggedIn" class="guest-card glass-card">
@@ -191,6 +223,7 @@ import { loadActiveFamilyId, loadFamilies } from '../../services/family';
 import { loadMyRecipes } from '../../services/my-recipes';
 import { loadUserProfile } from '../../services/profile';
 import { listMobileFavorites, listMobileViewHistories } from '../../services/public-api';
+import kitchenBackgroundUrl from '../../static/mine-kitchen-bg.png';
 import type { FamilyProfile } from '../../types/family';
 import type { UserProfile } from '../../types/profile';
 
@@ -208,8 +241,7 @@ const authUser = ref(loadAuthUser());
 const profile = ref<UserProfile>(loadUserProfile());
 const avatarPlaceholderUrl =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22%3E%3Crect width=%22200%22 height=%22200%22 rx=%22100%22 fill=%22%23E9E2D6%22/%3E%3Ccircle cx=%22100%22 cy=%2278%22 r=%2234%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3Cpath d=%22M42 174c16-38 36-57 58-57s42 19 58 57%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3C/svg%3E';
-const profileBackgroundPlaceholderUrl =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 900 520%22%3E%3Crect width=%22900%22 height=%22520%22 fill=%22%23FFFDFC%22/%3E%3Cpath d=%22M0 338c120-66 235-94 346-84 151 13 240 99 390 86 65-6 119-25 164-58v238H0V338Z%22 fill=%22%23E9E2D6%22/%3E%3Cpath d=%22M98 144c92-48 178-52 258-12 76 39 143 39 202 2%22 fill=%22none%22 stroke=%22%237A8B6F%22 stroke-width=%2224%22 stroke-linecap=%22round%22 opacity=%22.56%22/%3E%3C/svg%3E';
+const profileBackgroundPlaceholderUrl = kitchenBackgroundUrl;
 const profileBackgroundUrl = ref(profileBackgroundPlaceholderUrl);
 const backgroundDraftUrl = ref(profileBackgroundUrl.value);
 const backgroundDraftOffset = ref(0);
@@ -222,6 +254,10 @@ const myRecipeCount = ref(0);
 const purchaseCount = ref(0);
 const isLoggedIn = computed(() => authUser.value !== null);
 const profileAvatarUrl = computed(() => profile.value.avatarUrl || avatarPlaceholderUrl);
+const displayNickname = computed(() => {
+  const nickname = profile.value.nickname.trim();
+  return nickname && !/^1[3-9]\d{2}\*{2,}\d{2,4}$/.test(nickname) ? nickname : '未设置昵称';
+});
 const currentFamily = computed<FamilyProfile>(() => {
   return familyOptions.value.find((family) => family.id === activeFamilyId.value) ?? familyOptions.value[0] ?? {
     id: '',
@@ -232,8 +268,6 @@ const currentFamily = computed<FamilyProfile>(() => {
     members: []
   };
 });
-const familyPreviewMembers = computed(() => currentFamily.value.members.slice(0, 2));
-
 const goToLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' });
 };
@@ -329,16 +363,6 @@ const goToCurrentFamily = () => {
   uni.navigateTo({ url: familyId ? `/pages/family-manage/index?id=${encodeURIComponent(familyId)}` : '/pages/family/index' });
 };
 
-const goToFamilyInvite = () => {
-  const familyId = activeFamilyId.value || familyOptions.value[0]?.id || '';
-  if (!familyId) {
-    uni.showToast({ title: '请先创建家庭', icon: 'none' });
-    uni.navigateTo({ url: '/pages/family/index' });
-    return;
-  }
-  uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(familyId)}` });
-};
-
 const refreshUserStats = async () => {
   if (!authUser.value?.id) {
     favoriteCount.value = 0;
@@ -387,319 +411,10 @@ onShow(() => {
 </script>
 
 <style scoped lang="scss">
-.mine-page {
-  padding-bottom: calc(220rpx + env(safe-area-inset-bottom, 0));
-}
-
-.mine-hero {
-  position: relative;
-  min-height: 520rpx;
-  overflow: hidden;
-  padding: 0;
-  border-radius: 44rpx;
-  background: #fffdfc;
-  box-shadow: 0 24rpx 80rpx rgba(0, 0, 0, 0.04);
-}
-
-.mine-hero__bg,
-.mine-hero__shade {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.mine-hero__shade {
-  background:
-    linear-gradient(180deg, rgba(255, 253, 252, 0.3), rgba(255, 253, 252, 0.96) 48%, #fffdfc 100%),
-    linear-gradient(90deg, rgba(255, 253, 252, 0.92), rgba(255, 253, 252, 0.58));
-}
-
-.mine-hero__content {
-  position: relative;
-  z-index: 1;
-  padding: 36rpx 34rpx 32rpx;
-}
-
-.hero-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24rpx;
-}
-
-.profile__avatar {
-  width: 142rpx;
-  height: 142rpx;
-  border: 6rpx solid #fffdfc;
-  border-radius: 50%;
-  background: #e9e2d6;
-  box-shadow: 0 24rpx 56rpx rgba(0, 0, 0, 0.06);
-}
-
-.hero-actions {
-  display: flex;
-  gap: 12rpx;
-}
-
-.profile__edit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  min-width: 132rpx;
-  height: 64rpx;
-  margin-top: 2rpx;
-  border: 0;
-  border-radius: var(--app-radius-button);
-  background: rgba(255, 253, 252, 0.86);
-  color: var(--app-text);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-semibold);
-  box-shadow: 0 14rpx 34rpx rgba(0, 0, 0, 0.04);
-}
-
-.profile__edit--dark {
-  background: #7a8b6f;
-  color: var(--text-white);
-}
-
-.profile__name {
-  display: block;
-  margin-top: 42rpx;
-  color: var(--app-text);
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-page-title);
-  letter-spacing: 0;
-}
-
-.profile__desc {
-  display: block;
-  margin-top: 14rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-body-sm);
-}
-
-.family-module {
-  margin-top: 20rpx;
-  padding: 28rpx;
-  border: 1rpx solid rgba(233, 226, 214, 0.9);
-  border-radius: var(--app-radius-card);
-  background:
-    linear-gradient(135deg, rgba(255, 253, 252, 0.96), rgba(255, 253, 252, 0.9)),
-    #fffdfc;
-  box-shadow: 0 18rpx 58rpx rgba(0, 0, 0, 0.04);
-}
-
-.family-module__content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
-}
-
-.family-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.family-name-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-}
-
-.family-actions {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 22rpx;
-}
-
-.family-members {
-  display: flex;
-  align-items: center;
-  padding-left: 30rpx;
-}
-
-.family-member-avatar,
-.family-add-button {
-  width: 72rpx;
-  height: 72rpx;
-  margin-left: -20rpx;
-  border: 4rpx solid #fffdfc;
-  border-radius: 50%;
-  background: #e9e2d6;
-  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.04);
-}
-
-.family-add-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-detail-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-tabbar);
-}
-
-.profile-actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0;
-  margin-top: 22rpx;
-  padding: 10rpx;
-  border: 1rpx solid rgba(255, 253, 252, 0.72);
-  border-radius: var(--app-radius-input);
-  background: rgba(255, 253, 252, 0.68);
-  box-shadow:
-    inset 0 1rpx 0 rgba(255, 253, 252, 0.88),
-    0 18rpx 44rpx rgba(0, 0, 0, 0.04);
-  backdrop-filter: blur(18rpx);
-  -webkit-backdrop-filter: blur(18rpx);
-}
-
-.profile-action {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 92rpx;
-  margin: 0;
-  padding: 10rpx 8rpx;
-  border: 0;
-  border-radius: 22rpx;
-  background: transparent;
-  text-align: center;
-  transition: transform 0.18s ease, background 0.18s ease;
-}
-
-.profile-action::after {
-  border: 0;
-}
-
-.profile-action:not(:last-child)::before {
-  position: absolute;
-  top: 20rpx;
-  right: 0;
-  bottom: 20rpx;
-  width: 1rpx;
-  background: rgba(183, 174, 161, 0.22);
-  content: '';
-}
-
-.profile-action:active {
-  transform: scale(0.98);
-  background: rgba(241, 244, 247, 0.9);
-}
-
-.profile-action__value,
-.profile-action__label,
-.section-title,
-.section-desc,
-.settings-title,
-.settings-desc {
-  display: block;
-}
-
-.profile-action__value {
-  color: var(--app-text);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-tabbar);
-}
-
-.profile-action__label {
-  margin-top: 10rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-  font-weight: var(--font-semibold);
-}
-
-.family-card__name {
-  display: inline-block;
-  color: var(--app-text);
-  font-size: var(--font-size-card-title);
-  font-weight: var(--font-semibold);
-}
-
-.family-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-top: 12rpx;
-}
-
-.family-summary text {
-  padding: 7rpx 12rpx;
-  border-radius: var(--app-radius-button);
-  background: rgba(233, 226, 214, 0.72);
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-  font-weight: var(--font-medium);
-}
-
-.family-add-button::after,
-.member-add-button::after,
-.member-remove-button::after,
-.family-link-button::after,
-.share-card-button::after,
 .background-tool-button::after,
 .join-tab::after,
-.panel-primary-button::after,
-.profile__edit::after,
-.logout-button::after {
+.panel-primary-button::after {
   border: 0;
-}
-
-.settings-card {
-  margin-top: 20rpx;
-  padding: 28rpx;
-  border-radius: var(--app-radius-card);
-  background: #fffdfc;
-}
-
-.settings-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  min-height: 98rpx;
-  border-bottom: 1rpx solid var(--app-border);
-}
-
-.settings-title {
-  color: var(--app-text);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-semibold);
-}
-
-.settings-desc {
-  margin-top: 6rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-}
-
-.logout-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  width: 100%;
-  height: 82rpx;
-  margin-top: 22rpx;
-  border: 0;
-  border-radius: var(--app-radius-button);
-  background: rgba(229, 115, 95, 0.12);
-  color: var(--app-danger);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-semibold);
 }
 
 .join-mask {
@@ -1190,4 +905,524 @@ onShow(() => {
   color: var(--app-text-tertiary);
   font-size: var(--font-size-list-title);
 }
+
+.mine-page {
+  position: relative;
+  overflow: hidden;
+  padding: 0 16px calc(118px + env(safe-area-inset-bottom, 0));
+  background:
+    radial-gradient(circle at 10% 2%, rgba(255, 253, 252, 0.9), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 252, 0.82), rgba(245, 241, 234, 0.96) 430rpx, #f5f1ea 100%);
+}
+
+.mine-page::before {
+  position: absolute;
+  top: -20rpx;
+  left: -48rpx;
+  width: 250rpx;
+  height: 318rpx;
+  border-radius: 0 0 54rpx 0;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 252, 0.22), rgba(245, 241, 234, 0.72)),
+    var(--app-accent-soft);
+  opacity: 0.58;
+  content: '';
+}
+
+.mine-page::after {
+  position: absolute;
+  top: 128rpx;
+  left: 30rpx;
+  width: 132rpx;
+  height: 1rpx;
+  background: rgba(122, 139, 111, 0.18);
+  content: '';
+}
+
+.mine-shell {
+  position: relative;
+  z-index: 1;
+}
+
+.mine-scene-bg {
+  position: absolute;
+  top: 0;
+  left: -16px;
+  width: calc(100% + 32px);
+  height: 230px;
+  border-radius: 0;
+  opacity: 0.36;
+  pointer-events: none;
+}
+
+.mine-shell::before {
+  position: absolute;
+  top: 0;
+  right: -16px;
+  left: -16px;
+  height: 230px;
+  background: rgba(255, 253, 252, 0.68);
+  content: '';
+  pointer-events: none;
+}
+
+.profile-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  height: 230px;
+  min-height: 230px;
+  padding-top: calc(var(--app-safe-area-top) + 16px);
+  padding-left: 4px;
+}
+
+.profile-head__main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.profile-head__avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border: 3px solid rgba(255, 253, 252, 0.92);
+  border-radius: 50%;
+  background: #e9e2d6;
+  box-shadow: 0 14rpx 34rpx rgba(47, 47, 47, 0.05);
+}
+
+.profile-head__copy {
+  min-width: 0;
+  padding-top: 7px;
+}
+
+.profile-head__name {
+  display: block;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: var(--font-semibold);
+  line-height: 30px;
+  letter-spacing: 0;
+}
+
+.profile-head__bio {
+  display: block;
+  max-width: 210px;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  font-weight: var(--font-regular);
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-head__settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(122, 139, 111, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 253, 252, 0.74);
+  color: #66775d;
+}
+
+.profile-background-edit {
+  position: absolute;
+  right: 16px;
+  top: calc(var(--app-safe-area-top) + 68px);
+  display: flex;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(122, 139, 111, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 253, 252, 0.8);
+  color: #66775d;
+  font-size: 0;
+}
+
+.camera-icon {
+  position: absolute;
+  width: 20px;
+  height: 15px;
+  border: 1.8px solid currentColor;
+  border-radius: 3px;
+  content: '';
+}
+
+.camera-icon::before {
+  position: absolute;
+  top: -5px;
+  left: 3px;
+  width: 7px;
+  height: 4px;
+  border: 1.8px solid currentColor;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  content: '';
+}
+
+.camera-icon::after {
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 5px;
+  height: 5px;
+  border: 1.8px solid currentColor;
+  border-radius: 50%;
+  content: '';
+}
+
+.profile-edit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 88px;
+  height: 32px;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 1px solid rgba(122, 139, 111, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 253, 252, 0.74);
+  color: #66775d;
+  font-size: 12px;
+  font-weight: var(--font-medium);
+  line-height: 16px;
+}
+
+.family-paper {
+  position: relative;
+  z-index: 1;
+  height: 116px;
+  margin-top: -22px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.family-paper__sheet,
+.family-paper__card {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border: 1px solid rgba(218, 211, 199, 0.84);
+  background: rgba(255, 253, 252, 0.94);
+}
+
+.family-paper__sheet--back {
+  top: 4px;
+  height: 112px;
+  transform: rotate(-1.8deg);
+  transform-origin: left center;
+}
+
+.family-paper__card {
+  top: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 16px;
+  grid-template-rows: 24px 18px;
+  align-items: center;
+  height: 116px;
+  min-height: 116px;
+  padding: 16px 20px;
+  box-shadow: 0 14rpx 28rpx rgba(85, 69, 43, 0.06);
+  overflow: hidden;
+}
+
+.family-paper__icon {
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #6d7f63;
+}
+
+.family-paper__main {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 0;
+}
+
+.family-paper__name {
+  display: block;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: var(--font-semibold);
+  line-height: 24px;
+}
+
+.family-paper__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: var(--font-regular);
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-paper__edit {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  color: #6d7f63;
+  white-space: nowrap;
+  font-size: 0;
+  line-height: 16px;
+}
+
+.family-paper__stamp {
+  display: none;
+}
+
+.family-paper__stamp text {
+  position: absolute;
+  left: 0;
+  bottom: 4rpx;
+  width: 72rpx;
+  height: 72rpx;
+  border: 0;
+  font-size: 11px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.02em;
+  line-height: 72rpx;
+  text-align: center;
+  transform: scale(0.72);
+}
+
+.stamp-line {
+  position: absolute;
+  right: 0;
+  bottom: 36rpx;
+  width: 78rpx;
+  height: 16rpx;
+  border-top: 2rpx solid rgba(210, 186, 142, 0.34);
+  border-radius: 50%;
+}
+
+.stamp-line--short {
+  bottom: 20rpx;
+  width: 58rpx;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: 82px;
+  margin: 20px 0 0;
+}
+
+.profile-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 82px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.profile-stat:not(:last-child)::before {
+  position: absolute;
+  top: 25px;
+  right: 0;
+  bottom: 25px;
+  width: 1rpx;
+  background: rgba(183, 174, 161, 0.26);
+  content: '';
+}
+
+.profile-stat__value {
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: var(--font-medium);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-stat__label {
+  margin-top: 6px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: var(--font-regular);
+  line-height: var(--line-caption);
+}
+
+.mine-list {
+  margin-top: 20px;
+}
+
+.mine-list__group-title {
+  display: block;
+  margin: 20px 0 8px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  font-weight: var(--font-semibold);
+}
+
+.mine-list__group-title--spaced {
+  margin-top: 16px;
+}
+
+.mine-list__item {
+  display: grid;
+  grid-template-columns: 20px 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  height: 60px;
+  min-height: 60px;
+  border-bottom: 1rpx solid rgba(233, 226, 214, 0.78);
+  color: var(--text-primary);
+}
+
+.mine-list__item:last-child {
+  border-bottom: 0;
+}
+
+.mine-list__item--tall {
+  height: 72px;
+  min-height: 72px;
+}
+
+.mine-list__icon {
+  grid-column: 1;
+  width: 20px;
+  height: 20px;
+  color: #6d7f63;
+}
+
+.mine-list__item > .mine-list__title,
+.mine-list__item > .mine-list__copy {
+  grid-column: 3;
+}
+
+.mine-list__copy {
+  min-width: 0;
+}
+
+.mine-list__title {
+  display: block;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: var(--font-medium);
+  line-height: 22px;
+}
+
+.mine-list__desc {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  font-weight: var(--font-regular);
+  line-height: 20px;
+}
+
+.mine-list__item > switch {
+  grid-column: 4;
+  justify-self: end;
+  width: 50px;
+  height: 30px;
+  transform: none;
+  transform-origin: right center;
+}
+
+.mine-list__arrow {
+  grid-column: 4;
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+}
+
+.logout-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  margin: 24px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--app-danger);
+  font-size: 15px;
+  font-weight: var(--font-medium);
+  line-height: 20px;
+}
+
+:deep(.home-tab-bar) {
+  right: 16px;
+  bottom: 0;
+  left: 16px;
+  min-height: 64px;
+  height: 98px;
+  padding: 0 12px env(safe-area-inset-bottom, 0);
+  border-radius: 24px;
+}
+
+:deep(.home-tab-bar__item) {
+  gap: 2rpx;
+  height: 64px;
+  align-self: start;
+  padding: 4px 0;
+}
+
+:deep(.home-tab-bar__label) {
+  font-size: 11px;
+  color: #7a746b;
+}
+
+:deep(.home-tab-bar .tab-icon) {
+  width: 22px;
+  height: 22px;
+  color: #7a746b;
+}
+
+:deep(.home-tab-bar .icon-wrapper) {
+  width: 36px;
+  height: 36px;
+}
+
+@media screen and (min-width: 390px) and (max-width: 400px) and (min-height: 800px) and (max-height: 900px) {
+  .profile-head {
+    padding-top: 75px;
+  }
+
+  .profile-background-edit {
+    top: 127px;
+  }
+}
+
+.profile-head__settings::after,
+.profile-edit-button::after,
+.profile-stat::after,
+.logout-button::after {
+  border: 0;
+}
 </style>
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;

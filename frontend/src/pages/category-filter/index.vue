@@ -209,12 +209,12 @@ onPullDownRefresh(() => { void fetchModules(); });
 .category-page {
   min-height: 100vh;
   background: var(--app-bg);
-  padding-top: env(safe-area-inset-top);
+  padding-top: 0;
   padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
 }
 
 .category-search {
-  padding: 20rpx 32rpx 12rpx;
+  padding: calc(var(--app-safe-area-top) + 16px) 32rpx 12rpx;
 }
 .category-search__bar {
   display: flex;

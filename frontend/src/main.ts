@@ -8,6 +8,17 @@ import '@fontsource/noto-serif-sc/600.css';
 import './styles/global.scss';
 
 export function createApp() {
+  if (
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    window.innerWidth >= 390 &&
+    window.innerWidth <= 400 &&
+    window.innerHeight >= 800 &&
+    window.innerHeight <= 900
+  ) {
+    document.documentElement.classList.add('safe-area-preview');
+  }
+
   const app = createSSRApp(App);
   return {
     app

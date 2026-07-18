@@ -1,155 +1,245 @@
 <template>
   <view class="app-page basket-page">
-    <view class="family-selector" @tap="toggleFamilySelector">
-      <text class="family-selector__name">{{ basketScopeName }}</text>
-      <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
-    </view>
-
-    <view v-if="isFamilySelectorVisible" class="family-mask" @tap="closeFamilySelector">
-      <view class="family-sheet glass-card" @tap.stop>
-        <view
-          v-for="family in families"
-          :key="family.id"
-          :class="['family-option', { 'is-active': family.id === activeFamilyId }]"
-          @tap="selectFamilyScope(family.id)"
-        >
-          <text class="family-option__name">{{ family.name }}</text>
-          <app-icon v-if="family.id === activeFamilyId" class="family-option__check" name="check" size="20rpx" />
-        </view>
-
-        <view class="family-sheet__divider" />
-
-        <view class="family-manage-row" @tap="goToFamilyManage">
-          <text class="family-manage-row__name">家庭管理</text>
-          <app-icon class="family-manage-row__icon" name="arrow-right" size="22rpx" />
-        </view>
-      </view>
-    </view>
-
-    <view class="status-card glass-card">
-      <view>
-        <text class="status-label">待采购</text>
-        <text class="status-value">{{ pendingCount }}</text>
-      </view>
-      <view>
-        <text class="status-label">已完成</text>
-        <text class="status-value">{{ checkedCount }}</text>
-      </view>
-      <view class="status-note">
-        <text>{{ recipeGroupCount }} 道菜</text>
-        <text>{{ items.length }} 项用料</text>
-      </view>
-    </view>
-
-    <view class="basket-board glass-card">
-      <view class="board-head">
-        <view>
-          <text class="board-title">本次采购</text>
-          <text class="board-desc">{{ boardDescription }}</text>
-        </view>
-        <view class="mode-switch">
-          <button :class="['mode-button', { 'is-active': viewMode === 'merged' }]" @tap="setViewMode('merged')">
-            合
-          </button>
-          <button :class="['mode-button', { 'is-active': viewMode === 'recipe' }]" @tap="setViewMode('recipe')">
-            菜
-          </button>
-        </view>
+    <view class="basket-shell">
+      <view class="family-selector" @tap="toggleFamilySelector">
+        <text class="family-selector__name">{{ basketScopeName }}</text>
+        <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
       </view>
 
-      <view v-if="items.length" class="content">
-      <view v-if="viewMode === 'recipe'" class="recipe-list">
-        <view v-for="group in recipeGroups" :key="group.recipeId" class="recipe-card">
+      <view v-if="isFamilySelectorVisible" class="family-mask" @tap="closeFamilySelector">
+        <view class="family-sheet glass-card" @tap.stop>
           <view
-            class="recipe-swipe-row"
-            @touchstart="handleTouchStart($event, getRecipeKey(group.recipeId))"
-            @touchend="handleTouchEnd($event, getRecipeKey(group.recipeId))"
+            :class="['family-option', { 'is-active': activeFamilyId === null }]"
+            @tap="selectFamilyScope(null)"
           >
-            <view
-              :class="['recipe-header', { 'is-open': openedItemId === getRecipeKey(group.recipeId) }]"
-              @tap="toggleRecipeExpanded(group.recipeId)"
-            >
-              <view>
-                <text class="recipe-title">{{ group.recipeName }}</text>
-                <text class="recipe-subtitle">{{ group.checkedCount }}/{{ group.items.length }} 已采购</text>
-              </view>
-              <app-icon :class="['recipe-arrow', { 'is-expanded': isRecipeExpanded(group.recipeId) }]" name="chevron-right" size="22rpx" />
-            </view>
-            <view class="swipe-remove recipe-remove" @tap="removeRecipeGroup(group.recipeId)">删除</view>
+            <text class="family-option__name">我的菜篮子</text>
+            <app-icon v-if="activeFamilyId === null" class="family-option__check" name="check" size="20rpx" />
           </view>
 
-          <view v-if="isRecipeExpanded(group.recipeId)" class="ingredient-list">
-            <view
-              v-for="item in group.items"
-              :key="item.id"
-              class="swipe-row"
-              @touchstart="handleTouchStart($event, item.id)"
-              @touchend="handleTouchEnd($event, item.id)"
-            >
-              <view :class="['ingredient-row', { 'is-open': openedItemId === item.id }]">
-                <view class="ingredient-main" @tap="toggleItem(item.id)">
-                  <app-icon :class="['check', { 'is-checked': item.checked }]" :name="item.checked ? 'check' : 'circle'" size="18rpx" />
-                  <text :class="['ingredient-name', { 'is-checked': item.checked }]">{{ item.name }}</text>
+          <view v-if="families.length" class="family-sheet__divider" />
+
+          <view
+            v-for="family in families"
+            :key="family.id"
+            :class="['family-option', { 'is-active': family.id === activeFamilyId }]"
+            @tap="selectFamilyScope(family.id)"
+          >
+            <text class="family-option__name">{{ family.name }}</text>
+            <app-icon v-if="family.id === activeFamilyId" class="family-option__check" name="check" size="20rpx" />
+          </view>
+
+          <view class="family-sheet__divider" />
+
+          <view class="family-manage-row" @tap="goToFamilyManage">
+            <text class="family-manage-row__name">家庭管理</text>
+            <app-icon class="family-manage-row__icon" name="arrow-right" size="22rpx" />
+          </view>
+        </view>
+      </view>
+
+      <view class="status-card glass-card">
+        <view class="status-metric">
+          <text class="status-label">待采购</text>
+          <text class="status-value">{{ pendingCount }}</text>
+        </view>
+        <view class="status-metric">
+          <text class="status-label">已完成</text>
+          <text class="status-value">{{ checkedCount }}</text>
+        </view>
+        <view class="status-note">
+          <text>{{ recipeGroupCount }} 道菜</text>
+          <text>{{ items.length }} 项用料</text>
+        </view>
+      </view>
+
+      <view class="basket-board glass-card">
+        <view class="board-head">
+          <view class="board-copy">
+            <text class="board-title">本次采购</text>
+            <text class="board-desc">{{ boardDescription }}</text>
+          </view>
+          <view class="mode-switch">
+            <button :class="['mode-button', { 'is-active': viewMode === 'merged' }]" @tap="setViewMode('merged')">
+              食材
+            </button>
+            <button :class="['mode-button', { 'is-active': viewMode === 'recipe' }]" @tap="setViewMode('recipe')">
+              菜谱
+            </button>
+          </view>
+        </view>
+
+        <view v-if="items.length" class="content">
+          <view v-if="viewMode === 'recipe'" class="recipe-list">
+            <view v-if="recipeGroups.length">
+              <view v-for="group in recipeGroups" :key="group.recipeId" class="recipe-card">
+                <view
+                  class="recipe-swipe-row"
+                  @touchstart="handleTouchStart($event, getRecipeKey(group.recipeId))"
+                  @touchend="handleTouchEnd($event, getRecipeKey(group.recipeId))"
+                >
+                  <view
+                    :class="['recipe-header', { 'is-open': openedItemId === getRecipeKey(group.recipeId) }]"
+                    @tap="toggleRecipeExpanded(group.recipeId)"
+                  >
+                    <view class="recipe-cover">
+                      <image v-if="getRecipeCover(group)" class="recipe-cover__image" :src="getRecipeCover(group)" mode="aspectFill" />
+                      <text v-else class="recipe-cover__fallback">{{ group.recipeName.slice(0, 1) }}</text>
+                    </view>
+                    <view class="recipe-copy">
+                      <text class="recipe-title">{{ group.recipeName }}</text>
+                      <text class="recipe-subtitle">{{ group.checkedCount }}/{{ group.items.length }} 已采购</text>
+                    </view>
+                    <app-icon :class="['recipe-arrow', { 'is-expanded': isRecipeExpanded(group.recipeId) }]" name="chevron-down" size="24rpx" />
+                  </view>
+                  <view class="swipe-remove recipe-remove" @tap="removeRecipeGroup(group.recipeId)">删除</view>
                 </view>
-                <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ getBasketDisplayText(item) }}</text>
+
+                <view v-if="isRecipeExpanded(group.recipeId)" class="recipe-ingredient-list">
+                  <view
+                    v-for="item in group.items"
+                    :key="item.id"
+                    class="swipe-row"
+                    @touchstart="handleTouchStart($event, item.id)"
+                    @touchend="handleTouchEnd($event, item.id)"
+                  >
+                    <view :class="['ingredient-row', { 'is-open': openedItemId === item.id, 'is-checked': item.checked }]">
+                      <view class="check-hit" @tap="toggleItem(item.id)">
+                        <app-icon :class="['check', { 'is-checked': item.checked }]" :name="item.checked ? 'check' : 'circle'" size="18rpx" />
+                      </view>
+                      <view class="ingredient-thumb">
+                        <image v-if="getItemImage(item)" class="ingredient-thumb__image" :src="getItemImage(item)" mode="aspectFill" />
+                        <text v-else class="ingredient-thumb__fallback">{{ item.name.slice(0, 1) }}</text>
+                      </view>
+                      <view class="ingredient-copy">
+                        <text :class="['ingredient-name', { 'is-checked': item.checked }]">{{ item.name }}</text>
+                        <button class="guide-chip" @tap.stop="openIngredientGuide(item)">
+                          <app-icon name="lightbulb" size="18rpx" />
+                          <text>怎么挑</text>
+                        </button>
+                      </view>
+                      <view class="ingredient-side" @tap="toggleItem(item.id)">
+                        <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ getBasketDisplayText(item) }}</text>
+                        <text v-if="formatPriceText(item)" class="ingredient-price">{{ formatPriceText(item) }}</text>
+                      </view>
+                    </view>
+                    <view class="swipe-remove" @tap="removeItem(item.id)">删除</view>
+                  </view>
+                </view>
               </view>
-              <view class="swipe-remove" @tap="removeItem(item.id)">删除</view>
+            </view>
+
+            <view v-else class="recipe-empty">
+              <text class="recipe-empty__title">当前都是单独食材</text>
+              <text class="recipe-empty__desc">切回食材模式查看合并后的采购清单。</text>
+            </view>
+          </view>
+
+          <view v-else class="merged-card">
+            <view
+              v-for="item in mergedItems"
+              :key="item.name"
+              class="swipe-row"
+              @touchstart="handleTouchStart($event, getMergedKey(item.name))"
+              @touchend="handleTouchEnd($event, getMergedKey(item.name))"
+            >
+              <view :class="['ingredient-row', { 'is-open': openedItemId === getMergedKey(item.name), 'is-checked': item.checked }]">
+                <view class="check-hit" @tap="toggleMergedItem(item.itemIds)">
+                  <app-icon :class="['check', { 'is-checked': item.checked }]" :name="item.checked ? 'check' : 'circle'" size="18rpx" />
+                </view>
+                <view class="ingredient-thumb">
+                  <image v-if="item.imageUrl" class="ingredient-thumb__image" :src="item.imageUrl" mode="aspectFill" />
+                  <text v-else class="ingredient-thumb__fallback">{{ item.name.slice(0, 1) }}</text>
+                </view>
+                <view class="ingredient-copy">
+                  <text :class="['ingredient-name', { 'is-checked': item.checked }]">{{ item.name }}</text>
+                  <button class="guide-chip" @tap.stop="openMergedIngredientGuide(item)">
+                    <app-icon name="lightbulb" size="18rpx" />
+                    <text>怎么挑</text>
+                  </button>
+                </view>
+                <view class="ingredient-side" @tap="toggleMergedItem(item.itemIds)">
+                  <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ item.amountText }}</text>
+                  <text v-if="item.priceText" class="ingredient-price">{{ item.priceText }}</text>
+                </view>
+              </view>
+              <view class="swipe-remove" @tap="removeMergedItem(item.itemIds)">删除</view>
             </view>
           </view>
         </view>
-      </view>
 
-      <view v-else class="merged-card">
-        <view class="ingredient-list">
-          <view
-            v-for="item in mergedItems"
-            :key="item.name"
-            class="swipe-row"
-            @touchstart="handleTouchStart($event, getMergedKey(item.name))"
-            @touchend="handleTouchEnd($event, getMergedKey(item.name))"
-          >
-            <view :class="['ingredient-row', { 'is-open': openedItemId === getMergedKey(item.name) }]">
-              <view class="ingredient-main" @tap="toggleMergedItem(item.itemIds)">
-                <app-icon :class="['check', { 'is-checked': item.checked }]" :name="item.checked ? 'check' : 'circle'" size="18rpx" />
-                <text :class="['ingredient-name', { 'is-checked': item.checked }]">{{ item.name }}</text>
-              </view>
-              <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ item.amountText }}</text>
-            </view>
-            <view class="swipe-remove" @tap="removeMergedItem(item.itemIds)">删除</view>
+        <view v-else class="empty-card">
+          <view class="empty-illustration">
+            <app-icon name="basket" size="82rpx" />
+          </view>
+          <text class="empty-kicker">清单已整理干净</text>
+          <text class="empty-title">菜篮子空了</text>
+          <text class="empty-desc">从菜谱详情页加入食材后，会自动按菜谱和合并食材整理成本次采购清单。</text>
+          <view class="empty-actions">
+            <button class="empty-button is-primary" @click="goHome">去首页看看</button>
+            <button class="empty-button" @click="goToRecipes">浏览菜谱</button>
           </view>
         </view>
       </view>
-
-    </view>
-
-      <view v-else class="empty-card">
-      <view class="empty-illustration">
-        <view class="basket-line">
-          <view class="basket-handle" />
-          <view class="basket-body">
-            <view class="basket-dot" />
-            <view class="basket-dot" />
-            <view class="basket-dot" />
-          </view>
-        </view>
-      </view>
-      <text class="empty-kicker">清单已整理干净</text>
-      <text class="empty-title">菜篮子空了</text>
-      <text class="empty-desc">从菜谱详情页加入食材后，会自动按菜谱和合并用料整理成采购清单。</text>
-      <view class="empty-actions">
-        <button class="empty-button is-primary" @click="goHome">去首页看看</button>
-        <button class="empty-button" @click="goToRecipes">浏览菜谱</button>
-      </view>
-    </view>
     </view>
 
     <view v-if="items.length" class="action-dock glass-card">
-      <button class="dock-button" @tap="selectAll">{{ allChecked ? '取消全选' : '全选' }}</button>
-      <button class="dock-button" @tap="clearChecked">删除已购</button>
+      <button class="dock-button" @tap="selectAll">
+        <app-icon :name="allChecked ? 'check' : 'circle'" size="24rpx" />
+        <text>{{ allChecked ? '取消全选' : '全选' }}</text>
+      </button>
+      <button class="dock-button" @tap="clearChecked">
+        <app-icon name="trash" size="24rpx" />
+        <text>删除已购</text>
+      </button>
       <button class="dock-button is-primary" @tap="completePurchase">完成采购</button>
     </view>
 
     <home-tab-bar :tabs="tabs" />
+
+    <view v-if="activeGuideItem" class="guide-mask" @tap="closeIngredientGuide">
+      <view class="guide-panel" @tap.stop>
+        <view class="guide-handle" />
+        <view class="guide-head">
+          <text class="guide-title">{{ activeGuideItem.name }}怎么挑</text>
+          <button class="guide-close" @tap="closeIngredientGuide">
+            <app-icon name="close" size="28rpx" />
+          </button>
+        </view>
+        <view class="guide-body">
+          <view class="guide-image-wrap">
+            <image v-if="guideImage" class="guide-image" :src="guideImage" mode="aspectFill" />
+            <text v-else class="guide-image__fallback">{{ activeGuideItem.name.slice(0, 1) }}</text>
+          </view>
+          <view class="guide-content">
+            <view class="guide-tabs">
+              <button
+                v-for="tab in guideTabs"
+                :key="tab.id"
+                :class="['guide-tab', { 'is-active': activeGuideTab === tab.id }]"
+                @tap="activeGuideTab = tab.id"
+              >
+                {{ tab.label }}
+              </button>
+            </view>
+            <view v-if="activeGuideTab === 'select'" class="guide-tips">
+              <view v-for="(tip, index) in guideSelectionTips" :key="tip" class="guide-tip">
+                <text class="guide-tip__index">{{ index + 1 }}</text>
+                <text class="guide-tip__text">{{ tip }}</text>
+              </view>
+            </view>
+            <view v-else-if="activeGuideTab === 'storage'" class="guide-storage">
+              <app-icon name="lightbulb" size="24rpx" />
+              <text>{{ guideStorageText }}</text>
+            </view>
+            <view v-else class="guide-storage">
+              <text>{{ guidePriceText }}</text>
+            </view>
+          </view>
+        </view>
+        <button class="guide-primary" :disabled="!activeGuideItem.ingredientId" @tap="goToGuideIngredientDetail">查看食材详情</button>
+        <button class="guide-secondary" @tap="closeIngredientGuide">关闭</button>
+      </view>
+    </view>
 
     <view v-if="isPricePanelVisible" class="sheet-mask" @tap="closePricePanel">
       <view class="price-panel" @tap.stop>
@@ -182,17 +272,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { loadBasketItems, removeBasketItem, updateBasketItemChecked } from '../../services/basket';
 import type { BasketItem } from '../../services/basket';
-import { loadActiveFamilyId, loadFamilies, saveActiveFamilyId } from '../../services/family';
+import { loadFamilies, saveActiveFamilyId } from '../../services/family';
 import type { FamilyProfile } from '../../types/family';
 import { addPriceRecords } from '../../services/price';
+import { getIngredient } from '../../services/public-api';
+import type { ApiIngredientDetail } from '../../services/public-api';
 
 type BasketViewMode = 'recipe' | 'merged';
+type BasketScopeId = string | null;
+type GuideTabId = 'select' | 'storage' | 'price';
 
 interface BasketRecipeGroup {
   recipeId: string;
@@ -206,6 +300,9 @@ interface MergedBasketItem {
   amountText: string;
   checked: boolean;
   itemIds: string[];
+  imageUrl?: string | null;
+  ingredientId?: string;
+  priceText?: string;
 }
 
 interface PriceInputItem {
@@ -225,7 +322,7 @@ const tabs = [
 
 const items = ref<BasketItem[]>([]);
 const families = ref<FamilyProfile[]>([]);
-const activeFamilyId = ref(loadActiveFamilyId());
+const activeFamilyId = ref<BasketScopeId>(null);
 
 const viewMode = ref<BasketViewMode>('merged');
 const openedItemId = ref('');
@@ -234,6 +331,14 @@ const isPricePanelVisible = ref(false);
 const isFamilySelectorVisible = ref(false);
 const expandedRecipeIds = ref<string[]>([]);
 const priceInputs = ref<PriceInputItem[]>([]);
+const activeGuideItem = ref<BasketItem | null>(null);
+const activeGuideDetail = ref<ApiIngredientDetail | null>(null);
+const activeGuideTab = ref<GuideTabId>('select');
+const guideTabs: { id: GuideTabId; label: string }[] = [
+  { id: 'select', label: '怎么挑' },
+  { id: 'storage', label: '怎么保存' },
+  { id: 'price', label: '参考价格' }
+];
 
 const pendingCount = computed(() => items.value.filter((item) => !item.checked).length);
 const checkedCount = computed(() => items.value.filter((item) => item.checked).length);
@@ -248,10 +353,21 @@ const boardDescription = computed(() => {
     return '合并相同食材，单独添加的食材也在这里';
   }
 
-  return '按菜谱整理采购项，单独食材不在这里显示';
+  return '按菜谱分组展示，展开查看每道菜所需食材';
 });
 const activeFamily = computed<FamilyProfile>(() => {
-  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? {
+  if (activeFamilyId.value === null) {
+    return {
+      id: '',
+      name: '我的菜篮子',
+      description: '',
+      commonRecipes: 0,
+      pendingItems: 0,
+      members: []
+    };
+  }
+
+  return families.value.find((family) => family.id === activeFamilyId.value) ?? {
     id: '',
     name: '我的菜篮子',
     description: '',
@@ -296,12 +412,18 @@ const mergedItems = computed<MergedBasketItem[]>(() => {
     mergedMap.set(item.name, [...sameNameItems, item]);
   });
 
-  return Array.from(mergedMap.entries()).map(([name, sameNameItems]) => ({
-    name,
-    amountText: mergeAmountText(sameNameItems.map((item) => getBasketDisplayText(item))),
-    checked: sameNameItems.every((item) => item.checked),
-    itemIds: sameNameItems.map((item) => item.id)
-  }));
+  return Array.from(mergedMap.entries()).map(([name, sameNameItems]) => {
+    const primaryItem = sameNameItems.find((item) => item.imageUrl || item.ingredientId) ?? sameNameItems[0];
+    return {
+      name,
+      amountText: mergeAmountText(sameNameItems.map((item) => getBasketDisplayText(item))),
+      checked: sameNameItems.every((item) => item.checked),
+      itemIds: sameNameItems.map((item) => item.id),
+      imageUrl: primaryItem?.imageUrl ?? null,
+      ingredientId: primaryItem?.ingredientId,
+      priceText: primaryItem ? formatPriceText(primaryItem) : ''
+    };
+  });
 });
 
 const mergeAmountText = (amounts: string[]) => {
@@ -315,6 +437,21 @@ const mergeAmountText = (amounts: string[]) => {
 const getMergedKey = (name: string) => `merged-${name}`;
 const getRecipeKey = (recipeId: string) => `recipe-${recipeId}`;
 const getBasketDisplayText = (item: BasketItem) => item.purchaseText ?? item.amountText;
+const getItemImage = (item: BasketItem) => item.imageUrl || item.recipeCoverUrl || '';
+const getRecipeCover = (group: BasketRecipeGroup) => {
+  const coverItem = group.items.find((item) => item.recipeCoverUrl || item.imageUrl);
+  return coverItem?.recipeCoverUrl || coverItem?.imageUrl || '';
+};
+const formatPriceText = (item: BasketItem) => {
+  if (typeof item.currentPrice === 'number' && Number.isFinite(item.currentPrice) && item.currentPrice > 0) {
+    const price = Number.isInteger(item.currentPrice) ? String(item.currentPrice) : item.currentPrice.toFixed(1);
+    return `约${price}元/${item.priceUnit || '斤'}`;
+  }
+  if (item.purchaseText?.includes('元/')) {
+    return item.purchaseText;
+  }
+  return '';
+};
 
 const setViewMode = (mode: BasketViewMode) => {
   viewMode.value = mode;
@@ -329,9 +466,11 @@ const closeFamilySelector = () => {
   isFamilySelectorVisible.value = false;
 };
 
-const selectFamilyScope = async (familyId: string) => {
+const selectFamilyScope = async (familyId: BasketScopeId) => {
   activeFamilyId.value = familyId;
-  saveActiveFamilyId(familyId);
+  if (familyId) {
+    saveActiveFamilyId(familyId);
+  }
   items.value = await loadBasketItems(familyId);
   openedItemId.value = '';
   expandedRecipeIds.value = [];
@@ -434,6 +573,73 @@ const completePurchase = async () => {
   uni.showToast({ title: '已完成采购', icon: 'success' });
 };
 
+const splitGuideText = (value?: string | null) => {
+  if (!value?.trim()) return [];
+  return value
+    .split(/[\n。；;]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+};
+
+const guideSelectionTips = computed(() => {
+  const detailTips = splitGuideText(activeGuideDetail.value?.selectionTips);
+  if (detailTips.length) return detailTips;
+  const name = activeGuideItem.value?.name || '食材';
+  return [
+    `看外观：${name}色泽自然、表面完整更稳妥`,
+    '看触感：手感紧实，避免明显发软或出水',
+    '闻气味：选择自然清香，没有酸败异味',
+    '看边角：切口或根部不过度干缩',
+    '避坑：过硬可能未熟，过软可能不够新鲜'
+  ];
+});
+
+const guideStorageText = computed(() => {
+  return activeGuideDetail.value?.storageMethod || '买回后按食材属性冷藏或阴凉保存，尽量 2-3 天内食用。';
+});
+
+const guidePriceText = computed(() => {
+  if (!activeGuideItem.value) return '暂无价格参考。';
+  return formatPriceText(activeGuideItem.value) || '后台暂未配置参考价格，可在采购完成时记录本次价格。';
+});
+
+const guideImage = computed(() => {
+  return activeGuideDetail.value?.cover || (activeGuideItem.value ? getItemImage(activeGuideItem.value) : '');
+});
+
+const openIngredientGuide = async (item: BasketItem) => {
+  activeGuideItem.value = item;
+  activeGuideDetail.value = null;
+  activeGuideTab.value = 'select';
+  if (!item.ingredientId) return;
+  try {
+    activeGuideDetail.value = await getIngredient(Number(item.ingredientId));
+  } catch {
+    activeGuideDetail.value = null;
+  }
+};
+
+const openMergedIngredientGuide = async (item: MergedBasketItem) => {
+  const sourceItem = items.value.find((entry) => item.itemIds.includes(entry.id) && entry.ingredientId) ??
+    items.value.find((entry) => item.itemIds.includes(entry.id));
+  if (sourceItem) {
+    await openIngredientGuide(sourceItem);
+  }
+};
+
+const closeIngredientGuide = () => {
+  activeGuideItem.value = null;
+  activeGuideDetail.value = null;
+};
+
+const goToGuideIngredientDetail = () => {
+  const ingredientId = activeGuideItem.value?.ingredientId;
+  if (!ingredientId) return;
+  closeIngredientGuide();
+  uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${ingredientId}` });
+};
+
 const getUniquePurchasableItems = () => {
   const itemMap = new Map<string, BasketItem>();
   items.value.forEach((item) => {
@@ -510,26 +716,52 @@ const awaitPersistItems = async () => {
   await Promise.all(items.value.map((item) => updateBasketItemChecked(item.id, item.checked)));
 };
 
-onShow(async () => {
+const loadBasketPage = async () => {
   try {
     families.value = await loadFamilies();
-    activeFamilyId.value = loadActiveFamilyId() || families.value[0]?.id || '';
+    if (activeFamilyId.value && !families.value.some((family) => family.id === activeFamilyId.value)) {
+      activeFamilyId.value = null;
+    }
     items.value = await loadBasketItems(activeFamilyId.value);
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '菜篮子加载失败', icon: 'none' });
   }
+};
+
+onMounted(() => {
+  void loadBasketPage();
+});
+
+onShow(() => {
+  void loadBasketPage();
 });
 </script>
 
 <style scoped lang="scss">
 .basket-page {
-  padding-bottom: calc(330rpx + env(safe-area-inset-bottom, 0));
+  min-height: 100vh;
+  padding: 0 26rpx calc(318rpx + env(safe-area-inset-bottom, 0));
   background:
-    radial-gradient(circle at 50% -12%, rgba(255, 253, 252, 0.96), rgba(245, 241, 234, 0.9) 34%, #e9e2d6 100%);
+    radial-gradient(circle at 12% 0, rgba(255, 253, 252, 0.96), transparent 36%),
+    radial-gradient(circle at 86% 8%, rgba(233, 226, 214, 0.72), transparent 30%),
+    #f5f1ea;
+}
+
+.basket-shell {
+  max-width: 750rpx;
+  margin: 0 auto;
+  padding-top: calc(var(--app-safe-area-top) + 16px);
 }
 
 .mode-button::after,
-.dock-button::after {
+.dock-button::after,
+.guide-chip::after,
+.guide-close::after,
+.guide-tab::after,
+.guide-primary::after,
+.guide-secondary::after,
+.empty-button::after,
+.save-price-button::after {
   border: 0;
 }
 
@@ -538,7 +770,7 @@ onShow(async () => {
   align-items: center;
   gap: 8rpx;
   max-width: 100%;
-  margin-bottom: 24rpx;
+  margin: 4rpx 0 24rpx;
   color: var(--app-text);
 }
 
@@ -556,9 +788,7 @@ onShow(async () => {
 
 .family-selector__arrow {
   color: var(--app-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-semibold);
-  transition: transform 160ms ease;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .family-selector__arrow.is-open {
@@ -568,22 +798,21 @@ onShow(async () => {
 .family-mask {
   position: fixed;
   inset: 0;
-  z-index: 35;
-  padding: 128rpx 24rpx 24rpx;
-  background: rgba(47, 47, 47, 0.16);
-  backdrop-filter: blur(8rpx);
-  -webkit-backdrop-filter: blur(8rpx);
+  z-index: 36;
+  padding: 128rpx 26rpx 26rpx;
+  background: rgba(47, 47, 47, 0.18);
 }
 
 .family-sheet {
   overflow: hidden;
-  border: 0;
-  border-radius: var(--app-radius-card);
+  border: 1rpx solid rgba(233, 226, 214, 0.72);
+  border-radius: 32rpx;
   background: #fffdfc;
-  box-shadow: 0 28rpx 80rpx rgba(0, 0, 0, 0.08);
+  box-shadow: 0 26rpx 70rpx rgba(47, 47, 47, 0.08);
 }
 
-.family-option {
+.family-option,
+.family-manage-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -594,24 +823,16 @@ onShow(async () => {
 }
 
 .family-option.is-active {
-  background: rgba(107, 163, 104, 0.12);
-}
-
-.family-option--plain {
-  min-height: 118rpx;
+  background: rgba(122, 139, 111, 0.11);
 }
 
 .family-option__name,
-.family-option__check,
-.family-manage-row__name,
-.family-manage-row__icon {
+.family-manage-row__name {
   display: block;
-}
-
-.family-option__name {
   color: var(--app-text);
   font-size: var(--font-size-list-title);
   font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
 }
 
 .family-option.is-active .family-option__name,
@@ -619,35 +840,14 @@ onShow(async () => {
   color: var(--text-brand);
 }
 
-.family-option__check {
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-semibold);
+.family-manage-row__icon {
+  color: var(--app-text-secondary);
 }
 
 .family-sheet__divider {
   height: 1rpx;
   margin: 0 32rpx;
-  background: var(--app-border);
-}
-
-.family-manage-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  min-height: 110rpx;
-  padding: 0 32rpx;
-}
-
-.family-manage-row__name {
-  color: var(--app-text);
-  font-size: var(--font-size-list-title);
-  font-weight: var(--font-semibold);
-}
-
-.family-manage-row__icon {
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-section-title);
+  background: rgba(233, 226, 214, 0.9);
 }
 
 .status-card {
@@ -656,66 +856,61 @@ onShow(async () => {
   grid-template-columns: 1fr 1fr auto;
   align-items: center;
   gap: 24rpx;
-  padding: 26rpx 28rpx;
-  border: 0;
-  background: #fffdfc;
-  border-radius: var(--app-radius-card);
+  min-height: 134rpx;
+  padding: 26rpx 30rpx;
   overflow: hidden;
-  box-shadow: 0 18rpx 48rpx rgba(0, 0, 0, 0.04);
-}
-
-.status-card::after {
-  position: absolute;
-  top: -80rpx;
-  right: -80rpx;
-  width: 190rpx;
-  height: 190rpx;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(47, 47, 47, 0.05), transparent 66%);
-  content: '';
+  border: 1rpx solid rgba(255, 253, 252, 0.72);
+  border-radius: 34rpx;
+  background: rgba(255, 253, 252, 0.84);
+  box-shadow: 0 18rpx 54rpx rgba(47, 47, 47, 0.05);
 }
 
 .status-label {
   display: block;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .status-value {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 4rpx;
   color: var(--app-text);
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-medium);
-  line-height: var(--line-tabbar);
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-page-title);
+  font-variant-numeric: tabular-nums;
 }
 
 .status-note {
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 6rpx;
   align-items: flex-end;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .basket-board {
-  margin-top: 24rpx;
-  padding: 24rpx;
-  border: 0;
-  border-radius: var(--app-radius-card);
-  background: #fffdfc;
-  box-shadow: 0 20rpx 56rpx rgba(0, 0, 0, 0.04);
+  margin-top: 22rpx;
+  padding: 26rpx 24rpx 20rpx;
+  border: 1rpx solid rgba(255, 253, 252, 0.8);
+  border-radius: 34rpx;
+  background: rgba(255, 253, 252, 0.9);
+  box-shadow: 0 24rpx 66rpx rgba(47, 47, 47, 0.05);
 }
 
 .board-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
+  display: grid;
+  grid-template-columns: 1fr 196rpx;
+  align-items: start;
+  gap: 20rpx;
   margin-bottom: 22rpx;
+}
+
+.board-copy {
+  min-width: 0;
 }
 
 .board-title,
@@ -725,121 +920,68 @@ onShow(async () => {
 
 .board-title {
   color: var(--app-text);
-  font-size: var(--font-size-list-title);
+  font-size: var(--font-size-section-title);
   font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
 }
 
 .board-desc {
   margin-top: 8rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-  line-height: var(--line-body-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .mode-switch {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8rpx;
-  width: 210rpx;
-  flex: 0 0 auto;
-  padding: 7rpx;
-  border-radius: var(--app-radius-button);
-  background: #e9e2d6;
-  border: 1rpx solid rgba(122, 139, 111, 0.14);
+  gap: 6rpx;
+  padding: 6rpx;
+  border: 1rpx solid rgba(233, 226, 214, 0.82);
+  border-radius: 34rpx;
+  background: #eee8df;
 }
 
 .mode-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 58rpx;
+  padding: 0;
   border: 0;
-  border-radius: var(--app-radius-button);
+  border-radius: 28rpx;
   background: transparent;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
+  line-height: var(--line-caption);
+  white-space: nowrap;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .mode-button.is-active {
   background: var(--app-accent);
   color: var(--text-white);
-  box-shadow: 0 14rpx 30rpx rgba(47, 47, 47, 0.12);
+  box-shadow: 0 12rpx 26rpx rgba(122, 139, 111, 0.18);
 }
 
-.single-card,
-.recipe-card,
+.content,
 .merged-card,
-.empty-card {
-  padding: 20rpx;
-  border-radius: 32rpx;
-  background: #e9e2d6;
-}
-
 .recipe-list {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
 }
 
-.recipe-swipe-row {
-  position: relative;
+.merged-card,
+.recipe-list {
   overflow: hidden;
-}
-
-.recipe-header {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  min-height: 78rpx;
-  margin-bottom: 12rpx;
-  padding: 0 18rpx;
-  border-radius: 26rpx;
-  background: #e9e2d6;
-  transition: transform 0.22s ease;
-}
-
-.recipe-header.is-open {
-  transform: translateX(-132rpx);
-}
-
-.recipe-title {
-  display: block;
-  color: var(--app-text);
-  font-size: var(--font-size-list-title);
-  font-weight: var(--font-medium);
-  line-height: var(--line-caption);
-}
-
-.recipe-subtitle {
-  display: block;
-  margin-top: 8rpx;
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tabbar);
-}
-
-.recipe-arrow {
-  color: var(--app-text);
-  font-size: var(--font-size-hero);
-  line-height: var(--line-tabbar);
-  transition: transform 0.2s ease;
-}
-
-.recipe-arrow.is-expanded {
-  transform: rotate(90deg);
-}
-
-.ingredient-list {
-  overflow: hidden;
-  margin: 4rpx 0 10rpx;
   border-radius: 28rpx;
-  background: #fffdfc;
 }
 
 .swipe-row {
   position: relative;
   overflow: hidden;
-  border-bottom: 1rpx solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1rpx solid rgba(233, 226, 214, 0.72);
 }
 
 .swipe-row:last-child {
@@ -850,57 +992,88 @@ onShow(async () => {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 1fr 150rpx;
+  grid-template-columns: 48rpx 96rpx minmax(0, 1fr) 150rpx;
   align-items: center;
-  min-height: 86rpx;
-  padding: 0 18rpx;
-  background: #fffdfc;
-  transition: transform 0.22s ease;
+  gap: 16rpx;
+  min-height: 122rpx;
+  padding: 12rpx 4rpx;
+  background: rgba(255, 253, 252, 0.96);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), background 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ingredient-row.is-open {
   transform: translateX(-132rpx);
 }
 
-.ingredient-main {
+.ingredient-row.is-checked {
+  background: rgba(247, 249, 244, 0.92);
+}
+
+.check-hit {
   display: flex;
   align-items: center;
-  gap: 16rpx;
-  min-width: 0;
+  justify-content: center;
+  min-width: 48rpx;
+  min-height: 72rpx;
 }
 
 .check {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 34rpx;
-  height: 34rpx;
-  border: 1rpx solid rgba(122, 139, 111, 0.2);
+  width: 36rpx;
+  height: 36rpx;
+  border: 1rpx solid rgba(183, 174, 161, 0.46);
   border-radius: 50%;
-  color: var(--text-white);
-  font-size: var(--font-size-tabbar);
-  font-weight: var(--font-semibold);
+  color: transparent;
 }
 
 .check.is-checked {
-  background: var(--app-accent);
   border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--text-white);
+}
+
+.ingredient-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92rpx;
+  height: 82rpx;
+  overflow: hidden;
+  border-radius: 18rpx;
+  background: #efe8dd;
+}
+
+.ingredient-thumb__image,
+.recipe-cover__image,
+.guide-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ingredient-thumb__fallback,
+.recipe-cover__fallback,
+.guide-image__fallback {
+  color: var(--text-brand);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+}
+
+.ingredient-copy {
+  min-width: 0;
 }
 
 .ingredient-name {
+  display: block;
   overflow: hidden;
   color: var(--app-text);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-list-title);
   font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ingredient-amount {
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-body-sm);
-  text-align: left;
 }
 
 .ingredient-name.is-checked,
@@ -909,183 +1082,290 @@ onShow(async () => {
   text-decoration: line-through;
 }
 
+.guide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4rpx;
+  height: 34rpx;
+  margin-top: 8rpx;
+  padding: 0 12rpx;
+  border: 1rpx solid rgba(122, 139, 111, 0.22);
+  border-radius: 18rpx;
+  background: rgba(233, 226, 214, 0.52);
+  color: var(--text-brand);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-tabbar);
+}
+
+.ingredient-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  min-width: 0;
+}
+
+.ingredient-amount {
+  display: block;
+  max-width: 150rpx;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-body-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ingredient-price {
+  display: block;
+  max-width: 150rpx;
+  overflow: hidden;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-tabbar);
+  line-height: var(--line-tabbar);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .swipe-remove {
   position: absolute;
-  top: 12rpx;
+  top: 30rpx;
   right: 0;
   z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 116rpx;
-  height: 58rpx;
-  border-radius: var(--app-radius-button);
-  background: #e5735f;
+  height: 62rpx;
+  border-radius: 24rpx;
+  background: var(--app-danger);
   color: var(--text-white);
   font-size: var(--font-size-tag);
   font-weight: var(--font-semibold);
 }
 
-.recipe-remove {
-  top: 8rpx;
+.recipe-card {
+  overflow: hidden;
+  margin-bottom: 18rpx;
+  border: 1rpx solid rgba(233, 226, 214, 0.82);
+  border-radius: 28rpx;
+  background: rgba(255, 253, 252, 0.94);
+}
+
+.recipe-card:last-child {
+  margin-bottom: 0;
+}
+
+.recipe-swipe-row {
+  position: relative;
+  overflow: hidden;
+}
+
+.recipe-header {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 116rpx minmax(0, 1fr) 44rpx;
+  align-items: center;
+  gap: 18rpx;
+  min-height: 138rpx;
+  padding: 18rpx;
+  background: #fffdfc;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.recipe-header.is-open {
+  transform: translateX(-132rpx);
+}
+
+.recipe-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112rpx;
+  height: 100rpx;
+  overflow: hidden;
+  border-radius: 18rpx;
+  background: #efe8dd;
+}
+
+.recipe-copy {
+  min-width: 0;
+}
+
+.recipe-title,
+.recipe-subtitle {
+  display: block;
+}
+
+.recipe-title {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-card-title);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-subtitle {
+  margin-top: 8rpx;
+  color: var(--text-warm);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.recipe-arrow {
+  color: var(--app-text);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.recipe-arrow.is-expanded {
+  transform: rotate(180deg);
+}
+
+.recipe-ingredient-list {
+  overflow: hidden;
+  margin: 0 18rpx 18rpx 66rpx;
+  border-radius: 24rpx;
+  background: #fffdfc;
+}
+
+.recipe-empty {
+  padding: 62rpx 28rpx;
+  border-radius: 28rpx;
+  background: rgba(233, 226, 214, 0.36);
+  text-align: center;
+}
+
+.recipe-empty__title,
+.recipe-empty__desc {
+  display: block;
+}
+
+.recipe-empty__title {
+  color: var(--app-text);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
+}
+
+.recipe-empty__desc {
+  margin-top: 8rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .action-dock {
   position: fixed;
-  right: 42rpx;
-  bottom: calc(150rpx + env(safe-area-inset-bottom, 0));
-  left: 42rpx;
+  right: 28rpx;
+  bottom: calc(164rpx + env(safe-area-inset-bottom, 0));
+  left: 28rpx;
   z-index: 29;
   display: grid;
-  grid-template-columns: 1fr 1fr 1.35fr;
+  grid-template-columns: 1fr 1.15fr 1.35fr;
   gap: 12rpx;
-  margin-top: 0;
+  max-width: 694rpx;
+  margin: 0 auto;
   padding: 14rpx;
-  border: 1rpx solid rgba(0, 0, 0, 0.04);
-  border-radius: var(--app-radius-card);
+  border: 1rpx solid rgba(233, 226, 214, 0.82);
+  border-radius: 34rpx;
   background: rgba(255, 253, 252, 0.96);
-  box-shadow: 0 16rpx 42rpx rgba(0, 0, 0, 0.04);
+  box-shadow: 0 18rpx 54rpx rgba(47, 47, 47, 0.07);
 }
 
 .dock-button {
-  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  height: 66rpx;
+  min-width: 0;
   border: 0;
-  border-radius: var(--app-radius-button);
-  background: #e9e2d6;
+  border-radius: 28rpx;
+  background: #eee8df;
   color: var(--app-text);
-  font-size: var(--font-size-tag);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
+  line-height: var(--line-caption);
 }
 
 .dock-button.is-primary {
   background: var(--app-accent);
   color: var(--text-white);
+  box-shadow: 0 12rpx 28rpx rgba(122, 139, 111, 0.2);
 }
 
 .empty-card {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14rpx;
   min-height: 548rpx;
-  padding: 58rpx 24rpx 36rpx;
-  overflow: hidden;
+  padding: 62rpx 24rpx 40rpx;
+  border-radius: 28rpx;
+  background: rgba(233, 226, 214, 0.34);
   text-align: center;
 }
 
-.empty-card::before {
-  position: absolute;
-  top: -120rpx;
-  right: -100rpx;
-  width: 300rpx;
-  height: 300rpx;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(47, 47, 47, 0.06), transparent 68%);
-  content: '';
-}
-
 .empty-illustration {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 190rpx;
-  height: 190rpx;
-  margin-bottom: 12rpx;
-  border-radius: 50%;
-  background:
-    linear-gradient(145deg, rgba(255, 253, 252, 0.98), rgba(233, 226, 214, 0.78));
-  box-shadow: inset 0 1rpx 0 rgba(255, 253, 252, 0.9), 0 20rpx 44rpx rgba(0, 0, 0, 0.04);
+  width: 168rpx;
+  height: 168rpx;
+  margin-bottom: 10rpx;
+  border-radius: 44rpx;
+  background: #fffdfc;
+  color: var(--text-brand);
 }
 
-.basket-line {
-  position: relative;
-  width: 110rpx;
-  height: 92rpx;
-}
-
-.basket-handle {
-  position: absolute;
-  top: 0;
-  left: 22rpx;
-  width: 66rpx;
-  height: 42rpx;
-  border: 6rpx solid var(--app-text);
-  border-bottom: 0;
-  border-radius: 40rpx 40rpx 0 0;
-  opacity: 0.84;
-}
-
-.basket-body {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-  height: 62rpx;
-  border: 6rpx solid var(--app-text);
-  border-radius: 20rpx 20rpx 26rpx 26rpx;
-  opacity: 0.9;
-}
-
-.basket-dot {
-  width: 10rpx;
-  height: 10rpx;
-  border-radius: 50%;
-  background: var(--app-text);
-  opacity: 0.72;
+.empty-kicker,
+.empty-title,
+.empty-desc {
+  display: block;
 }
 
 .empty-kicker {
-  position: relative;
-  z-index: 1;
-  padding: 8rpx 16rpx;
-  border-radius: var(--app-radius-button);
-  background: var(--app-accent-soft);
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
+  padding: 8rpx 18rpx;
+  border-radius: 18rpx;
+  background: rgba(122, 139, 111, 0.1);
+  color: var(--text-brand);
+  font-size: var(--font-size-tag);
   font-weight: var(--font-semibold);
+  line-height: var(--line-tag);
 }
 
 .empty-title {
-  position: relative;
-  z-index: 1;
   color: var(--app-text);
   font-size: var(--font-size-section-title);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
 }
 
 .empty-desc {
-  position: relative;
-  z-index: 1;
-  max-width: 460rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  line-height: var(--line-body-sm);
+  max-width: 500rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .empty-actions {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14rpx;
   width: 100%;
-  margin-top: 22rpx;
+  margin-top: 18rpx;
 }
 
 .empty-button {
   height: 72rpx;
   border: 0;
-  border-radius: var(--app-radius-button);
-  background: var(--app-accent-soft);
+  border-radius: 28rpx;
+  background: #eee8df;
   color: var(--app-text);
-  font-size: var(--font-size-tag);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
 }
 
@@ -1094,62 +1374,196 @@ onShow(async () => {
   color: var(--text-white);
 }
 
-.empty-button::after {
-  border: 0;
-}
-
+.guide-mask,
 .sheet-mask {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 40;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  padding: 48rpx;
-  background: rgba(47, 47, 47, 0.28);
-  backdrop-filter: blur(10rpx);
-  -webkit-backdrop-filter: blur(10rpx);
+  background: rgba(47, 47, 47, 0.5);
 }
 
+.guide-panel,
 .price-panel {
-  width: min(650rpx, 100%);
-  max-height: 78vh;
-  padding: 28rpx;
+  width: 100%;
+  max-width: 750rpx;
+  max-height: 84vh;
+  padding: 18rpx 26rpx calc(28rpx + env(safe-area-inset-bottom, 0));
   overflow-y: auto;
-  border-radius: var(--app-radius-card);
-  background: rgba(255, 253, 252, 0.94);
-  box-shadow: 0 28rpx 80rpx rgba(0, 0, 0, 0.08);
+  border-radius: 38rpx 38rpx 0 0;
+  background: rgba(255, 253, 252, 0.98);
+  box-shadow: 0 -20rpx 70rpx rgba(47, 47, 47, 0.14);
 }
 
+.guide-handle {
+  width: 104rpx;
+  height: 6rpx;
+  margin: 0 auto 22rpx;
+  border-radius: 999rpx;
+  background: rgba(183, 174, 161, 0.42);
+}
+
+.guide-head,
 .price-panel__head {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20rpx;
 }
 
-.price-panel__title,
+.guide-title,
+.price-panel__title {
+  display: block;
+  color: var(--app-text);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+}
+
+.guide-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54rpx;
+  height: 54rpx;
+  border: 0;
+  border-radius: 18rpx;
+  background: transparent;
+  color: var(--app-text-secondary);
+}
+
+.guide-body {
+  display: grid;
+  grid-template-columns: 168rpx minmax(0, 1fr);
+  gap: 24rpx;
+  margin-top: 22rpx;
+}
+
+.guide-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 168rpx;
+  height: 160rpx;
+  overflow: hidden;
+  border-radius: 24rpx;
+  background: #efe8dd;
+}
+
+.guide-content {
+  min-width: 0;
+}
+
+.guide-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: 18rpx;
+  background: #eee8df;
+}
+
+.guide-tab {
+  height: 52rpx;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.guide-tab.is-active {
+  color: var(--text-brand);
+  box-shadow: inset 0 -4rpx 0 var(--text-brand);
+}
+
+.guide-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.guide-tip {
+  display: grid;
+  grid-template-columns: 34rpx minmax(0, 1fr);
+  align-items: start;
+  gap: 10rpx;
+}
+
+.guide-tip__index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30rpx;
+  height: 30rpx;
+  border-radius: 50%;
+  background: var(--app-accent);
+  color: var(--text-white);
+  font-size: var(--font-size-tabbar);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-tabbar);
+}
+
+.guide-tip__text,
+.guide-storage {
+  color: var(--app-text);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.guide-storage {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-top: 22rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 24rpx;
+  background: #f2ece3;
+}
+
+.guide-primary,
+.guide-secondary,
+.save-price-button {
+  width: 100%;
+  height: 76rpx;
+  border: 0;
+  border-radius: 24rpx;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body-sm);
+}
+
+.guide-primary {
+  margin-top: 28rpx;
+  background: var(--app-accent);
+  color: var(--text-white);
+}
+
+.guide-secondary {
+  margin-top: 14rpx;
+  background: #eee8df;
+  color: var(--app-text);
+}
+
 .price-panel__desc,
 .price-row__name {
   display: block;
 }
 
-.price-panel__title {
-  color: var(--app-text);
-  font-size: var(--font-size-card-title);
-  font-weight: var(--font-semibold);
-}
-
 .price-panel__desc {
   margin-top: 8rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  line-height: var(--line-body-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 
 .price-panel__close {
-  color: var(--app-text-tertiary);
+  color: var(--app-text-secondary);
   font-size: var(--font-size-detail-title);
-  line-height: var(--line-tabbar);
+  line-height: var(--line-detail-title);
 }
 
 .price-list {
@@ -1166,13 +1580,14 @@ onShow(async () => {
   gap: 18rpx;
   padding: 18rpx;
   border-radius: 24rpx;
-  background: #e9e2d6;
+  background: #eee8df;
 }
 
 .price-row__name {
   color: var(--app-text);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-medium);
+  line-height: var(--line-body-sm);
 }
 
 .price-row__field {
@@ -1180,14 +1595,14 @@ onShow(async () => {
   align-items: center;
   height: 62rpx;
   padding: 0 18rpx;
-  border-radius: var(--app-radius-button);
+  border-radius: 22rpx;
   background: #fffdfc;
 }
 
 .price-row__prefix,
 .price-row__unit {
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
 }
 
@@ -1200,18 +1615,8 @@ onShow(async () => {
 }
 
 .save-price-button {
-  width: 100%;
-  height: 76rpx;
   margin-top: 24rpx;
-  border: 0;
-  border-radius: var(--app-radius-button);
   background: var(--app-accent);
   color: var(--text-white);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-semibold);
-}
-
-.save-price-button::after {
-  border: 0;
 }
 </style>
