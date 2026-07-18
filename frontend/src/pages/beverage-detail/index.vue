@@ -43,9 +43,21 @@
         </view>
       </view>
 
+      <view v-if="beverage.kind === 'MIXED'" class="section glass-card">
+        <text class="section-title">制作所需</text>
+        <text v-if="beverage.ingredientsV2.length" class="section-desc">
+          {{ beverage.ingredientsV2.map((item) => `${item.name}${item.amount ? ` ${item.amount}` : ''}`).join(' · ') }}
+        </text>
+        <text v-if="beverage.tools.length" class="section-desc">器具：{{ beverage.tools.map((item) => item.name).join(' · ') }}</text>
+      </view>
+
       <view class="section glass-card">
         <text class="section-title">说明</text>
         <text class="section-desc">{{ parsedDetail || beverage.description || '暂无说明，后续可由后台补充。' }}</text>
+      </view>
+
+      <view v-if="beverage.kind === 'MIXED' && beverage.steps.length" class="bottom-action">
+        <button class="make-button" @tap="startMaking">去制作</button>
       </view>
     </template>
   </view>
@@ -109,6 +121,7 @@ const readId = (options?: Record<string, string | undefined>) => {
 };
 
 const goBack = () => uni.navigateBack();
+const startMaking = () => uni.navigateTo({ url: `/pages/cooking/index?id=${encodeURIComponent(beverageId.value)}&type=beverage` });
 
 const loadBeverage = async () => {
   const id = beverageId.value || readId();
@@ -144,6 +157,23 @@ onMounted(() => {
 .beverage-page {
   min-height: 100vh;
   padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+}
+
+.bottom-action {
+  position: sticky;
+  bottom: calc(16rpx + env(safe-area-inset-bottom, 0));
+  margin-top: 24rpx;
+  padding: 16rpx;
+}
+
+.make-button {
+  min-height: 88rpx;
+  border: 0;
+  border-radius: var(--app-radius-button);
+  background: var(--app-primary);
+  color: var(--app-surface-strong);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
 }
 
 .topbar {

@@ -27,7 +27,7 @@
 
     <!-- Loading / Error / Empty States -->
     <view v-if="loading" class="status-banner">
-      <text class="status-text">正在载入烹饪步骤...</text>
+      <text class="status-text">正在载入{{ flowType === 'beverage' ? '制作' : '烹饪' }}步骤...</text>
     </view>
     <view v-else-if="error" class="status-banner">
       <text class="status-text error-text">{{ error }}</text>
@@ -96,7 +96,7 @@
           class="nav-step-btn next-step-btn" 
           @click="nextStep"
         >
-          {{ currentIndex === steps.length - 1 ? '完成烹饪' : '下一步' }}
+          {{ currentIndex === steps.length - 1 ? (flowType === 'beverage' ? '完成制作' : '完成烹饪') : '下一步' }}
         </button>
       </view>
     </view>
@@ -107,7 +107,7 @@
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
-import { getRecipeGuidedFlow } from '../../services/public-api';
+import { getBeverageGuidedFlow, getRecipeGuidedFlow } from '../../services/public-api';
 
 type CookingStep = {
   title: string;
@@ -118,6 +118,7 @@ type CookingStep = {
 };
 
 const recipeId = ref<string | null>(null);
+const flowType = ref<'recipe' | 'beverage'>('recipe');
 const recipeName = ref('');
 const steps = ref<CookingStep[]>([]);
 const currentIndex = ref(0);
@@ -165,7 +166,7 @@ const formatTime = (totalSecs: number): string => {
 const goBack = () => {
   if (getCurrentPages().length <= 1) {
     if (recipeId.value) {
-      uni.redirectTo({ url: `/pages/recipe-detail/index?id=${recipeId.value}` });
+      uni.redirectTo({ url: flowType.value === 'beverage' ? `/pages/beverage-detail/index?id=${recipeId.value}` : `/pages/recipe-detail/index?id=${recipeId.value}` });
     } else {
       uni.reLaunch({ url: '/pages/ingredients/index?tab=recipes' });
     }
@@ -176,13 +177,13 @@ const goBack = () => {
 
 const showMoreActions = () => {
   uni.showActionSheet({
-    itemList: ['分享菜谱', '返回菜谱详情'],
+    itemList: [flowType.value === 'beverage' ? '分享饮品' : '分享菜谱', flowType.value === 'beverage' ? '返回饮品详情' : '返回菜谱详情'],
     success: (res) => {
       if (res.tapIndex === 0) {
         uni.showToast({ title: '链接已复制，去分享给好友吧', icon: 'none' });
       } else if (res.tapIndex === 1) {
         if (recipeId.value) {
-          uni.redirectTo({ url: `/pages/recipe-detail/index?id=${recipeId.value}` });
+          uni.redirectTo({ url: flowType.value === 'beverage' ? `/pages/beverage-detail/index?id=${recipeId.value}` : `/pages/recipe-detail/index?id=${recipeId.value}` });
         }
       }
     }
@@ -250,13 +251,13 @@ const nextStep = () => {
     currentIndex.value++;
   } else {
     uni.showToast({
-      title: '烹饪完成！',
+      title: flowType.value === 'beverage' ? '制作完成！' : '烹饪完成！',
       icon: 'success',
       duration: 2000
     });
     setTimeout(() => {
       if (recipeId.value) {
-        uni.redirectTo({ url: `/pages/recipe-detail/index?id=${recipeId.value}` });
+        uni.redirectTo({ url: flowType.value === 'beverage' ? `/pages/beverage-detail/index?id=${recipeId.value}` : `/pages/recipe-detail/index?id=${recipeId.value}` });
       } else {
         uni.reLaunch({ url: '/pages/ingredients/index?tab=recipes' });
       }
@@ -273,7 +274,9 @@ const fetchRecipeDetails = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const data = await getRecipeGuidedFlow(recipeId.value);
+    const data = flowType.value === 'beverage'
+      ? await getBeverageGuidedFlow(recipeId.value)
+      : await getRecipeGuidedFlow(recipeId.value);
     recipeName.value = data.title;
     steps.value = data.steps.map((step) => {
       return {
@@ -294,6 +297,7 @@ const fetchRecipeDetails = async () => {
 };
 
 onLoad((query?: Record<string, string | undefined>) => {
+  flowType.value = query?.type === 'beverage' ? 'beverage' : 'recipe';
   const id = readRecipeIdFromRoute(query);
   if (id) {
     recipeId.value = id;

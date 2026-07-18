@@ -369,6 +369,15 @@ export type ApiBeverageDetail = {
   alcoholDegree: number | null;
   description: string | null;
   category?: { id: number; name: string; type: string } | null;
+  kind: 'ORDINARY' | 'MIXED';
+  cocktailMethod: string | null;
+  baseSpirit: string | null;
+  glassType: string | null;
+  garnish: string | null;
+  instructions: string | null;
+  ingredientsV2: Array<{ id: number; name: string; amount: string | null; isBase: boolean; sortIndex: number }>;
+  tools: Array<{ id: number; name: string; sortIndex: number }>;
+  steps: Array<{ id: number; title: string; description: string; sortIndex: number; timerSeconds: number | null; tip: string | null }>;
   createdAt: string;
   updatedAt: string;
 };
