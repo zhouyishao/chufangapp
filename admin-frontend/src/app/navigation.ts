@@ -45,18 +45,7 @@ export const adminNavigation: AdminNavItem[] = [
     children: [
       { label: '分类管理', path: '/taxonomies/categories', permission: 'taxonomy:view' },
       { label: '标签管理', path: '/taxonomies/tags', permission: 'tag:view' },
-      { label: '单位管理', path: '/taxonomies/units', permission: 'unit:view' }
-    ]
-  },
-  {
-    label: '价格管理',
-    path: '/prices',
-    permission: 'price:view',
-    children: [
-      { label: '食材价格', path: '/prices/ingredients', permission: 'price:view' },
-      { label: '价格趋势', path: '/prices/trends', permission: 'price:trend:view' },
-      { label: '价格预警', path: '/prices/alerts', permission: 'price:alert:view' },
-      { label: '价格来源', path: '/prices/sources', permission: 'price:source:view' }
+      // 单位管理待真实数据库表接入后重新开放。
     ]
   },
   {
@@ -90,25 +79,11 @@ export const adminNavigation: AdminNavItem[] = [
     ]
   },
   {
-    label: '数据报表',
-    path: '/reports',
-    permission: 'report:view',
-    children: [
-      { label: '运营概览', path: '/reports/overview', permission: 'report:view' },
-      { label: '内容报表', path: '/reports/content', permission: 'report:content:view' },
-      { label: '用户报表', path: '/reports/users', permission: 'report:user:view' },
-      { label: '搜索报表', path: '/reports/search', permission: 'report:search:view' },
-      { label: '采购报表', path: '/reports/purchase', permission: 'report:purchase:view' }
-    ]
-  },
-  {
     label: '文件管理',
     path: '/files',
     permission: 'file:view',
     children: [
-      { label: '文件列表', path: '/files/list', permission: 'file:view' },
-      { label: '上传记录', path: '/files/uploads', permission: 'file:upload:view' },
-      { label: '引用关系', path: '/files/usages', permission: 'file:usage:view' }
+      { label: '上传记录', path: '/files/uploads', permission: 'file:upload:view' }
     ]
   },
   {
@@ -134,17 +109,6 @@ export const adminNavigation: AdminNavItem[] = [
     ]
   },
   {
-    label: '菜篮子/采购',
-    path: '/purchase',
-    permission: 'purchase:view',
-    children: [
-      { label: '采购清单', path: '/purchase/lists', permission: 'purchase:view' },
-      { label: '采购规则', path: '/purchase/rules', permission: 'purchase:rule:view' },
-      { label: '单位换算', path: '/purchase/units', permission: 'purchase:unit:view' },
-      { label: '损耗配置', path: '/purchase/loss', permission: 'purchase:loss:view' }
-    ]
-  },
-  {
     label: '评论管理',
     path: '/comments',
     permission: 'comment:view',
@@ -153,29 +117,7 @@ export const adminNavigation: AdminNavItem[] = [
       { label: '举报处理', path: '/comments/reports', permission: 'comment:report:view' }
     ]
   },
-  {
-    label: 'AI 配置',
-    path: '/ai',
-    permission: 'ai:model:view',
-    children: [
-      { label: '模型配置', path: '/ai/models', permission: 'ai:model:view' },
-      { label: 'Prompt 模板', path: '/ai/prompts', permission: 'ai:prompt:view' },
-      { label: 'AI 任务', path: '/ai/tasks', permission: 'ai:task:view' },
-      { label: '调用记录', path: '/ai/logs', permission: 'ai:log:view' }
-    ]
-  },
-  {
-    label: '搜索运营',
-    path: '/search-ops',
-    permission: 'search:log:view',
-    children: [
-      { label: '搜索日志', path: '/search-ops/logs', permission: 'search:log:view' },
-      { label: '热词管理', path: '/search-ops/hotwords', permission: 'search:hotword:view' },
-      { label: '无结果词', path: '/search-ops/no-result', permission: 'search:no-result:view' },
-      { label: '同义词管理', path: '/search-ops/synonyms', permission: 'search:synonym:view' },
-      { label: '搜索置顶', path: '/search-ops/pins', permission: 'search:pin:view' }
-    ]
-  }
+  // 报表、价格预测、采购规则、AI 与搜索运营在没有真实数据源前不进入首发导航。
 ];
 
 export const flattenNavigation = (items: AdminNavItem[] = adminNavigation): AdminNavItem[] =>
