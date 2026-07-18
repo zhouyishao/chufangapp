@@ -2,9 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { HttpError } from '../../http/errors';
+import { requireAppAuth } from '../../http/middleware/app-auth';
+import { resolveRequestUserId } from '../../http/request-user';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
 import { prisma } from '../../prisma';
+import { buildAppAuthSession } from '../../services/app-token';
+import { buildBasketListWhere, canAccessBasketItem } from '../../services/basket-access';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -287,7 +291,7 @@ apiMobileRouter.post('/auth/login', async (req, res) => {
     throw new HttpError('该账户已被禁用，无法登录，请联系管理员。', 403, 403);
   }
 
-  res.json(ok(user));
+  res.json(ok(buildAppAuthSession(user)));
 });
 
 apiMobileRouter.get('/home', async (_req, res) => {
@@ -920,15 +924,22 @@ apiMobileRouter.put('/family-members/:id', async (req, res) => {
   }));
 });
 
-apiMobileRouter.get('/basket-items', async (req, res) => {
+apiMobileRouter.get('/basket-items', requireAppAuth, async (req, res) => {
   const parsed = pageQuerySchema.extend({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     familyId: z.coerce.number().int().positive().optional()
   }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, familyId, page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const { familyId, page, pageSize } = parsed.data;
   const skip = (page - 1) * pageSize;
-  const where = { userId, deletedAt: null, ...(familyId ? { familyId } : {}) };
+  if (familyId) {
+    const member = await prisma.familyMember.findFirst({
+      where: { familyId, userId, deletedAt: null, memberStatus: 'ACTIVE' }
+    });
+    if (!member) throw new HttpError('无权查看该家庭菜篮子', 403, 403);
+  }
+  const where = buildBasketListWhere({ requesterUserId: userId, familyId });
   const [rows, total] = await Promise.all([
     prisma.purchaseListItem.findMany({
       where,
@@ -944,9 +955,9 @@ apiMobileRouter.get('/basket-items', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.post('/basket-items', async (req, res) => {
+apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     familyId: z.coerce.number().int().positive().nullable().optional(),
     recipeId: z.coerce.number().int().positive().nullable().optional(),
     ingredientId: z.coerce.number().int().positive().nullable().optional(),
@@ -958,22 +969,24 @@ apiMobileRouter.post('/basket-items', async (req, res) => {
     purchaseText: z.string().trim().max(120).nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const user = await prisma.user.findFirst({ where: { id: parsed.data.userId, deletedAt: null, status: 'ACTIVE' } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null, status: 'ACTIVE' } });
   if (!user) throw new HttpError('用户不存在', 404, 404);
   if (parsed.data.familyId) {
     const member = await prisma.familyMember.findFirst({
-      where: { familyId: parsed.data.familyId, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' }
+      where: { familyId: parsed.data.familyId, userId, deletedAt: null, memberStatus: 'ACTIVE' }
     });
     if (!member) throw new HttpError('无权修改该家庭菜篮子', 403, 403);
   }
   const existing = parsed.data.ingredientId
     ? await prisma.purchaseListItem.findFirst({
         where: {
-          userId: parsed.data.userId,
-          familyId: parsed.data.familyId ?? null,
+          ...buildBasketListWhere({
+            requesterUserId: userId,
+            familyId: parsed.data.familyId
+          }),
           recipeId: parsed.data.recipeId ?? null,
           ingredientId: parsed.data.ingredientId,
-          deletedAt: null
         }
       })
     : null;
@@ -992,7 +1005,7 @@ apiMobileRouter.post('/basket-items', async (req, res) => {
       })
     : await prisma.purchaseListItem.create({
         data: {
-          userId: parsed.data.userId,
+          userId,
           familyId: parsed.data.familyId,
           recipeId: parsed.data.recipeId,
           ingredientId: parsed.data.ingredientId,
@@ -1008,16 +1021,35 @@ apiMobileRouter.post('/basket-items', async (req, res) => {
   res.json(ok(toPurchaseItem(item)));
 });
 
-apiMobileRouter.put('/basket-items/:id', async (req, res) => {
+apiMobileRouter.put('/basket-items/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     quantity: z.coerce.number().positive().max(999).optional(),
     checked: z.coerce.boolean().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const existing = await prisma.purchaseListItem.findFirst({ where: { id, userId: parsed.data.userId, deletedAt: null } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const existing = await prisma.purchaseListItem.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new HttpError('菜篮子条目不存在', 404, 404);
+  const member = existing.familyId
+    ? await prisma.familyMember.findFirst({
+        where: {
+          familyId: existing.familyId,
+          userId,
+          deletedAt: null,
+          memberStatus: 'ACTIVE'
+        }
+      })
+    : null;
+  if (!canAccessBasketItem({
+    requesterUserId: userId,
+    itemOwnerUserId: existing.userId,
+    itemFamilyId: existing.familyId,
+    isActiveFamilyMember: Boolean(member)
+  })) {
+    throw new HttpError('无权修改该菜篮子条目', 403, 403);
+  }
   const item = await prisma.purchaseListItem.update({
     where: { id },
     data: {
@@ -1029,12 +1061,31 @@ apiMobileRouter.put('/basket-items/:id', async (req, res) => {
   res.json(ok(toPurchaseItem(item)));
 });
 
-apiMobileRouter.delete('/basket-items/:id', async (req, res) => {
+apiMobileRouter.delete('/basket-items/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const parsed = userIdSchema.safeParse(req.body);
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const existing = await prisma.purchaseListItem.findFirst({ where: { id, userId: parsed.data.userId, deletedAt: null } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const existing = await prisma.purchaseListItem.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new HttpError('菜篮子条目不存在', 404, 404);
+  const member = existing.familyId
+    ? await prisma.familyMember.findFirst({
+        where: {
+          familyId: existing.familyId,
+          userId,
+          deletedAt: null,
+          memberStatus: 'ACTIVE'
+        }
+      })
+    : null;
+  if (!canAccessBasketItem({
+    requesterUserId: userId,
+    itemOwnerUserId: existing.userId,
+    itemFamilyId: existing.familyId,
+    isActiveFamilyMember: Boolean(member)
+  })) {
+    throw new HttpError('无权删除该菜篮子条目', 403, 403);
+  }
   const item = await prisma.purchaseListItem.update({ where: { id }, data: { deletedAt: new Date(), status: 'DISABLED' }, include: purchaseItemInclude });
   res.json(ok(toPurchaseItem(item)));
 });
