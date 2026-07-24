@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { prisma } from '../../prisma';
 import { Router, type Request, type Response } from 'express';
 
 import { config } from '../../config';
@@ -9,6 +10,7 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok } from '../../http/response';
 import { mediaRules, type MediaType, validateMediaFile } from '../../services/media-file';
+import { createOrLoadUploadedFile } from '../../services/file-mutation';
 
 const maxMultipartSize = mediaRules.video.maxSize + 1024 * 1024;
 const uploadDir = () => path.resolve(process.cwd(), config.uploadDir);
@@ -126,9 +128,44 @@ const handleUpload = (expectedType: MediaType | 'media') => async (req: Request,
   const file = await readUploadedMedia(req, expectedType);
   const filename = `${Date.now()}-${randomUUID()}.${file.extension}`;
   await fs.mkdir(uploadDir(), { recursive: true });
-  await fs.writeFile(path.join(uploadDir(), filename), file.content);
+  const relativePath = path.posix.join('uploads', filename);
+  const absolutePath = path.join(uploadDir(), filename);
+  await fs.writeFile(absolutePath, file.content, { flag: 'wx' });
 
-  res.json(ok({ url: `/uploads/${filename}`, type: file.type, name: file.name, size: file.size, mimeType: file.mimeType }));
+  const url = `/${relativePath}`;
+  const persisted = await createOrLoadUploadedFile({
+    load: async () => prisma.file.findFirst({
+      where: { sha256: file.sha256, deletedAt: null, status: 'ACTIVE' },
+      select: { id: true, url: true, mimeType: true, size: true, width: true, height: true, durationSeconds: true }
+    }),
+    create: async () => prisma.file.create({
+      data: {
+        url,
+        path: relativePath,
+        mimeType: file.mimeType,
+        size: file.size,
+        width: file.width,
+        height: file.height,
+        sha256: file.sha256,
+        storageKind: 'LOCAL',
+        createdBy: Number.parseInt(req.admin?.sub ?? '', 10) || null
+      },
+      select: { id: true, url: true, mimeType: true, size: true, width: true, height: true, durationSeconds: true }
+    }),
+    cleanup: async () => fs.unlink(absolutePath).catch(() => undefined),
+    isCurrentUpload: (record) => record.url === url
+  });
+
+  res.json(ok({
+    id: persisted.record.id,
+    url: persisted.record.url,
+    type: file.type,
+    name: file.name,
+    size: persisted.record.size,
+    mimeType: persisted.record.mimeType,
+    width: persisted.record.width,
+    height: persisted.record.height
+  }));
 };
 
 export const adminUploadRouter = Router();

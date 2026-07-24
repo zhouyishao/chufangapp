@@ -121,6 +121,7 @@ const request = async <T>(
 };
 
 export type UploadImageResult = {
+  id?: number;
   url: string;
   type?: 'image' | 'video';
   name?: string;
@@ -129,6 +130,7 @@ export type UploadImageResult = {
 };
 
 export type UploadMediaResult = Required<Pick<UploadImageResult, 'url'>> & {
+  id?: number;
   type: 'image' | 'video';
   name: string;
   size: number;
