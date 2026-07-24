@@ -1,20 +1,6 @@
 <template>
   <view class="app-page basket-page">
     <view class="basket-shell">
-      <view class="basket-title-row">
-        <text class="basket-title">菜篮</text>
-        <button
-          v-if="canSendMealReady"
-          class="meal-ready-button"
-          :disabled="sendingMealReady"
-          :aria-busy="sendingMealReady"
-          @tap="confirmMealReady"
-        >
-          <app-icon name="bell" size="22rpx" />
-          <text>{{ sendingMealReady ? '发送中' : '开饭提醒' }}</text>
-        </button>
-      </view>
-
       <view class="basket-heading">
         <button
           class="family-selector"
@@ -24,6 +10,16 @@
         >
           <text class="family-selector__name">{{ basketScopeName }}</text>
           <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
+        </button>
+        <button
+          v-if="canSendMealReady"
+          class="meal-ready-button"
+          :disabled="sendingMealReady"
+          :aria-busy="sendingMealReady"
+          @tap="confirmMealReady"
+        >
+          <app-icon name="bell" size="22rpx" />
+          <text>{{ sendingMealReady ? '发送中' : '开饭提醒' }}</text>
         </button>
         <text class="basket-summary">{{ pendingCount }} 项待采购 · 家庭共享清单</text>
       </view>
@@ -843,8 +839,9 @@ onShow(() => {
 
 .basket-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 24rpx;
   margin: 4rpx 0 24rpx;
 }
@@ -865,13 +862,13 @@ onShow(() => {
 }
 
 .basket-summary {
-  flex: 1;
+  flex: 0 0 100%;
   min-width: 0;
   overflow: hidden;
   color: var(--text-tertiary);
   font-size: var(--font-size-caption);
   line-height: var(--line-caption);
-  text-align: right;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
