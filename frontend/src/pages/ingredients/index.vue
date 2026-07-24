@@ -2,38 +2,35 @@
   <view class="app-page category-page">
     <!-- 搜索框 -->
     <view class="category-search" v-if="searchConfig">
-      <view class="category-search__bar" @tap="handleSearchTap">
+      <button class="category-search__bar" aria-label="搜索菜谱、食材、水果、饮品和调料" @tap="handleSearchTap">
         <app-icon class="category-search__icon" name="search" size="18px" />
         <text class="category-search__placeholder">{{ searchConfig.placeholder ?? '搜索菜谱、食材、水果、调料、酒水' }}</text>
-      </view>
+      </button>
     </view>
 
     <!-- 顶部导航（动态，来自接口 top_nav） -->
     <view class="category-topnav" v-if="topNavItems.length">
       <scroll-view scroll-x enable-flex :show-scrollbar="false" class="category-topnav__scroll">
         <view class="category-topnav__row">
-          <view
+          <button
             v-for="item in topNavItems"
             :key="item.id"
             :class="['category-topnav__tab', { 'category-topnav__tab--active': item.active }]"
+            :aria-selected="item.active"
+            role="tab"
             @tap="handleTopNavTap(item)"
           >
             {{ item.name }}
-          </view>
+          </button>
         </view>
       </scroll-view>
     </view>
 
     <!-- 加载态 -->
-    <view v-if="loading" class="category-status">
-      <text class="category-status__text">加载中...</text>
-    </view>
+    <app-page-state v-if="loading" kind="loading" title="正在加载分类内容" />
 
     <!-- 错误态 -->
-    <view v-else-if="error" class="category-status">
-      <text class="category-status__text category-status__text--error">{{ error }}</text>
-      <view class="category-status__retry" @tap="fetchModules">重试</view>
-    </view>
+    <app-page-state v-else-if="error" kind="error" title="分类内容加载失败" :description="error" action-text="重新加载" @action="fetchModules" />
 
     <!-- 正常内容 -->
     <template v-else>
@@ -41,14 +38,15 @@
       <view class="category-filter" v-if="filterItems.length">
         <scroll-view scroll-x enable-flex :show-scrollbar="false" class="category-filter__scroll">
           <view class="category-filter__row">
-            <view
+            <button
               v-for="item in filterItems"
               :key="item.key"
               :class="['category-filter__chip', { 'category-filter__chip--active': item.key === activeFilterKey }]"
+              :aria-pressed="item.key === activeFilterKey"
               @tap="handleFilterTap(item)"
             >
               {{ item.name }}
-            </view>
+            </button>
           </view>
         </scroll-view>
       </view>
@@ -111,7 +109,7 @@
               <text v-if="mod.subtitle" class="category-grid__header-subtitle">{{ mod.subtitle }}</text>
             </view>
             <view class="category-grid__items">
-              <view
+              <button
                 v-for="item in modItems(mod)"
                 :key="getItemKey(item)"
                 class="category-grid__card"
@@ -122,20 +120,16 @@
                   <text class="category-grid__name">{{ getItemTitle(item) }}</text>
                   <text v-if="getItemSubtitle(item)" class="category-grid__subtitle">{{ getItemSubtitle(item) }}</text>
                 </view>
-              </view>
+              </button>
             </view>
           </view>
         </template>
       </view>
 
-      <view v-if="!contentSections.length && (topNavItems.length || filterItems.length)" class="category-status category-status--content">
-        <text class="category-status__text">暂无当前分类内容</text>
-      </view>
+      <app-page-state v-if="!contentSections.length && (topNavItems.length || filterItems.length)" kind="empty" title="暂无当前分类内容" />
 
       <!-- 空态 -->
-      <view v-if="!loading && !topNavItems.length && !filterItems.length && !contentSections.length" class="category-status">
-        <text class="category-status__text">暂无内容</text>
-      </view>
+      <app-page-state v-if="!loading && !topNavItems.length && !filterItems.length && !contentSections.length" kind="empty" title="暂无内容" />
     </template>
 
     <!-- 底部导航 -->
@@ -147,6 +141,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { onShow, onPullDownRefresh, onLoad } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
+import AppPageState from '../../components/app/app-page-state.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
 import {
@@ -443,11 +438,13 @@ onPullDownRefresh(() => {
 .category-search__bar {
   display: flex;
   align-items: center;
-  height: 92rpx;
+  width: 100%;
+  min-height: var(--touch-target);
   padding: 0 36rpx;
   border-radius: 46rpx;
   background: rgba(255, 253, 252, 0.82);
   border: 1px solid rgba(183, 174, 161, 0.24);
+  text-align: left;
 }
 
 .category-search__icon {
@@ -483,7 +480,10 @@ onPullDownRefresh(() => {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  padding-bottom: 8rpx;
+  min-height: var(--touch-target);
+  padding: 0 0 8rpx;
+  border: 0;
+  background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-medium);
@@ -549,7 +549,7 @@ onPullDownRefresh(() => {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  height: 56rpx;
+  min-height: var(--touch-target);
   padding: 0 24rpx;
   border-radius: 28rpx;
   background: var(--app-surface-strong);
@@ -712,14 +712,15 @@ onPullDownRefresh(() => {
 
 .category-grid__items {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16rpx;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
 .category-grid__card {
   display: flex;
   flex-direction: column;
-  min-height: 188rpx;
+  min-height: 0;
+  padding: 0;
   overflow: hidden;
   border-radius: 24rpx;
   background: var(--app-surface-strong);
@@ -733,7 +734,8 @@ onPullDownRefresh(() => {
 
 .category-grid__image {
   width: 100%;
-  height: 92rpx;
+  aspect-ratio: 1;
+  height: auto;
   background: var(--app-surface);
 }
 
@@ -744,15 +746,16 @@ onPullDownRefresh(() => {
   justify-content: center;
   width: 100%;
   min-width: 0;
-  padding: 12rpx 10rpx;
+  min-height: 104rpx;
+  padding: 14rpx 18rpx 16rpx;
 }
 
 .category-grid__name {
   color: var(--text-primary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-medium);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
   line-height: var(--line-caption);
-  text-align: center;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -762,10 +765,10 @@ onPullDownRefresh(() => {
   display: block;
   margin-top: 4rpx;
   color: var(--text-placeholder);
-  font-size: var(--font-size-tabbar);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-regular);
   line-height: var(--line-tabbar);
-  text-align: center;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -1,7 +1,7 @@
 <template>
   <view class="app-page home-page">
     <!-- ====== 一体化 Hero 区域：轮播图 + 悬浮搜索框 + 悬浮 Tab ====== -->
-    <view class="home-hero" :style="{ height: '420px' }">
+    <view class="home-hero">
       <!-- 轮播图背景层 -->
       <view v-if="homeHeroBanners.length" class="home-hero__carousel">
         <swiper
@@ -45,14 +45,12 @@
         <text v-else>暂无轮播图</text>
       </view>
 
-      <view class="home-header-rect" :style="{ opacity: headerOverlayOpacity }" />
-
       <!-- 搜索框悬浮层 -->
-      <view class="home-hero__search">
-        <view class="hero-search-bar" @tap="handleSearchTap">
+      <view v-show="!isScrolled" class="home-hero__search">
+        <button class="hero-search-bar" aria-label="搜索菜谱、食材和饮品" @tap="handleSearchTap">
           <app-icon class="hero-search-icon" name="search" size="18px" />
           <text class="hero-search-placeholder">搜索菜谱、食材、做法</text>
-        </view>
+        </button>
         <button class="hero-notification-btn" aria-label="消息与提醒" @tap="openNotifications">
           <app-icon class="hero-notification-icon" name="bell" size="22px" />
         </button>
@@ -66,44 +64,77 @@
         scroll-with-animation
         :scroll-into-view="activeTopTabIntoView"
         :scroll-left="topTabsScrollLeft"
+        v-show="!isScrolled"
         class="top-tabs-scroll"
         @scroll="handleTopTabsScroll"
       >
         <view class="top-tabs-row">
-          <view
+          <button
             v-for="cat in homeHeaderCategories"
             :id="getTopTabId(cat.id)"
             :key="cat.id"
             :class="['top-tab', { active: activeCategoryId === cat.id }]"
-            :style="getTopTabStyle(cat.id)"
+            :aria-selected="activeCategoryId === cat.id"
+            role="tab"
             @tap="handleCategoryChange(cat.id)"
           >
             {{ cat.label }}
-          </view>
+          </button>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view v-if="isScrolled" class="home-sticky-bar app-fixed-glass">
+      <scroll-view
+        scroll-x
+        enable-flex
+        :show-scrollbar="false"
+        :scroll-into-view="activeStickyTabIntoView"
+        :scroll-left="stickyTabsScrollLeft"
+        class="sticky-tabs-scroll"
+        role="tablist"
+        @scroll="handleStickyTabsScroll"
+      >
+        <view class="sticky-tabs-row">
+          <button
+            v-for="cat in homeHeaderCategories"
+            :id="getStickyTabId(cat.id)"
+            :key="`sticky-${cat.id}`"
+            :class="['sticky-tab', { 'sticky-tab--active': activeCategoryId === cat.id }]"
+            :aria-selected="activeCategoryId === cat.id"
+            role="tab"
+            @tap="handleCategoryChange(cat.id)"
+          >{{ cat.label }}</button>
         </view>
       </scroll-view>
     </view>
 
     <!-- ====== 内容模块区域 ====== -->
     <view class="home-content">
-      <view
-        v-if="isRecommendCategory && (homeLoading || homeError)"
-        class="glass-card home-data-banner"
-      >
-        <text v-if="homeLoading" class="home-data-banner__text">正在加载首页数据...</text>
-        <view v-else class="home-data-banner__row">
-          <text class="home-data-banner__error">加载失败：{{ homeError }}</text>
-          <nut-button size="small" type="primary" plain @click="loadHome">重试</nut-button>
-        </view>
-      </view>
+      <app-page-state
+        v-if="homeLoading"
+        kind="loading"
+        title="正在加载推荐内容"
+        description="马上为你准备好今天的灵感。"
+      />
+      <app-page-state
+        v-else-if="homeError"
+        kind="error"
+        title="首页内容加载失败"
+        :description="homeError"
+        action-text="重新加载"
+        @action="loadHome"
+      />
 
       <!-- 后台配置的内容模块，正式首页不再回退到旧静态推荐 -->
-      <HomeModuleRenderer :modules="currentNavModules" />
+      <HomeModuleRenderer v-if="!homeLoading && !homeError" :modules="currentNavModules" />
 
-      <view v-if="!homeLoading && !homeError && !currentNavModules.length" class="home-empty glass-card">
-        <text class="home-empty__title">暂无首页内容</text>
-        <text class="home-empty__desc">后台发布推荐模块后，这里会自动显示。</text>
-      </view>
+      <app-page-state
+        v-if="!homeLoading && !homeError && !currentNavModules.length"
+        kind="empty"
+        title="暂时没有推荐内容"
+        description="后台发布内容后会自动展示在这里。"
+      />
 
       <home-tab-bar :tabs="homeTabs" />
     </view>
@@ -115,6 +146,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { onPageScroll } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
+import AppPageState from '../../components/app/app-page-state.vue';
 import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { getHomeHeroBanners, getHomeModules, getHomeTopNavs, type ApiHomeHeroBanner, type HomeModule } from '../../services/public-api';
@@ -122,8 +154,7 @@ import type { HomeTab } from '../../types/home';
 
 const activeCategoryId = ref('recommend');
 const isScrolled = ref(false);
-const headerScrollProgress = ref(0);
-let scrollFallbackTimer: ReturnType<typeof setInterval> | undefined;
+let scrollFrame: number | undefined;
 const homeTabs: HomeTab[] = [
   { id: 'home', label: '首页', active: true },
   { id: 'categories', label: '分类', active: false },
@@ -138,7 +169,6 @@ const remoteTopNavs = ref<{ id: string; label: string }[]>([]);
 const navIdMap = ref<Record<string, string>>({});
 const currentNavModules = ref<HomeModule[]>([]);
 let channelRequestSequence = 0;
-const isRecommendCategory = computed(() => activeCategoryId.value === 'recommend');
 const homeHeaderCategories = computed(() => {
   if (remoteTopNavs.value.length > 0) return remoteTopNavs.value;
   return [];
@@ -148,7 +178,6 @@ const getTopTabId = (categoryId: string) => `top_tab_${normalizeTabId(categoryId
 const getStickyTabId = (categoryId: string) => `sticky_tab_${normalizeTabId(categoryId)}`;
 const activeTopTabIntoView = computed(() => getTopTabId(activeCategoryId.value));
 const activeStickyTabIntoView = computed(() => getStickyTabId(activeCategoryId.value));
-const headerOverlayOpacity = computed(() => String(headerScrollProgress.value));
 const topTabsScrollLeft = ref(0);
 const stickyTabsScrollLeft = ref(0);
 const currentTopTabsScrollLeft = ref(0);
@@ -162,21 +191,6 @@ const handleTopTabsScroll = (event: { detail?: { scrollLeft?: number } }) => {
 
 const handleStickyTabsScroll = (event: { detail?: { scrollLeft?: number } }) => {
   currentStickyTabsScrollLeft.value = readScrollLeft(event);
-};
-
-const mix = (from: number, to: number, progress: number) => Math.round(from + (to - from) * progress);
-const getTopTabStyle = (categoryId: string) => {
-  const progress = headerScrollProgress.value;
-  const isActive = categoryId === activeCategoryId.value;
-  const from = isActive
-    ? { r: 255, g: 253, b: 252, a: 1 }
-    : { r: 255, g: 253, b: 252, a: 0.56 };
-  const to = isActive
-    ? { r: 122, g: 139, b: 111, a: 1 }
-    : { r: 183, g: 174, b: 161, a: 1 };
-  return {
-    color: `rgba(${mix(from.r, to.r, progress)}, ${mix(from.g, to.g, progress)}, ${mix(from.b, to.b, progress)}, ${(from.a + (to.a - from.a) * progress).toFixed(3)})`
-  };
 };
 
 const centerActiveTab = async (type: 'top' | 'sticky') => {
@@ -217,24 +231,16 @@ const openNotifications = () => {
 
 // ====== 分类切换 ======
 const handleCategoryChange = (categoryId: string) => {
+  if (activeCategoryId.value === categoryId && currentNavModules.value.length) return;
   activeCategoryId.value = categoryId;
   const requestSequence = ++channelRequestSequence;
   void centerActiveTab('top');
   void centerActiveTab('sticky');
   // 切换Tab时重新加载对应导航的轮播图和内容模块
   const navId = navIdMap.value[categoryId] ?? categoryId;
-  if (navId) {
-    void getHomeHeroBanners(navId).then((banners) => {
-      if (requestSequence !== channelRequestSequence) return;
-      homeHeroBanners.value = banners;
-    }).catch(() => {
-      if (requestSequence !== channelRequestSequence) return;
-      homeHeroBanners.value = [];
-    });
-    void loadCurrentModules(navId, requestSequence);
-  } else {
-    currentNavModules.value = [];
-  }
+  if (!navId) return;
+  uni.pageScrollTo({ scrollTop: 0, duration: 180 });
+  void loadChannel(navId, requestSequence);
 };
 
 // ====== 轮播图跳转 ======
@@ -271,8 +277,6 @@ const goToHeroBannerTarget = (banner: ApiHomeHeroBanner) => {
 };
 
 const updateHeaderScrollState = (scrollTop: number) => {
-  const progress = Math.min(Math.max(scrollTop / 80, 0), 1);
-  headerScrollProgress.value = Number(progress.toFixed(3));
   isScrolled.value = scrollTop >= 80;
 };
 
@@ -289,7 +293,11 @@ const getBrowserScrollTop = () => {
 };
 
 const handleBrowserScroll = () => {
-  updateHeaderScrollState(getBrowserScrollTop());
+  if (typeof window === 'undefined' || scrollFrame) return;
+  scrollFrame = window.requestAnimationFrame(() => {
+    scrollFrame = undefined;
+    updateHeaderScrollState(getBrowserScrollTop());
+  });
 };
 
 const handleCapturedScroll = (event: Event) => {
@@ -308,17 +316,13 @@ onMounted(() => {
   handleBrowserScroll();
   window.addEventListener('scroll', handleBrowserScroll, { passive: true });
   document.addEventListener('scroll', handleCapturedScroll, { passive: true, capture: true });
-  scrollFallbackTimer = setInterval(handleBrowserScroll, 120);
 });
 
 onUnmounted(() => {
   if (typeof window === 'undefined') return;
   window.removeEventListener('scroll', handleBrowserScroll);
   document.removeEventListener('scroll', handleCapturedScroll, true);
-  if (scrollFallbackTimer) {
-    clearInterval(scrollFallbackTimer);
-    scrollFallbackTimer = undefined;
-  }
+  if (scrollFrame) window.cancelAnimationFrame(scrollFrame);
 });
 
 const loadHome = async () => {
@@ -328,14 +332,15 @@ const loadHome = async () => {
     const topNavs = await getHomeTopNavs();
     const defaultNav = topNavs.find((item) => item.isDefault) ?? topNavs[0];
     const requestSequence = ++channelRequestSequence;
-    if (defaultNav) homeHeroBanners.value = await getHomeHeroBanners(defaultNav.id);
     remoteTopNavs.value = topNavs.map((item) => ({ id: item.isDefault ? 'recommend' : item.id, label: item.name }));
     navIdMap.value = topNavs.reduce<Record<string, string>>((memo, item) => {
       memo[item.isDefault ? 'recommend' : item.id] = item.id;
       return memo;
     }, {});
-    if (defaultNav) activeCategoryId.value = defaultNav.isDefault ? 'recommend' : defaultNav.id;
-    if (defaultNav) void loadCurrentModules(defaultNav.id, requestSequence);
+    if (defaultNav) {
+      activeCategoryId.value = defaultNav.isDefault ? 'recommend' : defaultNav.id;
+      await loadChannel(defaultNav.id, requestSequence, false);
+    }
   } catch (err) {
     homeError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
@@ -354,6 +359,25 @@ const loadCurrentModules = async (navId: string, requestSequence = channelReques
   }
 };
 
+const loadChannel = async (navId: string, requestSequence = channelRequestSequence, showLoading = true) => {
+  if (showLoading) homeLoading.value = true;
+  homeError.value = null;
+  try {
+    const [banners] = await Promise.all([
+      getHomeHeroBanners(navId),
+      loadCurrentModules(navId, requestSequence)
+    ]);
+    if (requestSequence !== channelRequestSequence) return;
+    homeHeroBanners.value = banners;
+  } catch (err) {
+    if (requestSequence !== channelRequestSequence) return;
+    homeHeroBanners.value = [];
+    homeError.value = err instanceof Error ? err.message : '频道内容加载失败';
+  } finally {
+    if (requestSequence === channelRequestSequence && showLoading) homeLoading.value = false;
+  }
+};
+
 void loadHome();
 </script>
 
@@ -364,23 +388,11 @@ void loadHome();
   padding-top: 0;
 }
 
-.home-header-rect {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 998;
-  width: 100vw;
-  height: calc(152px + var(--app-safe-area-top));
-  background: #f5f1ea;
-  pointer-events: none;
-  transition: opacity 120ms linear;
-}
-
 /* ====== Hero 容器 ====== */
 .home-hero {
   position: relative;
   width: 100vw;
+  aspect-ratio: 393 / 420;
   margin: 0 -32rpx;
   overflow: hidden;
 }
@@ -391,7 +403,7 @@ void loadHome();
   top: 0;
   left: 0;
   width: 100%;
-  height: 420px;
+  height: 100%;
   z-index: 1;
 }
 
@@ -399,7 +411,7 @@ void loadHome();
 .home-hero__item,
 .home-hero__image {
   width: 100%;
-  height: 420px;
+  height: 100%;
 }
 
 .home-hero__item {
@@ -505,9 +517,10 @@ void loadHome();
   flex: 1;
   height: 46px;
   padding: 0 18px;
-  border-radius: 23px;
+  min-height: var(--touch-target);
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 253, 252, 0.68);
+  background: rgba(255, 253, 252, 0.5);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   transition: background 180ms ease, border-color 180ms ease;
@@ -531,12 +544,12 @@ void loadHome();
   align-items: center;
   justify-content: center;
   flex: 0 0 46px;
-  width: 46px;
-  height: 46px;
+  width: var(--touch-target);
+  height: var(--touch-target);
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 253, 252, 0.68);
+  background: rgba(255, 253, 252, 0.5);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   color: var(--text-primary);
@@ -583,7 +596,11 @@ void loadHome();
 .top-tab {
   display: flex;
   flex: 0 0 auto;
-  align-items: flex-start;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  background: transparent;
   position: relative;
   font-size: var(--font-size-list-title);
   line-height: 24px;
@@ -604,17 +621,14 @@ void loadHome();
   position: fixed;
   top: 0;
   left: 0;
-  width: 393px;
-  max-width: 100vw;
-  z-index: 999;
-  opacity: 0;
+  width: 100%;
+  z-index: var(--z-sticky);
+  opacity: 1;
   border-bottom: 1px solid rgba(183, 174, 161, 0.18);
-  background: rgba(245, 241, 234, 0.88);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  background: rgba(245, 241, 234, 0.92);
   box-shadow: none;
   padding: calc(var(--app-safe-area-top) + 8px) 16px 8px;
-  transition: opacity 180ms ease, background 180ms ease, border-color 180ms ease;
+  transition: opacity 180ms ease, border-color 180ms ease;
 }
 
 .sticky-bar-inner {
@@ -675,9 +689,9 @@ void loadHome();
 }
 
 .sticky-tabs-scroll {
-  height: 36px;
+  height: var(--touch-target);
   white-space: nowrap;
-  margin-top: 12px;
+  margin-top: 0;
   overflow: hidden;
 }
 
@@ -687,7 +701,7 @@ void loadHome();
   gap: 32px;
   min-width: 100%;
   width: max-content;
-  height: 36px;
+  height: var(--touch-target);
   padding: 0;
 }
 
@@ -695,8 +709,16 @@ void loadHome();
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  height: 36px;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
   background: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--line-body-sm);
+  white-space: nowrap;
 }
 
 .sticky-tab__label {
@@ -716,6 +738,11 @@ void loadHome();
 .sticky-tab--active .sticky-tab__label {
   color: #7A8B6F;
   font-weight: 700;
+}
+
+.sticky-tab--active {
+  color: var(--app-primary);
+  font-weight: var(--font-semibold);
 }
 
 /* ====== 内容区域 ====== */
