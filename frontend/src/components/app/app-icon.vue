@@ -50,6 +50,9 @@
         stroke="currentColor"
       />
     </g>
+    <g v-else-if="name === 'bookmark'">
+      <path d="M7 4.5h10a1 1 0 0 1 1 1v14l-6-3.8-6 3.8v-14a1 1 0 0 1 1-1Z" />
+    </g>
     <g v-else-if="name === 'clock'">
       <circle cx="12" cy="12" r="8.1" />
       <path d="M12 7.8v4.7l3 1.8" />
