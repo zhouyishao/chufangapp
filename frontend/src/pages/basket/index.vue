@@ -1,24 +1,31 @@
 <template>
   <view class="app-page basket-page">
     <view class="basket-shell">
-      <view class="family-selector" @tap="toggleFamilySelector">
-        <text class="family-selector__name">{{ basketScopeName }}</text>
-        <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
+      <view class="basket-heading">
+        <button
+          class="family-selector"
+          :aria-expanded="isFamilySelectorVisible"
+          aria-label="切换家庭"
+          @tap="toggleFamilySelector"
+        >
+          <text class="family-selector__name">{{ basketScopeName }}</text>
+          <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
+        </button>
+        <button
+          v-if="canSendMealReady"
+          class="meal-ready-button"
+          :disabled="sendingMealReady"
+          :aria-busy="sendingMealReady"
+          @tap="confirmMealReady"
+        >
+          <app-icon name="bell" size="22rpx" />
+          <text>{{ sendingMealReady ? '发送中' : '开饭提醒' }}</text>
+        </button>
       </view>
 
       <view v-if="isFamilySelectorVisible" class="family-mask" @tap="closeFamilySelector">
         <view class="family-sheet glass-card" @tap.stop>
-          <view
-            :class="['family-option', { 'is-active': activeFamilyId === null }]"
-            @tap="selectFamilyScope(null)"
-          >
-            <text class="family-option__name">我的菜篮子</text>
-            <app-icon v-if="activeFamilyId === null" class="family-option__check" name="check" size="20rpx" />
-          </view>
-
-          <view v-if="families.length" class="family-sheet__divider" />
-
-          <view
+          <button
             v-for="family in families"
             :key="family.id"
             :class="['family-option', { 'is-active': family.id === activeFamilyId }]"
@@ -26,14 +33,14 @@
           >
             <text class="family-option__name">{{ family.name }}</text>
             <app-icon v-if="family.id === activeFamilyId" class="family-option__check" name="check" size="20rpx" />
-          </view>
+          </button>
 
           <view class="family-sheet__divider" />
 
-          <view class="family-manage-row" @tap="goToFamilyManage">
+          <button class="family-manage-row" @tap="goToFamilyManage">
             <text class="family-manage-row__name">家庭管理</text>
             <app-icon class="family-manage-row__icon" name="arrow-right" size="22rpx" />
-          </view>
+          </button>
         </view>
       </view>
 
@@ -171,12 +178,17 @@
           <view class="empty-illustration">
             <app-icon name="basket" size="82rpx" />
           </view>
-          <text class="empty-kicker">清单已整理干净</text>
-          <text class="empty-title">菜篮子空了</text>
-          <text class="empty-desc">从菜谱详情页加入食材后，会自动按菜谱和合并食材整理成本次采购清单。</text>
+          <text class="empty-kicker">{{ families.length ? '清单已整理干净' : '家庭共享菜篮' }}</text>
+          <text class="empty-title">{{ families.length ? '菜篮子空了' : '还没有加入家庭' }}</text>
+          <text class="empty-desc">
+            {{ families.length
+              ? '从菜谱详情页加入食材后，会自动按菜谱和合并食材整理成本次采购清单。'
+              : '创建家庭或扫码加入后，家人就能共同查看采购清单。' }}
+          </text>
           <view class="empty-actions">
-            <button class="empty-button is-primary" @click="goHome">去首页看看</button>
-            <button class="empty-button" @click="goToRecipes">浏览菜谱</button>
+            <button v-if="families.length" class="empty-button is-primary" @click="goHome">去首页看看</button>
+            <button v-if="families.length" class="empty-button" @click="goToRecipes">浏览菜谱</button>
+            <button v-else class="empty-button is-primary" @click="goToFamilyManage">创建或加入家庭</button>
           </view>
         </view>
       </view>
@@ -272,16 +284,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { computed, ref } from 'vue';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { loadBasketItems, removeBasketItem, updateBasketItemChecked } from '../../services/basket';
 import type { BasketItem } from '../../services/basket';
-import { loadFamilies, saveActiveFamilyId } from '../../services/family';
+import { loadActiveFamilyId, loadFamilies, saveActiveFamilyId } from '../../services/family';
 import type { FamilyProfile } from '../../types/family';
 import { addPriceRecords } from '../../services/price';
-import { getIngredient } from '../../services/public-api';
+import { loadAuthUser } from '../../services/auth';
+import { getIngredient, sendMobileMealReady } from '../../services/public-api';
 import type { ApiIngredientDetail } from '../../services/public-api';
 
 type BasketViewMode = 'recipe' | 'merged';
@@ -329,6 +342,9 @@ const openedItemId = ref('');
 const touchStartX = ref(0);
 const isPricePanelVisible = ref(false);
 const isFamilySelectorVisible = ref(false);
+const sendingMealReady = ref(false);
+const requestedFamilyId = ref('');
+const mealReadyIdempotencyKey = ref('');
 const expandedRecipeIds = ref<string[]>([]);
 const priceInputs = ref<PriceInputItem[]>([]);
 const activeGuideItem = ref<BasketItem | null>(null);
@@ -359,7 +375,7 @@ const activeFamily = computed<FamilyProfile>(() => {
   if (activeFamilyId.value === null) {
     return {
       id: '',
-      name: '我的菜篮子',
+      name: '选择家庭',
       description: '',
       commonRecipes: 0,
       pendingItems: 0,
@@ -369,7 +385,7 @@ const activeFamily = computed<FamilyProfile>(() => {
 
   return families.value.find((family) => family.id === activeFamilyId.value) ?? {
     id: '',
-    name: '我的菜篮子',
+    name: '选择家庭',
     description: '',
     commonRecipes: 0,
     pendingItems: 0,
@@ -377,6 +393,14 @@ const activeFamily = computed<FamilyProfile>(() => {
   };
 });
 const basketScopeName = computed(() => activeFamily.value.name);
+const canSendMealReady = computed(() => {
+  const userId = loadAuthUser()?.id;
+  if (!userId || !activeFamilyId.value) return false;
+  return activeFamily.value.members.some((member) => member.userId === userId && member.role === '管理员');
+});
+
+const createIdempotencyKey = () => `meal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+let basketLoadRequestId = 0;
 
 const recipeGroups = computed<BasketRecipeGroup[]>(() => {
   const groupMap = new Map<string, BasketRecipeGroup>();
@@ -467,19 +491,53 @@ const closeFamilySelector = () => {
 };
 
 const selectFamilyScope = async (familyId: BasketScopeId) => {
-  activeFamilyId.value = familyId;
-  if (familyId) {
-    saveActiveFamilyId(familyId);
-  }
-  items.value = await loadBasketItems(familyId);
-  openedItemId.value = '';
-  expandedRecipeIds.value = [];
+  requestedFamilyId.value = '';
+  const requestId = ++basketLoadRequestId;
   closeFamilySelector();
+  try {
+    const nextItems = familyId ? await loadBasketItems(familyId) : [];
+    if (requestId !== basketLoadRequestId) return;
+    activeFamilyId.value = familyId;
+    if (familyId) saveActiveFamilyId(familyId);
+    items.value = nextItems;
+    openedItemId.value = '';
+    expandedRecipeIds.value = [];
+  } catch (error) {
+    if (requestId !== basketLoadRequestId) return;
+    uni.showToast({ title: error instanceof Error ? error.message : '家庭菜篮加载失败', icon: 'none' });
+  }
 };
 
 const goToFamilyManage = () => {
   closeFamilySelector();
   uni.navigateTo({ url: '/pages/family/index' });
+};
+
+const sendMealReady = async () => {
+  if (!activeFamilyId.value || sendingMealReady.value) return;
+  sendingMealReady.value = true;
+  try {
+    mealReadyIdempotencyKey.value ||= createIdempotencyKey();
+    await sendMobileMealReady(Number(activeFamilyId.value), { idempotencyKey: mealReadyIdempotencyKey.value });
+    mealReadyIdempotencyKey.value = '';
+    uni.showToast({ title: '已提醒家人开饭', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '提醒发送失败', icon: 'none' });
+  } finally {
+    sendingMealReady.value = false;
+  }
+};
+
+const confirmMealReady = () => {
+  if (!activeFamilyId.value || sendingMealReady.value) return;
+  uni.showModal({
+    title: '发送开饭提醒',
+    content: `将通知${basketScopeName.value}的所有成员现在可以开饭了。`,
+    confirmText: '发送提醒',
+    success: ({ confirm }) => {
+      if (confirm) void sendMealReady();
+    }
+  });
 };
 
 const isRecipeExpanded = (recipeId: string) => expandedRecipeIds.value.includes(recipeId);
@@ -717,19 +775,41 @@ const awaitPersistItems = async () => {
 };
 
 const loadBasketPage = async () => {
+  const requestId = ++basketLoadRequestId;
   try {
-    families.value = await loadFamilies();
-    if (activeFamilyId.value && !families.value.some((family) => family.id === activeFamilyId.value)) {
+    const nextFamilies = await loadFamilies();
+    if (requestId !== basketLoadRequestId) return;
+    families.value = nextFamilies;
+    const preferredFamilyId = requestedFamilyId.value || activeFamilyId.value || loadActiveFamilyId();
+    const requestedFamilyMissing = Boolean(requestedFamilyId.value)
+      && !families.value.some((family) => family.id === requestedFamilyId.value);
+    if (requestedFamilyMissing) {
       activeFamilyId.value = null;
+      items.value = [];
+      requestedFamilyId.value = '';
+      uni.showToast({ title: '无法访问该家庭，请重新选择', icon: 'none' });
+      return;
     }
-    items.value = await loadBasketItems(activeFamilyId.value);
+    const targetFamilyId = families.value.some((family) => family.id === preferredFamilyId)
+      ? preferredFamilyId
+      : families.value[0]?.id ?? null;
+    if (!targetFamilyId) {
+      activeFamilyId.value = null;
+      items.value = [];
+      return;
+    }
+    const nextItems = await loadBasketItems(targetFamilyId);
+    if (requestId !== basketLoadRequestId) return;
+    activeFamilyId.value = targetFamilyId;
+    saveActiveFamilyId(targetFamilyId);
+    items.value = nextItems;
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '菜篮子加载失败', icon: 'none' });
   }
 };
 
-onMounted(() => {
-  void loadBasketPage();
+onLoad((options) => {
+  requestedFamilyId.value = typeof options?.familyId === 'string' ? options.familyId.trim() : '';
 });
 
 onShow(() => {
@@ -755,6 +835,10 @@ onShow(() => {
 
 .mode-button::after,
 .dock-button::after,
+.family-selector::after,
+.family-option::after,
+.family-manage-row::after,
+.meal-ready-button::after,
 .guide-chip::after,
 .guide-close::after,
 .guide-tab::after,
@@ -765,18 +849,31 @@ onShow(() => {
   border: 0;
 }
 
+.basket-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin: 4rpx 0 24rpx;
+}
+
 .family-selector {
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
   max-width: 100%;
-  margin: 4rpx 0 24rpx;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--app-text);
+  text-align: left;
 }
 
 .family-selector__name {
   display: block;
-  max-width: 620rpx;
+  max-width: 390rpx;
   overflow: hidden;
   color: var(--app-text);
   font-size: var(--font-size-page-title);
@@ -784,6 +881,40 @@ onShow(() => {
   line-height: var(--line-page-title);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.meal-ready-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  min-width: 164rpx;
+  min-height: 88rpx;
+  margin: 0;
+  padding: 0 20rpx;
+  border: 1rpx solid var(--app-border-strong);
+  border-radius: var(--app-radius-button);
+  background: rgba(255, 253, 252, 0.78);
+  color: var(--app-primary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tag);
+}
+
+.meal-ready-button:active {
+  transform: scale(0.97);
+}
+
+.meal-ready-button[disabled] {
+  opacity: 0.58;
+}
+
+.family-selector:focus-visible,
+.family-option:focus-visible,
+.family-manage-row:focus-visible,
+.meal-ready-button:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
 }
 
 .family-selector__arrow {
@@ -818,8 +949,13 @@ onShow(() => {
   justify-content: space-between;
   gap: 18rpx;
   min-height: 96rpx;
+  width: 100%;
+  margin: 0;
   padding: 0 32rpx;
+  border: 0;
+  border-radius: 0;
   background: #fffdfc;
+  text-align: left;
 }
 
 .family-option.is-active {
