@@ -2178,12 +2178,16 @@ onShow(() => {
 }
 
 .hero-section {
-  height: 704rpx;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 852 / 844;
   border-radius: 0;
   background: #f5f1ea;
 }
 
 .hero-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   transform: scale(1.01);
 }
@@ -2231,7 +2235,7 @@ onShow(() => {
 }
 
 .recipe-info-card {
-  margin: -118rpx 20rpx 0;
+  margin: -76rpx 20rpx 0;
   padding: 42rpx 32rpx 34rpx;
   border: 0;
   border-radius: 34rpx;
