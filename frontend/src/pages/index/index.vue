@@ -97,110 +97,13 @@
         </view>
       </view>
 
-      <!-- 后台配置的内容模块（优先展示） -->
+      <!-- 后台配置的内容模块，正式首页不再回退到旧静态推荐 -->
       <HomeModuleRenderer :modules="currentNavModules" />
 
-      <section-block
-        v-if="isRecommendCategory && !currentNavModules.length"
-        title="时令食材"
-        subtitle="这个月份，更值得优先放进厨房的食材"
-        :show-action="false"
-      >
-        <scroll-view class="seasonal-scroll" scroll-x enable-flex>
-          <view
-            v-for="ingredient in seasonalIngredients"
-            :key="ingredient.id"
-            class="seasonal-card glass-card"
-            @click="goToIngredientDetail(ingredient.id)"
-          >
-            <image class="seasonal-card__image" :src="ingredient.image" mode="aspectFill" />
-            <view class="seasonal-card__body">
-              <view class="seasonal-card__tags">
-                <text
-                  v-for="tag in ingredient.tags"
-                  :key="tag"
-                  class="seasonal-card__tag"
-                >
-                  {{ tag }}
-                </text>
-              </view>
-              <text class="seasonal-card__title">{{ ingredient.name }}</text>
-              <text class="seasonal-card__desc">{{ ingredient.description }}</text>
-            </view>
-          </view>
-        </scroll-view>
-      </section-block>
-
-      <section-block
-        v-if="isRecommendCategory && !currentNavModules.length"
-        :title="currentMenuTitle"
-        :subtitle="currentMenuSubtitle"
-        action-text="更多菜谱"
-        @action-click="goToRecipesPage"
-      >
-        <view class="recipe-list">
-          <view
-            v-for="recipe in currentRecipes"
-            :key="recipe.id"
-            class="recipe-card glass-card"
-            @click="goToRecipeDetail(recipe.id)"
-          >
-            <image class="recipe-card__image" :src="recipe.image" mode="aspectFill" />
-            <view class="recipe-card__body">
-              <view class="recipe-card__header">
-                <text class="recipe-card__title">{{ recipe.name }}</text>
-                <nut-tag plain>{{ recipe.tag }}</nut-tag>
-              </view>
-              <view class="recipe-card__meta-row">
-                <text class="recipe-card__meta">{{ recipe.duration }} · {{ recipe.difficulty }}</text>
-                <text class="recipe-card__calories">{{ recipe.calories }}</text>
-              </view>
-              <text class="recipe-card__summary">{{ recipe.summary }}</text>
-            </view>
-          </view>
-        </view>
-      </section-block>
-
-      <view v-if="!isRecommendCategory && !currentNavModules.length" :class="['topic-recipe-list', `topic-recipe-list--${activeCategoryId}`]">
-        <view
-          v-for="recipe in currentRecipes"
-          :key="recipe.id"
-          :class="['topic-recipe-card', `topic-recipe-card--${activeCategoryId}`, 'glass-card']"
-          @click="goToRecipeDetail(recipe.id)"
-        >
-          <image class="topic-recipe-card__image" :src="recipe.image" mode="aspectFill" />
-          <view class="topic-recipe-card__body">
-            <view class="topic-recipe-card__top">
-              <text class="topic-recipe-card__title">{{ recipe.name }}</text>
-              <text class="topic-recipe-card__tag">{{ recipe.tag }}</text>
-            </view>
-            <text class="topic-recipe-card__summary">{{ recipe.summary }}</text>
-            <view class="topic-recipe-card__meta">
-              <text>{{ recipe.duration }}</text>
-              <text>{{ recipe.difficulty }}</text>
-              <text>{{ recipe.calories }}</text>
-            </view>
-          </view>
-        </view>
+      <view v-if="!homeLoading && !homeError && !currentNavModules.length" class="home-empty glass-card">
+        <text class="home-empty__title">暂无首页内容</text>
+        <text class="home-empty__desc">后台发布推荐模块后，这里会自动显示。</text>
       </view>
-
-      <section-block v-if="isRecommendCategory" title="快捷入口" subtitle="把高频动作留在更顺手的位置" action-text="管理">
-        <view class="action-grid">
-          <view
-            v-for="action in quickActions"
-            :key="action.id"
-            class="action-card glass-card"
-            @click="handleQuickAction(action.id)"
-          >
-            <text class="action-card__title">{{ action.title }}</text>
-            <text class="action-card__badge">{{ action.badge }}</text>
-            <text class="action-card__subtitle">{{ action.subtitle }}</text>
-            <nut-button size="small" type="primary" plain>
-              进入
-            </nut-button>
-          </view>
-        </view>
-      </section-block>
 
       <home-tab-bar :tabs="homeTabs" />
     </view>
@@ -214,11 +117,8 @@ import { onPageScroll } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
-import SectionBlock from '../../components/home/section-block.vue';
-import { getHome, getHomeHeroBanners, getHomeModules, getHomeTopNavContents, getHomeTopNavs, listMobileBasketItems, listMobileViewHistories, type ApiHomeHeroBanner, type HomeModule } from '../../services/public-api';
-import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
-import type { HomeTab, QuickAction, RecipeCard } from '../../types/home';
-import type { Ingredient } from '../../types/ingredient';
+import { getHomeHeroBanners, getHomeModules, getHomeTopNavs, type ApiHomeHeroBanner, type HomeModule } from '../../services/public-api';
+import type { HomeTab } from '../../types/home';
 
 const activeCategoryId = ref('recommend');
 const isScrolled = ref(false);
@@ -230,90 +130,18 @@ const homeTabs: HomeTab[] = [
   { id: 'basket', label: '菜篮子', active: false },
   { id: 'mine', label: '我的', active: false }
 ];
-const baseQuickActions: QuickAction[] = [
-  {
-    id: 'basket',
-    title: '菜篮子',
-    subtitle: '整理当前后端菜篮子',
-    badge: '0 项'
-  },
-  {
-    id: 'browse',
-    title: '最近浏览',
-    subtitle: '查看账号浏览记录',
-    badge: '0 条'
-  }
-];
-
-const categoryMeta: Record<string, { title: string; subtitle: string }> = {
-  recommend: {
-    title: '家常菜单',
-    subtitle: '做法清楚、节奏轻松，适合日常反复使用'
-  },
-  home: {
-    title: '家常菜',
-    subtitle: '适合一家人反复吃的稳定菜谱'
-  },
-  quick: {
-    title: '快手菜',
-    subtitle: '少步骤、短时间，适合工作日'
-  },
-  soup: {
-    title: '汤类',
-    subtitle: '一碗热汤，把餐桌补完整'
-  },
-  breakfast: {
-    title: '早餐',
-    subtitle: '早上不慌，吃得简单但认真'
-  },
-  light: {
-    title: '减脂',
-    subtitle: '轻负担、好执行，适合日常控制热量'
-  }
-};
-
 const homeLoading = ref(false);
 const homeError = ref<string | null>(null);
-const remoteRecipes = ref<RecipeCard[] | null>(null);
-const remoteSeasonalIngredients = ref<Ingredient[] | null>(null);
-const remoteHomeCategories = ref<{ id: string; label: string }[]>([]);
 const homeHeroBanners = ref<ApiHomeHeroBanner[]>([]);
 const remoteTopNavs = ref<{ id: string; label: string }[]>([]);
-const remoteTopNavRecipes = ref<Record<string, RecipeCard[]>>({});
-const remoteTopNavMeta = ref<Record<string, { label: string; moreButtonText?: string }>>({});
-const quickActionStats = ref<{ basketCount: number; browseCount: number }>({ basketCount: 0, browseCount: 0 });
 // categoryId → 实际 navId（用于轮播图 API 请求）
 const navIdMap = ref<Record<string, string>>({});
 const currentNavModules = ref<HomeModule[]>([]);
-const quickActions = computed(() => baseQuickActions.map((action) => {
-  if (action.id === 'basket') {
-    return { ...action, badge: `${quickActionStats.value.basketCount} 项` };
-  }
-  if (action.id === 'browse') {
-    return { ...action, badge: `${quickActionStats.value.browseCount} 条` };
-  }
-  return action;
-}));
-
-const currentRecipes = computed(() => {
-  if (activeCategoryId.value === 'recommend' && remoteRecipes.value) return remoteRecipes.value;
-  if (remoteTopNavRecipes.value[activeCategoryId.value]) return remoteTopNavRecipes.value[activeCategoryId.value];
-  return [];
-});
-const currentMenuTitle = computed(() => remoteTopNavMeta.value[activeCategoryId.value]?.label ?? categoryMeta[activeCategoryId.value]?.title ?? '家常菜单');
-const currentMenuSubtitle = computed(() => (
-  remoteTopNavMeta.value[activeCategoryId.value]
-    ? '后台配置的首页顶部导航内容'
-    : categoryMeta[activeCategoryId.value]?.subtitle ?? '做法清楚、节奏轻松，适合日常反复使用'
-));
-const seasonalIngredients = computed(() => {
-  if (remoteSeasonalIngredients.value) return remoteSeasonalIngredients.value;
-  return [];
-});
+let channelRequestSequence = 0;
 const isRecommendCategory = computed(() => activeCategoryId.value === 'recommend');
 const homeHeaderCategories = computed(() => {
   if (remoteTopNavs.value.length > 0) return remoteTopNavs.value;
-  return [{ id: 'recommend', label: '推荐' }, ...remoteHomeCategories.value];
+  return [];
 });
 const normalizeTabId = (categoryId: string) => categoryId.replace(/[^a-zA-Z0-9_-]/g, '_');
 const getTopTabId = (categoryId: string) => `top_tab_${normalizeTabId(categoryId)}`;
@@ -390,20 +218,20 @@ const openNotifications = () => {
 // ====== 分类切换 ======
 const handleCategoryChange = (categoryId: string) => {
   activeCategoryId.value = categoryId;
+  const requestSequence = ++channelRequestSequence;
   void centerActiveTab('top');
   void centerActiveTab('sticky');
-  if (categoryId !== 'recommend' && remoteTopNavMeta.value[categoryId] && !remoteTopNavRecipes.value[categoryId]) {
-    void loadTopNavContents(categoryId);
-  }
   // 切换Tab时重新加载对应导航的轮播图和内容模块
   const navId = navIdMap.value[categoryId] ?? categoryId;
   if (navId) {
     void getHomeHeroBanners(navId).then((banners) => {
+      if (requestSequence !== channelRequestSequence) return;
       homeHeroBanners.value = banners;
     }).catch(() => {
+      if (requestSequence !== channelRequestSequence) return;
       homeHeroBanners.value = [];
     });
-    void loadCurrentModules(navId);
+    void loadCurrentModules(navId, requestSequence);
   } else {
     currentNavModules.value = [];
   }
@@ -440,28 +268,6 @@ const goToHeroBannerTarget = (banner: ApiHomeHeroBanner) => {
     return;
   }
   uni.showToast({ title: '暂无可跳转内容', icon: 'none' });
-};
-
-const goToRecipesPage = () => {
-  uni.navigateTo({ url: '/pages/recipes/index' });
-};
-
-const goToIngredientDetail = (id: string) => {
-  uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${id}` });
-};
-
-const goToRecipeDetail = (id: string) => {
-  uni.navigateTo({ url: `/pages/recipe-detail/index?id=${id}` });
-};
-
-const handleQuickAction = (actionId: string) => {
-  if (actionId === 'basket') {
-    uni.navigateTo({ url: '/pages/basket/index' });
-    return;
-  }
-  if (actionId === 'browse') {
-    uni.navigateTo({ url: '/pages/recipes/index' });
-  }
 };
 
 const updateHeaderScrollState = (scrollTop: number) => {
@@ -515,100 +321,21 @@ onUnmounted(() => {
   }
 });
 
-// ====== 数据加载 ======
-const mapRecipeCard = (item: {
-  id: number | string;
-  title: string;
-  cover: string | null;
-  description: string | null;
-  cookTime: number | null;
-  difficulty: string | null;
-}) => {
-  return {
-    id: String(item.id),
-    name: item.title,
-    duration: item.cookTime ? `${item.cookTime} 分钟` : '—',
-    difficulty: item.difficulty ?? '—',
-    calories: '',
-    tag: '推荐',
-    image: item.cover ?? '',
-    summary: item.description ?? ''
-  } satisfies RecipeCard;
-};
-
-const mapTopNavRecipeCard = (item: {
-  id: string;
-  title: string;
-  coverUrl: string | null;
-  duration: string | null;
-  difficulty: string | null;
-  calorie: string | null;
-}) => {
-  return {
-    id: item.id,
-    name: item.title,
-    duration: item.duration ?? '—',
-    difficulty: item.difficulty ?? '—',
-    calories: item.calorie ?? '',
-    tag: '导航内容',
-    image: item.coverUrl ?? '',
-    summary: ''
-  } satisfies RecipeCard;
-};
-
-const mapIngredientCard = (item: { id: number; name: string; cover: string | null; seasonMonth: string | null }) => {
-  const month = (() => {
-    if (!item.seasonMonth) return undefined;
-    const first = Number.parseInt(item.seasonMonth.split(',')[0]?.trim() ?? '', 10);
-    return Number.isFinite(first) ? first : undefined;
-  })();
-  return {
-    id: String(item.id),
-    name: item.name,
-    description: item.seasonMonth ? `时令：${item.seasonMonth}` : '时令食材',
-    image: item.cover ?? '',
-    tags: ['推荐'],
-    category: 'recommend',
-    month
-  } satisfies Ingredient;
-};
-
 const loadHome = async () => {
   homeLoading.value = true;
   homeError.value = null;
   try {
     const topNavs = await getHomeTopNavs();
     const defaultNav = topNavs.find((item) => item.isDefault) ?? topNavs[0];
+    const requestSequence = ++channelRequestSequence;
     if (defaultNav) homeHeroBanners.value = await getHomeHeroBanners(defaultNav.id);
-    const data = await getHome();
-    remoteRecipes.value = data.recommendRecipes.map(mapRecipeCard);
-    remoteSeasonalIngredients.value = data.recommendIngredients.map(mapIngredientCard);
-    remoteHomeCategories.value = data.recipeCategories.map((category) => ({ id: `category_${category.id}`, label: category.name }));
     remoteTopNavs.value = topNavs.map((item) => ({ id: item.isDefault ? 'recommend' : item.id, label: item.name }));
     navIdMap.value = topNavs.reduce<Record<string, string>>((memo, item) => {
       memo[item.isDefault ? 'recommend' : item.id] = item.id;
       return memo;
     }, {});
-    remoteTopNavMeta.value = topNavs.reduce<Record<string, { label: string }>>((memo, item) => {
-      memo[item.isDefault ? 'recommend' : item.id] = { label: item.name };
-      return memo;
-    }, {});
     if (defaultNav) activeCategoryId.value = defaultNav.isDefault ? 'recommend' : defaultNav.id;
-    if (defaultNav) void loadTopNavContents(defaultNav.id, defaultNav.isDefault);
-    if (defaultNav) void loadCurrentModules(defaultNav.id);
-    const user = await syncAuthUserWithBackend(loadAuthUser());
-    if (user?.id) {
-      const [basketData, viewData] = await Promise.all([
-        listMobileBasketItems({ userId: user.id, page: 1, pageSize: 1 }),
-        listMobileViewHistories({ userId: user.id, page: 1, pageSize: 1 })
-      ]);
-      quickActionStats.value = {
-        basketCount: basketData.total ?? basketData.list.length,
-        browseCount: viewData.total ?? viewData.list.length
-      };
-    } else {
-      quickActionStats.value = { basketCount: 0, browseCount: 0 };
-    }
+    if (defaultNav) void loadCurrentModules(defaultNav.id, requestSequence);
   } catch (err) {
     homeError.value = err instanceof Error ? err.message : '加载失败';
   } finally {
@@ -616,32 +343,13 @@ const loadHome = async () => {
   }
 };
 
-const loadTopNavContents = async (navId: string, isDefault = false) => {
-  try {
-    const data = await getHomeTopNavContents(navId, { page: 1, pageSize: 10 });
-    const recipes = data.items.map(mapTopNavRecipeCard);
-    const meta = { label: data.navName, moreButtonText: data.moreButtonText };
-    const update: Record<string, RecipeCard[]> = { [navId]: recipes };
-    const metaUpdate: Record<string, { label: string; moreButtonText?: string }> = { [navId]: meta };
-    if (isDefault) {
-      update.recommend = recipes;
-      metaUpdate.recommend = meta;
-    }
-    remoteTopNavRecipes.value = { ...remoteTopNavRecipes.value, ...update };
-    remoteTopNavMeta.value = { ...remoteTopNavMeta.value, ...metaUpdate };
-  } catch (err) {
-    uni.showToast({
-      title: err instanceof Error ? err.message : '导航内容加载失败',
-      icon: 'none'
-    });
-  }
-};
-
-const loadCurrentModules = async (navId: string) => {
+const loadCurrentModules = async (navId: string, requestSequence = channelRequestSequence) => {
   try {
     const modules = await getHomeModules(navId);
+    if (requestSequence !== channelRequestSequence) return;
     currentNavModules.value = modules;
   } catch {
+    if (requestSequence !== channelRequestSequence) return;
     currentNavModules.value = [];
   }
 };
@@ -1013,6 +721,31 @@ void loadHome();
 /* ====== 内容区域 ====== */
 .home-content {
   padding-top: 0;
+}
+
+.home-empty {
+  display: flex;
+  min-height: 220rpx;
+  margin: 32rpx;
+  padding: 48rpx 32rpx;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.home-empty__title {
+  color: var(--text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+}
+
+.home-empty__desc {
+  margin-top: 12rpx;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-body-sm);
 }
 
 /* ====== 原有样式保留 ====== */
