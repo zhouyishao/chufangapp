@@ -48,7 +48,14 @@
       
       <text class="step-main-title">{{ currentStep.title }}</text>
       
-      <image v-if="currentStep.image" class="step-card-img" :src="currentStep.image" mode="aspectFill" />
+      <video
+        v-if="currentStep.mediaUrl && currentStep.mediaMimeType?.startsWith('video/')"
+        class="step-card-img"
+        :src="currentStep.mediaUrl"
+        controls
+        object-fit="cover"
+      />
+      <image v-else-if="currentStep.mediaUrl" class="step-card-img" :src="currentStep.mediaUrl" mode="aspectFill" />
       
       <text class="step-card-desc">{{ currentStep.description }}</text>
       
@@ -112,7 +119,8 @@ import { getBeverageGuidedFlow, getRecipeGuidedFlow } from '../../services/publi
 type CookingStep = {
   title: string;
   description: string;
-  image: string;
+  mediaUrl?: string;
+  mediaMimeType?: string;
   durationMinutes: number;
   tip?: string;
 };
@@ -282,7 +290,8 @@ const fetchRecipeDetails = async () => {
       return {
         title: step.title,
         description: step.description,
-        image: step.media?.url ?? '',
+        mediaUrl: step.media?.url,
+        mediaMimeType: step.media?.mimeType,
         durationMinutes: step.timerSeconds ? Math.ceil(step.timerSeconds / 60) : 0,
         tip: step.tip
       } satisfies CookingStep;

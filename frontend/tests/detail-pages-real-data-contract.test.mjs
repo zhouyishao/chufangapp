@@ -43,5 +43,7 @@ test('recipe and beverage step data preserve media and timer fields', async () =
   assert.match(apiSource, /getBeverageGuidedFlow/);
   assert.match(cookingSource, /timerSeconds/);
   assert.match(cookingSource, /media\?\.url/);
+  assert.match(cookingSource, /<video/);
+  assert.match(cookingSource, /mediaMimeType/);
   assert.match(cookingSource, /下一步|上一步/);
 });
