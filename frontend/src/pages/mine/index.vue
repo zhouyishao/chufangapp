@@ -37,6 +37,29 @@
         </view>
       </view>
 
+      <view class="mine-recipes">
+        <view class="mine-recipes__head">
+          <button class="mine-recipes__title" @tap="goToMyRecipes">我的菜谱</button>
+          <button class="mine-recipes__add" @tap="goToCreateRecipe">
+            <app-icon name="plus" size="18px" />
+            <text>添加</text>
+          </button>
+        </view>
+        <scroll-view v-if="myRecipePreviews.length" class="mine-recipes__scroll" scroll-x :show-scrollbar="false">
+          <view class="mine-recipes__row">
+            <button v-for="recipe in myRecipePreviews" :key="recipe.id" class="mine-recipe-card" @tap="openMyRecipe(recipe.id)">
+              <image class="mine-recipe-card__image" :src="recipe.image" mode="aspectFill" />
+              <view class="mine-recipe-card__copy">
+                <text class="mine-recipe-card__title">{{ recipe.name }}</text>
+                <text class="mine-recipe-card__visibility">{{ recipe.visibility }}</text>
+              </view>
+            </button>
+            <button class="mine-recipe-card mine-recipe-card--more" @tap="goToMyRecipes">查看全部</button>
+          </view>
+        </scroll-view>
+        <button v-else class="mine-recipes__empty" @tap="goToCreateRecipe">添加第一道菜谱</button>
+      </view>
+
       <view class="profile-stats">
         <button class="profile-stat" @click="goToFavorites">
           <text class="profile-stat__value">{{ favoriteCount }}</text>
@@ -176,7 +199,7 @@ import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { clearAuthUser, loadAuthUser } from '../../services/auth';
 import { loadBasketItems } from '../../services/basket';
 import { loadActiveFamilyId, loadFamilies } from '../../services/family';
-import { loadMyRecipes } from '../../services/my-recipes';
+import { loadMyRecipes, type MyRecipe } from '../../services/my-recipes';
 import { getDefaultUserProfile, getUserProfile } from '../../services/profile';
 import { listMobileFavorites, listMobileViewHistories } from '../../services/public-api';
 import type { FamilyProfile } from '../../types/family';
@@ -200,6 +223,7 @@ const activeFamilyId = ref(loadActiveFamilyId());
 const favoriteCount = ref(0);
 const recentViewCount = ref(0);
 const myRecipeCount = ref(0);
+const myRecipePreviews = ref<MyRecipe[]>([]);
 const purchaseCount = ref(0);
 const mineRequestSequence = ref(0);
 const isLoggedIn = computed(() => authUser.value !== null);
@@ -238,6 +262,14 @@ const goToRecentViews = () => {
 
 const goToMyRecipes = () => {
   uni.navigateTo({ url: '/pages/my-recipes/index' });
+};
+
+const goToCreateRecipe = () => {
+  uni.navigateTo({ url: '/pages/recipe-create/index' });
+};
+
+const openMyRecipe = (recipeId: string) => {
+  uni.navigateTo({ url: `/pages/my-recipe-detail/index?id=${encodeURIComponent(recipeId)}` });
 };
 
 const goToPurchaseHistory = () => {
@@ -288,6 +320,7 @@ const refreshUserStats = async (expectedToken: string, sequence: number) => {
     favoriteCount.value = 0;
     recentViewCount.value = 0;
     myRecipeCount.value = 0;
+    myRecipePreviews.value = [];
     purchaseCount.value = 0;
     return;
   }
@@ -301,6 +334,7 @@ const refreshUserStats = async (expectedToken: string, sequence: number) => {
   favoriteCount.value = favorites.total;
   recentViewCount.value = recentViews.total;
   myRecipeCount.value = myRecipes.length;
+  myRecipePreviews.value = myRecipes.slice(0, 6);
   purchaseCount.value = basketItems.length;
 };
 
@@ -327,7 +361,9 @@ const refreshMinePage = async () => {
       favoriteCount.value = 0;
       recentViewCount.value = 0;
       myRecipeCount.value = 0;
+      myRecipePreviews.value = [];
       purchaseCount.value = 0;
+      myRecipePreviews.value = [];
     }
   } catch (error) {
     if (sequence !== mineRequestSequence.value) return;
@@ -1166,6 +1202,125 @@ onShow(() => {
   grid-template-columns: repeat(4, 1fr);
   height: 82px;
   margin: 20px 0 0;
+}
+
+.mine-recipes {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1rpx solid var(--app-border);
+}
+
+.mine-recipes__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--touch-target);
+}
+
+.mine-recipes__title,
+.mine-recipes__add,
+.mine-recipes__empty,
+.mine-recipe-card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.mine-recipes__title {
+  color: var(--text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+}
+
+.mine-recipes__add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  color: var(--app-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--line-body-sm);
+}
+
+.mine-recipes__scroll {
+  margin: var(--space-2) calc(-1 * var(--space-4)) 0;
+  white-space: nowrap;
+}
+
+.mine-recipes__row {
+  display: inline-flex;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+}
+
+.mine-recipe-card {
+  display: flex;
+  flex: 0 0 248rpx;
+  width: 248rpx;
+  overflow: hidden;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+  background: var(--app-surface-strong);
+  color: var(--text-primary);
+  text-align: left;
+  white-space: normal;
+}
+
+.mine-recipe-card__image {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--app-surface);
+}
+
+.mine-recipe-card__copy {
+  display: flex;
+  min-height: 88rpx;
+  padding: var(--space-2) var(--space-3);
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mine-recipe-card__title {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-recipe-card__visibility {
+  margin-top: 2rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-regular);
+  line-height: var(--line-tag);
+}
+
+.mine-recipe-card--more,
+.mine-recipes__empty {
+  align-items: center;
+  justify-content: center;
+  min-height: 160rpx;
+  border: 1rpx dashed var(--app-border-strong);
+  color: var(--app-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--line-body-sm);
+  text-align: center;
+}
+
+.mine-recipes__empty {
+  display: flex;
+  width: 100%;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-md);
 }
 
 .profile-stat {
