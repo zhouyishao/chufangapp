@@ -5,6 +5,7 @@ import { HttpError } from '../../http/errors';
 import { requireAppAuth } from '../../http/middleware/app-auth';
 import { resolveRequestUserId } from '../../http/request-user';
 import { ok, type PageResult } from '../../http/response';
+import { createOrLoadByUniqueKey } from '../../services/idempotent-create';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
 import { prisma } from '../../prisma';
 import { buildAppAuthSession } from '../../services/app-token';
@@ -895,6 +896,117 @@ apiMobileRouter.put('/families/:id/preferences', requireAppAuth, async (req, res
     }
   });
   res.json(ok(preference));
+});
+
+apiMobileRouter.get('/preferences', requireAppAuth, async (req, res) => {
+  const items = await prisma.userPreference.findMany({
+    where: { userId: req.appUser!.id, deletedAt: null },
+    orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }]
+  });
+  res.json(ok(items));
+});
+
+apiMobileRouter.put('/preferences', requireAppAuth, async (req, res) => {
+  const parsed = z.object({
+    items: z.array(z.object({
+      kind: z.enum(['LIKE', 'AVOID', 'ALLERGY']),
+      value: z.string().trim().min(1).max(80),
+      shareScope: z.enum(['PRIVATE', 'FAMILY']).default('PRIVATE')
+    })).max(100)
+  }).safeParse(req.body);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = req.appUser!.id;
+  const uniqueItems = Array.from(new Map(parsed.data.items.map((item) => [`${item.kind}:${item.value}`, item])).values());
+
+  const items = await prisma.$transaction(async (tx) => {
+    const keepKeys = uniqueItems.map((item) => ({ kind: item.kind, value: item.value }));
+    await tx.userPreference.updateMany({
+      where: {
+        userId,
+        deletedAt: null,
+        ...(keepKeys.length ? { NOT: { OR: keepKeys } } : {})
+      },
+      data: { deletedAt: new Date() }
+    });
+    for (const item of uniqueItems) {
+      await tx.userPreference.upsert({
+        where: { userId_kind_value: { userId, kind: item.kind, value: item.value } },
+        create: { userId, ...item },
+        update: { shareScope: item.shareScope, deletedAt: null }
+      });
+    }
+    return tx.userPreference.findMany({ where: { userId, deletedAt: null }, orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }] });
+  });
+  res.json(ok(items));
+});
+
+apiMobileRouter.get('/notifications', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.safeParse(req.query);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const { page, pageSize } = parsed.data;
+  const where = { userId: req.appUser!.id, notification: { deletedAt: null } };
+  const [items, total] = await Promise.all([
+    prisma.notificationReceipt.findMany({
+      where,
+      include: { notification: true },
+      orderBy: [{ notification: { createdAt: 'desc' } }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    }),
+    prisma.notificationReceipt.count({ where })
+  ]);
+  res.json(ok({ list: items, total, page, pageSize }));
+});
+
+apiMobileRouter.post('/notifications/:id/read', requireAppAuth, async (req, res) => {
+  const notificationId = idParam(req.params.id);
+  const receipt = await prisma.notificationReceipt.findUnique({
+    where: { notificationId_userId: { notificationId, userId: req.appUser!.id } }
+  });
+  if (!receipt) throw new HttpError('消息不存在', 404, 404);
+  const updated = await prisma.notificationReceipt.update({ where: { id: receipt.id }, data: { readAt: receipt.readAt ?? new Date() } });
+  res.json(ok(updated));
+});
+
+apiMobileRouter.post('/families/:id/meal-ready', requireAppAuth, async (req, res) => {
+  const familyId = idParam(req.params.id);
+  const parsed = z.object({
+    idempotencyKey: z.string().trim().min(8).max(120),
+    title: z.string().trim().min(1).max(120).default('开饭了'),
+    body: z.string().trim().min(1).max(500).default('饭菜已经准备好，快来一起吃饭吧。')
+  }).safeParse(req.body);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const operator = await prisma.familyMember.findFirst({
+    where: { familyId, userId: req.appUser!.id, deletedAt: null, memberStatus: 'ACTIVE' }
+  });
+  if (!operator || !canInviteFamilyMember(operator.role)) throw new HttpError('无权发送家庭提醒', 403, 403);
+  const dedupeKey = `meal-ready:${familyId}:${parsed.data.idempotencyKey}`;
+  const members = await prisma.familyMember.findMany({
+    where: { familyId, deletedAt: null, memberStatus: 'ACTIVE' },
+    select: { userId: true }
+  });
+  const created = await createOrLoadByUniqueKey({
+    load: () => prisma.notification.findUnique({ where: { dedupeKey }, include: { receipts: true } }),
+    create: () => prisma.$transaction(async (tx) => {
+      const event = await tx.familyEvent.create({
+        data: { familyId, createdById: req.appUser!.id, title: parsed.data.title, status: 'ACTIVE', mealReadyAt: new Date() }
+      });
+      return tx.notification.create({
+        data: {
+          type: 'MEAL_READY',
+          familyId,
+          eventId: event.id,
+          senderId: req.appUser!.id,
+          title: parsed.data.title,
+          body: parsed.data.body,
+          dedupeKey,
+          receipts: { create: members.map((member) => ({ userId: member.userId, deliveredAt: new Date() })) }
+        },
+        include: { receipts: true }
+      });
+    })
+  });
+  res.json(ok(created));
 });
 
 apiMobileRouter.delete('/family-members/:id', requireAppAuth, async (req, res) => {

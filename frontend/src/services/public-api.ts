@@ -801,6 +801,50 @@ export const saveMobileFamilyPreferences = async (familyId: number, payload: Api
   return request<ApiFamilyPreference>(`/mobile/families/${familyId}/preferences`, { method: 'PUT', data: payload });
 };
 
+export type ApiUserPreference = {
+  id: number;
+  userId: number;
+  kind: 'LIKE' | 'AVOID' | 'ALLERGY';
+  value: string;
+  shareScope: 'PRIVATE' | 'FAMILY';
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const listMobileUserPreferences = () => request<ApiUserPreference[]>('/mobile/preferences');
+
+export const replaceMobileUserPreferences = (items: Array<Pick<ApiUserPreference, 'kind' | 'value' | 'shareScope'>>) =>
+  request<ApiUserPreference[]>('/mobile/preferences', { method: 'PUT', data: { items } });
+
+export type ApiNotificationReceipt = {
+  id: number;
+  notificationId: number;
+  readAt: string | null;
+  deliveredAt: string | null;
+  notification: {
+    id: number;
+    type: 'SYSTEM' | 'FAMILY_EVENT' | 'MEAL_READY';
+    title: string;
+    body: string;
+    familyId: number | null;
+    createdAt: string;
+  };
+};
+
+export const listMobileNotifications = (params: { page?: number; pageSize?: number } = {}) => {
+  const qs = new URLSearchParams({ page: String(params.page ?? 1), pageSize: String(params.pageSize ?? 20) });
+  return request<PageResult<ApiNotificationReceipt>>(`/mobile/notifications?${qs.toString()}`);
+};
+
+export const markMobileNotificationRead = (notificationId: number) =>
+  request<{ id: number; readAt: string | null }>(`/mobile/notifications/${notificationId}/read`, { method: 'POST' });
+
+export const sendMobileMealReady = (familyId: number, payload: { idempotencyKey: string; title?: string; body?: string }) =>
+  request<{ id: number; dedupeKey: string; receipts: Array<{ id: number; userId: number }> }>(`/mobile/families/${familyId}/meal-ready`, {
+    method: 'POST',
+    data: payload
+  });
+
 export const removeMobileFamilyMember = async (memberId: number, userId: number) => {
   return request<ApiFamilyMember>(`/mobile/family-members/${memberId}`, { method: 'DELETE', data: { userId } });
 };
