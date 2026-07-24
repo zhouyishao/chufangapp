@@ -1,7 +1,6 @@
 <template>
   <view class="app-page mine-page">
     <view v-if="isLoggedIn" class="mine-shell">
-      <image class="mine-scene-bg" :src="profileBackgroundUrl" mode="aspectFill" />
       <view class="profile-head">
         <view class="profile-head__main">
           <image class="profile-head__avatar" :src="profileAvatarUrl" mode="aspectFill" />
@@ -14,12 +13,6 @@
             </button>
           </view>
         </view>
-        <button class="profile-head__settings" @click="goToSettings">
-          <app-icon name="settings" size="28rpx" />
-        </button>
-        <button class="profile-background-edit" aria-label="更换背景" @click="changeBackground">
-          <view class="camera-icon" />
-        </button>
       </view>
 
       <view class="family-paper">
@@ -172,43 +165,6 @@
 
     <home-tab-bar :tabs="tabs" />
 
-    <view v-if="isBackgroundEditorVisible" class="join-mask" @click="closeBackgroundEditor">
-      <view class="join-panel background-panel glass-card" @click.stop>
-        <view class="join-panel__header">
-          <view>
-            <text class="join-panel__title">更换背景</text>
-            <text class="join-panel__subtitle">上传长图后调整展示位置</text>
-          </view>
-          <text class="join-panel__close" @click="closeBackgroundEditor">×</text>
-        </view>
-
-        <view class="background-preview">
-          <image
-            class="background-preview__image"
-            :src="backgroundDraftUrl"
-            mode="aspectFill"
-            :style="{ transform: `translateY(${backgroundDraftOffset}rpx)` }"
-          />
-        </view>
-        <view class="background-tools">
-          <button class="background-tool-button" @click="chooseBackgroundImage">上传图片</button>
-          <view class="background-slider-row">
-            <text>上移</text>
-            <slider
-              :value="backgroundSliderValue"
-              min="0"
-              max="100"
-              block-size="22"
-              activeColor="#7a8b6f"
-              backgroundColor="#e9e2d6"
-              @change="changeBackgroundOffset"
-            />
-            <text>下移</text>
-          </view>
-          <button class="panel-primary-button" @click="saveBackground">保存背景</button>
-        </view>
-      </view>
-    </view>
   </view>
 </template>
 
@@ -223,29 +179,22 @@ import { loadActiveFamilyId, loadFamilies } from '../../services/family';
 import { loadMyRecipes } from '../../services/my-recipes';
 import { getDefaultUserProfile, getUserProfile } from '../../services/profile';
 import { listMobileFavorites, listMobileViewHistories } from '../../services/public-api';
-import kitchenBackgroundUrl from '../../static/mine-kitchen-bg.png';
 import type { FamilyProfile } from '../../types/family';
 import type { UserProfile } from '../../types/profile';
 
 const tabs = [
   { id: 'home', label: '首页', active: false },
   { id: 'categories', label: '分类', active: false },
-  { id: 'basket', label: '菜篮子', active: false },
+  { id: 'basket', label: '菜篮', active: false },
   { id: 'mine', label: '我的', active: true }
 ];
 
 const notificationOn = ref(true);
 const familyShareOn = ref(false);
-const isBackgroundEditorVisible = ref(false);
 const authUser = ref(loadAuthUser());
 const profile = ref<UserProfile>(getDefaultUserProfile());
 const avatarPlaceholderUrl =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22%3E%3Crect width=%22200%22 height=%22200%22 rx=%22100%22 fill=%22%23E9E2D6%22/%3E%3Ccircle cx=%22100%22 cy=%2278%22 r=%2234%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3Cpath d=%22M42 174c16-38 36-57 58-57s42 19 58 57%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3C/svg%3E';
-const profileBackgroundPlaceholderUrl = kitchenBackgroundUrl;
-const profileBackgroundUrl = ref(profileBackgroundPlaceholderUrl);
-const backgroundDraftUrl = ref(profileBackgroundUrl.value);
-const backgroundDraftOffset = ref(0);
-const backgroundSliderValue = ref(50);
 const familyOptions = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
 const favoriteCount = ref(0);
@@ -277,40 +226,6 @@ const goToLogin = () => {
 
 const editProfile = () => {
   uni.navigateTo({ url: '/pages/profile-edit/index' });
-};
-
-const changeBackground = () => {
-  backgroundDraftUrl.value = profileBackgroundUrl.value;
-  isBackgroundEditorVisible.value = true;
-};
-
-const closeBackgroundEditor = () => {
-  isBackgroundEditorVisible.value = false;
-};
-
-const chooseBackgroundImage = () => {
-  uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['album', 'camera'],
-    success: (result) => {
-      backgroundDraftUrl.value = result.tempFilePaths[0] ?? profileBackgroundPlaceholderUrl;
-      uni.showToast({ title: '已选择图片', icon: 'none' });
-    }
-  });
-};
-
-const changeBackgroundOffset = (event: Event) => {
-  const detail = event as unknown as { detail?: { value?: number } };
-  const value = detail.detail?.value ?? 50;
-  backgroundSliderValue.value = value;
-  backgroundDraftOffset.value = Math.round((value - 50) * 1.6);
-};
-
-const saveBackground = () => {
-  profileBackgroundUrl.value = backgroundDraftUrl.value;
-  closeBackgroundEditor();
-  uni.showToast({ title: '背景已保存', icon: 'success' });
 };
 
 const goToFavorites = () => {

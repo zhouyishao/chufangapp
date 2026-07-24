@@ -7,7 +7,7 @@
       @tap="handleTabClick(tab.id)"
     >
       <view class="icon-wrapper">
-        <app-icon class="tab-icon" :name="getTabIcon(tab.id)" size="24rpx" />
+        <app-icon class="tab-icon" :name="getTabIcon(tab.id)" :filled="tab.active" size="24rpx" />
       </view>
       <text class="home-tab-bar__label">{{ tab.label }}</text>
     </view>

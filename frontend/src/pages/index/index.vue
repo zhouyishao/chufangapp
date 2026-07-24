@@ -1,7 +1,7 @@
 <template>
   <view class="app-page home-page">
     <!-- ====== 一体化 Hero 区域：轮播图 + 悬浮搜索框 + 悬浮 Tab ====== -->
-    <view class="home-hero" :style="{ height: '500px' }">
+    <view class="home-hero" :style="{ height: '420px' }">
       <!-- 轮播图背景层 -->
       <view v-if="homeHeroBanners.length" class="home-hero__carousel">
         <swiper
@@ -127,7 +127,7 @@ let scrollFallbackTimer: ReturnType<typeof setInterval> | undefined;
 const homeTabs: HomeTab[] = [
   { id: 'home', label: '首页', active: true },
   { id: 'categories', label: '分类', active: false },
-  { id: 'basket', label: '菜篮子', active: false },
+  { id: 'basket', label: '菜篮', active: false },
   { id: 'mine', label: '我的', active: false }
 ];
 const homeLoading = ref(false);
@@ -391,7 +391,7 @@ void loadHome();
   top: 0;
   left: 0;
   width: 100%;
-  height: 500px;
+  height: 420px;
   z-index: 1;
 }
 
@@ -399,7 +399,7 @@ void loadHome();
 .home-hero__item,
 .home-hero__image {
   width: 100%;
-  height: 500px;
+  height: 420px;
 }
 
 .home-hero__item {
