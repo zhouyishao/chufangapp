@@ -70,14 +70,9 @@ page {
 }
 
 /* The H5 device canvas has no native notch, so keep the iPhone 15 design baseline visible in dev preview. */
-.safe-area-preview {
-  --app-safe-area-top: max(env(safe-area-inset-top, 0px), 59px);
-}
-
-@media screen and (min-width: 390px) and (max-width: 400px) and (min-height: 800px) and (max-height: 900px) {
-  :root {
-    --app-safe-area-top: max(env(safe-area-inset-top, 0px), 59px);
-  }
+.safe-area-preview,
+.safe-area-preview uni-page-body {
+  --app-safe-area-top: 59px;
 }
 
 page {

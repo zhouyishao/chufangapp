@@ -53,8 +53,8 @@
           <app-icon class="hero-search-icon" name="search" size="18px" />
           <text class="hero-search-placeholder">搜索菜谱、食材、做法</text>
         </view>
-        <button class="hero-add-btn" @tap="openHeroActionSheet">
-          <app-icon class="hero-add-icon" name="plus" size="22px" />
+        <button class="hero-notification-btn" aria-label="消息与提醒" @tap="openNotifications">
+          <app-icon class="hero-notification-icon" name="bell" size="22px" />
         </button>
       </view>
 
@@ -205,29 +205,6 @@
       <home-tab-bar :tabs="homeTabs" />
     </view>
 
-    <!-- ====== 加号按钮弹出菜单 ====== -->
-    <view v-if="isActionSheetVisible" class="dropdown-mask" @tap="closeActionSheet">
-      <view class="action-dropdown" @tap.stop>
-        <view class="add-action-list">
-          <view class="add-action" @tap="scanCode">
-            <view class="add-action__icon">
-              <app-icon name="scan" size="28rpx" />
-            </view>
-            <view>
-              <text class="add-action__title">扫一扫</text>
-            </view>
-          </view>
-          <view class="add-action" @tap="addRecipe">
-            <view class="add-action__icon">
-              <app-icon name="plus" size="28rpx" />
-            </view>
-            <view>
-              <text class="add-action__title">添加菜谱</text>
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
   </view>
 </template>
 
@@ -247,7 +224,6 @@ const activeCategoryId = ref('recommend');
 const isScrolled = ref(false);
 const headerScrollProgress = ref(0);
 let scrollFallbackTimer: ReturnType<typeof setInterval> | undefined;
-const isActionSheetVisible = ref(false);
 const homeTabs: HomeTab[] = [
   { id: 'home', label: '首页', active: true },
   { id: 'categories', label: '分类', active: false },
@@ -407,22 +383,8 @@ const handleSearchTap = () => {
   uni.navigateTo({ url: '/pages/search/index' });
 };
 
-const openHeroActionSheet = () => {
-  isActionSheetVisible.value = true;
-};
-
-const closeActionSheet = () => {
-  isActionSheetVisible.value = false;
-};
-
-const scanCode = () => {
-  closeActionSheet();
-  uni.navigateTo({ url: '/pages/scan/index' });
-};
-
-const addRecipe = () => {
-  closeActionSheet();
-  uni.navigateTo({ url: '/pages/my-recipes/index' });
+const openNotifications = () => {
+  uni.navigateTo({ url: '/pages/notifications/index' });
 };
 
 // ====== 分类切换 ======
@@ -856,7 +818,7 @@ void loadHome();
   transition: color 180ms ease;
 }
 
-.hero-add-btn {
+.hero-notification-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -871,14 +833,21 @@ void loadHome();
   -webkit-backdrop-filter: blur(18px);
   color: var(--text-primary);
   padding: 0;
-  transition: background 180ms ease, border-color 180ms ease;
+  transition:
+    background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.hero-add-btn::after {
+.hero-notification-btn::after {
   border: 0;
 }
 
-.hero-add-icon {
+.hero-notification-btn:active {
+  transform: scale(0.96);
+}
+
+.hero-notification-icon {
   color: currentColor;
 }
 
