@@ -483,6 +483,7 @@ model Ingredient {
   code           String?   @unique @db.VarChar(32)
   name           String    @db.VarChar(80)
   cover          String?   @db.VarChar(255)
+  coverFileId    Int?      @map("cover_file_id")
   categoryId     Int?      @map("category_id")
   seasonMonth    String?   @map("season_month") @db.VarChar(64)
   nutrition      String?   @db.Text
@@ -490,7 +491,9 @@ model Ingredient {
   storageMethod  String?   @map("storage_method") @db.Text
   taboo          String?   @db.Text
   detailImages   Json?     @map("detail_images")
+  detailImageFileIds Json? @map("detail_image_file_ids")
   selectionMedia String?   @map("selection_media") @db.VarChar(255)
+  selectionMediaFileId Int? @map("selection_media_file_id")
   relatedRecipes Json?     @map("related_recipes")
   currentPrice   Float?    @map("current_price")
   priceUnit      String?   @map("price_unit") @db.VarChar(20)
@@ -498,6 +501,8 @@ model Ingredient {
   priceDate      DateTime? @map("price_date")
 
   category           Category?                        @relation(fields: [categoryId], references: [id])
+  coverFile          File?                            @relation("IngredientCover", fields: [coverFileId], references: [id])
+  selectionMediaFile File?                            @relation("IngredientSelectionMedia", fields: [selectionMediaFileId], references: [id])
   ingredientTags     IngredientTag[]
   recipeIngredients  RecipeIngredient[]
   tips               IngredientTip[]
@@ -618,8 +623,11 @@ model Recipe {
   title       String  @db.VarChar(120)
   subtitle    String? @db.VarChar(255)
   cover       String? @db.VarChar(255)
+  coverFileId Int?    @map("cover_file_id")
   images      Json?   @map("images")
+  imageFileIds Json?  @map("image_file_ids")
   video       String? @db.VarChar(255)
+  videoFileId Int?    @map("video_file_id")
   visibility  String? @db.VarChar(32)
   description String? @db.Text
 
@@ -647,6 +655,8 @@ model Recipe {
   category               Category?                        @relation(fields: [categoryId], references: [id])
   cuisine                Cuisine?                         @relation(fields: [cuisineId], references: [id])
   author                 User?                            @relation("UserRecipes", fields: [authorId], references: [id])
+  coverFile              File?                            @relation("RecipeCover", fields: [coverFileId], references: [id])
+  videoFile              File?                            @relation("RecipeVideo", fields: [videoFileId], references: [id])
   steps                  RecipeStep[]
   ingredients            RecipeIngredient[]
   menuRecipes            MenuRecipe[]
@@ -787,6 +797,9 @@ model Beverage {
   code             String?      @unique @db.VarChar(32)
   name             String       @db.VarChar(120)
   coverImage       String?      @map("cover_image") @db.VarChar(255)
+  coverFileId      Int?         @map("cover_file_id")
+  galleryFileIds   Json?        @map("gallery_file_ids")
+  videoFileId      Int?         @map("video_file_id")
   categoryId       Int?         @map("category_id")
   beverageType     String?      @map("beverage_type") @db.VarChar(80)
   isAlcoholic      Boolean      @default(false) @map("is_alcoholic")
@@ -809,6 +822,8 @@ model Beverage {
   kind             BeverageKind @default(ORDINARY)
 
   category      Category?            @relation(fields: [categoryId], references: [id])
+  coverFile     File?                @relation("BeverageCover", fields: [coverFileId], references: [id])
+  videoFile     File?                @relation("BeverageVideo", fields: [videoFileId], references: [id])
   recipes       RecipeBeverage[]
   ingredientsV2 BeverageIngredient[]
   tools         BeverageTool[]
@@ -1271,6 +1286,12 @@ model File {
   recipeSteps   RecipeStep[]    @relation("RecipeStepMedia")
   beverageSteps BeverageStep[]  @relation("BeverageStepMedia")
   familyAvatars Family[]        @relation("FamilyAvatar")
+  ingredientCovers Ingredient[]  @relation("IngredientCover")
+  ingredientSelectionMedia Ingredient[] @relation("IngredientSelectionMedia")
+  recipeCovers Recipe[]          @relation("RecipeCover")
+  recipeVideos Recipe[]           @relation("RecipeVideo")
+  beverageCovers Beverage[]       @relation("BeverageCover")
+  beverageVideos Beverage[]       @relation("BeverageVideo")
 
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")

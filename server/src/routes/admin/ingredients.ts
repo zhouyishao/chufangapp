@@ -6,6 +6,8 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
+import { lockActiveMediaFiles } from '../../services/file-mutation';
+import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -20,6 +22,7 @@ const listQuerySchema = z.object({
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(80),
   cover: z.string().trim().max(255).nullable().optional(),
+  coverFileId: z.coerce.number().int().positive().nullable().optional(),
   categoryId: z.union([z.coerce.number().int(), z.string().trim()]).nullable().optional(),
   seasonMonth: z.string().trim().max(64).nullable().optional(),
   nutrition: z.string().trim().nullable().optional(),
@@ -27,7 +30,9 @@ const upsertSchema = z.object({
   storageMethod: z.string().trim().nullable().optional(),
   taboo: z.string().trim().nullable().optional(),
   detailImages: z.array(z.string().trim().max(255)).default([]),
+  detailImageFileIds: z.array(z.coerce.number().int().positive()).nullable().optional(),
   selectionMedia: z.string().trim().max(255).nullable().optional(),
+  selectionMediaFileId: z.coerce.number().int().positive().nullable().optional(),
   currentPrice: z.coerce.number().finite().nullable().optional(),
   priceUnit: z.string().trim().max(20).nullable().optional(),
   priceSource: z.string().trim().max(80).nullable().optional(),
@@ -126,15 +131,15 @@ adminIngredientsRouter.post('/', requireAdminAuth, async (req, res) => {
   const { categoryId: _categoryId, ...payload } = parsed.data;
   const codes = await prisma.ingredient.findMany({ select: { code: true } });
   try {
-    const created = await prisma.ingredient.create({
-      data: {
-        ...payload,
-        categoryId,
-        bizId: createBusinessId('ingredient'),
-        code: nextCodeFromItems('ingredient', codes),
-        sortOrder: parsed.data.sort
-      },
-      include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+    const created = await prisma.$transaction(async (tx) => {
+      const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
+      const selectionMediaFileId = await resolveActiveFileId(tx, parsed.data.selectionMediaFileId, parsed.data.selectionMedia);
+      const detailImageFileIds = await resolveActiveFileIds(tx, parsed.data.detailImageFileIds, parsed.data.detailImages);
+      await lockActiveMediaFiles(tx, [coverFileId, selectionMediaFileId, ...detailImageFileIds]);
+      return tx.ingredient.create({
+        data: { ...payload, categoryId, coverFileId, selectionMediaFileId, detailImageFileIds, bizId: createBusinessId('ingredient'), code: nextCodeFromItems('ingredient', codes), sortOrder: parsed.data.sort },
+        include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+      });
     });
     res.json(ok(serializeIngredient(created)));
   } catch (err: any) {
@@ -154,10 +159,16 @@ adminIngredientsRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const { categoryId: _categoryId, ...payload } = parsed.data;
 
   try {
-    const updated = await prisma.ingredient.update({
-      where: { id: existing.id },
-      data: { ...payload, categoryId, sortOrder: parsed.data.sort },
-      include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+    const updated = await prisma.$transaction(async (tx) => {
+      const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
+      const selectionMediaFileId = await resolveActiveFileId(tx, parsed.data.selectionMediaFileId, parsed.data.selectionMedia);
+      const detailImageFileIds = await resolveActiveFileIds(tx, parsed.data.detailImageFileIds, parsed.data.detailImages);
+      await lockActiveMediaFiles(tx, [coverFileId, selectionMediaFileId, ...detailImageFileIds]);
+      return tx.ingredient.update({
+        where: { id: existing.id },
+        data: { ...payload, categoryId, coverFileId, selectionMediaFileId, detailImageFileIds, sortOrder: parsed.data.sort },
+        include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+      });
     });
     res.json(ok(serializeIngredient(updated)));
   } catch (err: any) {

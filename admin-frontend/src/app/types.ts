@@ -41,6 +41,7 @@ export type Ingredient = {
   code?: string;
   name: string;
   cover: string | null;
+  coverFileId?: number | null;
   categoryId: string | null;
   category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;
   seasonMonth: string | null;
@@ -49,7 +50,9 @@ export type Ingredient = {
   storageMethod: string | null;
   taboo: string | null;
   detailImages?: string[] | null;
+  detailImageFileIds?: number[] | null;
   selectionMedia?: string | null;
+  selectionMediaFileId?: number | null;
   currentPrice: number | null;
   priceUnit: string | null;
   priceSource: string | null;
@@ -69,8 +72,11 @@ export type Recipe = {
   title: string;
   subtitle: string | null;
   cover: string | null;
+  coverFileId?: number | null;
   images?: string[] | null;
+  imageFileIds?: number[] | null;
   video?: string | null;
+  videoFileId?: number | null;
   description: string | null;
   categoryId: string | null;
   category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;

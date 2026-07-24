@@ -7,6 +7,7 @@ import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
+import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -23,6 +24,9 @@ const listQuerySchema = z.object({
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(120),
   coverImage: z.string().trim().max(255).nullable().optional(),
+  coverFileId: z.coerce.number().int().positive().nullable().optional(),
+  galleryFileIds: z.array(z.coerce.number().int().positive()).nullable().optional(),
+  videoFileId: z.coerce.number().int().positive().nullable().optional(),
   categoryId: z.union([z.coerce.number().int(), z.string().trim()]).nullable().optional(),
   beverageType: z.string().trim().max(80).nullable().optional(),
   isAlcoholic: z.coerce.boolean().default(false),
@@ -136,10 +140,14 @@ adminBeveragesRouter.post('/', requireAdminAuth, async (req, res) => {
   const { categoryId: _categoryId, ingredientsV2, tools, steps, ...payload } = parsed.data;
   const codes = await prisma.beverage.findMany({ select: { code: true } });
   const created = await prisma.$transaction(async (tx) => {
-    await lockActiveMediaFiles(tx, (steps ?? []).map((step) => step.mediaFileId));
+    const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.coverImage);
+    const galleryFileIds = await resolveActiveFileIds(tx, parsed.data.galleryFileIds, []);
+    await lockActiveMediaFiles(tx, [coverFileId, parsed.data.videoFileId, ...galleryFileIds, ...(steps ?? []).map((step) => step.mediaFileId)]);
     return tx.beverage.create({
       data: {
         ...payload,
+        coverFileId,
+        galleryFileIds,
         categoryId,
         bizId: createBusinessId('beverage'),
         code: nextCodeFromItems('beverage', codes),
@@ -166,7 +174,9 @@ adminBeveragesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const { categoryId: _categoryId, ingredientsV2, tools, steps, ...payload } = parsed.data;
   const updated = await prisma.$transaction(async (tx) => {
-    await lockActiveMediaFiles(tx, (steps ?? []).map((step) => step.mediaFileId));
+    const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.coverImage);
+    const galleryFileIds = await resolveActiveFileIds(tx, parsed.data.galleryFileIds, []);
+    await lockActiveMediaFiles(tx, [coverFileId, parsed.data.videoFileId, ...galleryFileIds, ...(steps ?? []).map((step) => step.mediaFileId)]);
     if (ingredientsV2) await tx.beverageIngredient.deleteMany({ where: { beverageId: existing.id } });
     if (tools) await tx.beverageTool.deleteMany({ where: { beverageId: existing.id } });
     if (steps) await tx.beverageStep.deleteMany({ where: { beverageId: existing.id } });
@@ -174,6 +184,8 @@ adminBeveragesRouter.put('/:id', requireAdminAuth, async (req, res) => {
       where: { id: existing.id },
       data: {
         ...payload,
+        coverFileId,
+        galleryFileIds,
         categoryId,
         sortOrder: parsed.data.sortOrder ?? parsed.data.sort,
         ...(ingredientsV2 ? { ingredientsV2: { create: ingredientsV2.map((item, sortIndex) => ({ ...item, sortIndex })) } } : {}),

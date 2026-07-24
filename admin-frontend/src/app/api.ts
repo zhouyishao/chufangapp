@@ -451,6 +451,7 @@ export const listIngredients = async (params: {
 type IngredientWritePayload = {
   name: string;
   coverUrl: string | null;
+  coverFileId?: number | null;
   categoryId: string | null;
   seasonMonth: string | null;
   nutrition: string | null;
@@ -458,7 +459,9 @@ type IngredientWritePayload = {
   storageMethod: string | null;
   taboo: string | null;
   detailImages?: string[];
+  detailImageFileIds?: number[] | null;
   selectionMedia?: string | null;
+  selectionMediaFileId?: number | null;
   currentPrice: number | null;
   priceUnit: string | null;
   priceSource: string | null;
@@ -538,8 +541,11 @@ type RecipeWritePayload = {
   title: string;
   subtitle: string | null;
   coverUrl: string | null;
+  coverFileId?: number | null;
   images?: string[];
+  imageFileIds?: number[] | null;
   video?: string | null;
+  videoFileId?: number | null;
   description: string | null;
   categoryId: string | null;
   cookTime: number | null;
@@ -556,7 +562,7 @@ type RecipeWritePayload = {
   isDraft: boolean;
   isPublish: boolean;
   isRecommend: boolean;
-  steps: { sortIndex: number; title: string | null; description: string; image: string | null; video?: string | null; duration?: number | null }[];
+  steps: { sortIndex: number; title: string | null; description: string; image: string | null; video?: string | null; duration?: number | null; mediaFileId?: number | null }[];
   ingredients: {
     sortIndex: number;
     ingredientId: string | number | null;
