@@ -12,6 +12,7 @@ import { buildAppAuthSession } from '../../services/app-token';
 import { buildBasketListWhere, canAccessBasketItem } from '../../services/basket-access';
 import { canChangeFamilyRole, canInviteFamilyMember, canRemoveFamilyMember } from '../../services/family-permissions';
 import { resolveContentTarget } from '../../services/content-target';
+import { getMobileProfile, updateMobileProfile } from '../../services/mobile-profile';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -707,19 +708,21 @@ apiMobileRouter.get('/profile', requireAppAuth, async (req, res) => {
   const parsed = schema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
-  const user = await prisma.user.findFirst({
-    where: { id: userId, deletedAt: null },
-    select: {
-      id: true,
-      phone: true,
-      nickname: true,
-      avatar: true,
-      createdAt: true,
-      _count: { select: { favorites: true, comments: true, posts: true } }
-    }
-  });
-  if (!user) throw new HttpError('not found', 404, 404);
-  res.json(ok(user));
+  res.json(ok(await getMobileProfile(prisma, userId)));
+});
+
+apiMobileRouter.patch('/profile', requireAppAuth, async (req, res) => {
+  const schema = z.object({
+    nickname: z.string().trim().min(1).max(60).optional(),
+    bio: z.union([z.string().trim().max(120), z.null()]).optional(),
+    avatarFileId: z.union([z.coerce.number().int().positive(), z.null()]).optional()
+  }).strict().refine(
+    (value) => value.nickname !== undefined || value.bio !== undefined || value.avatarFileId !== undefined,
+    { message: '至少提供一个可更新字段' }
+  );
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  res.json(ok(await updateMobileProfile(prisma, req.appUser!.id, parsed.data)));
 });
 
 apiMobileRouter.get('/families', requireAppAuth, async (req, res) => {

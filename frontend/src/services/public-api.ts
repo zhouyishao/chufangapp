@@ -19,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api';
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api';
 const DEFAULT_IMAGE_URL =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 900 600%22%3E%3Crect width=%22900%22 height=%22600%22 fill=%22%23F5F1EA%22/%3E%3Cpath d=%22M210 382c78-96 155-144 231-144 74 0 137 44 249 144%22 fill=%22none%22 stroke=%22%237A8B6F%22 stroke-width=%2228%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%22648%22 cy=%22182%22 r=%2250%22 fill=%22%23E9E2D6%22/%3E%3Crect x=%22218%22 y=%22416%22 width=%22464%22 height=%2232%22 rx=%2216%22 fill=%22%23E9E2D6%22/%3E%3C/svg%3E';
 
@@ -50,19 +50,26 @@ export const resolveAssetUrl = (url: string | null | undefined, fallback = DEFAU
 };
 
 type RequestOptions = {
-  method?: UniApp.RequestOptions['method'];
+  method?: UniApp.RequestOptions['method'] | 'PATCH';
   data?: UniApp.RequestOptions['data'];
   header?: UniApp.RequestOptions['header'];
   timeout?: number;
   auth?: boolean;
+  authToken?: string | null;
+  handleAuthExpired?: boolean;
 };
 
-const request = async <T>(path: string, options: RequestOptions = {}) => {
-  const token = options.auth === false ? null : getAuthToken();
+export const apiRequest = async <T>(path: string, options: RequestOptions = {}) => {
+  const token =
+    options.authToken !== undefined
+      ? options.authToken
+      : options.auth === false
+        ? null
+        : getAuthToken();
   const response = await new Promise<{ data: ApiResponse<T>; statusCode: number }>((resolve, reject) => {
     uni.request({
       url: `${API_BASE}${path}`,
-      method: options.method ?? 'GET',
+      method: (options.method ?? 'GET') as UniApp.RequestOptions['method'],
       data: options.data,
       header: {
         ...options.header,
@@ -76,7 +83,9 @@ const request = async <T>(path: string, options: RequestOptions = {}) => {
 
   const result = response.data;
   if (response.statusCode === 401 || result.code === 401) {
-    handleAuthExpired();
+    if (options.handleAuthExpired !== false) {
+      handleAuthExpired();
+    }
     throw new ApiError(result.message || 'unauthorized', 401);
   }
 
@@ -84,6 +93,8 @@ const request = async <T>(path: string, options: RequestOptions = {}) => {
 
   return (result as ApiOk<T>).data;
 };
+
+const request = apiRequest;
 
 export type ApiHome = {
   banners: {

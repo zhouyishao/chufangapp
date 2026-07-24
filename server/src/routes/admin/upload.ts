@@ -26,7 +26,7 @@ const splitBuffer = (buffer: Buffer, separator: Buffer) => {
   return parts;
 };
 
-const collectBody = async (req: Request) =>
+const collectBody = async (req: Request, maxBodySize: number) =>
   new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
     let total = 0;
@@ -41,8 +41,8 @@ const collectBody = async (req: Request) =>
 
     req.on('data', (chunk: Buffer) => {
       total += chunk.length;
-      if (total > maxMultipartSize) {
-        fail(new HttpError('文件不能超过 50MB', 400, 400));
+      if (total > maxBodySize) {
+        fail(new HttpError('上传请求体过大', 400, 400));
         return;
       }
       chunks.push(chunk);
@@ -112,10 +112,14 @@ const extractUploadedFile = (body: Buffer, boundary: string, expectedType: Media
   throw new HttpError('未找到上传文件', 400, 400);
 };
 
-export const readUploadedMedia = async (req: Request, expectedType: MediaType | 'media' = 'media') => {
+export const readUploadedMedia = async (
+  req: Request,
+  expectedType: MediaType | 'media' = 'media',
+  options: { maxBodySize?: number } = {}
+) => {
   const boundary = getBoundary(req.header('content-type'));
   if (!boundary) throw new HttpError('参数错误', 400, 400);
-  return extractUploadedFile(await collectBody(req), boundary, expectedType);
+  return extractUploadedFile(await collectBody(req, options.maxBodySize ?? maxMultipartSize), boundary, expectedType);
 };
 
 const handleUpload = (expectedType: MediaType | 'media') => async (req: Request, res: Response) => {

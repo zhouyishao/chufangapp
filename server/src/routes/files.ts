@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import type { Prisma } from '@prisma/client';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 
@@ -11,9 +12,19 @@ import { requireAdminAuth } from '../http/middleware/admin-auth';
 import { requireAppAuth } from '../http/middleware/app-auth';
 import { ok } from '../http/response';
 import { prisma } from '../prisma';
+import {
+  buildFileReadWhere,
+  buildStoredFileSha256,
+  createOrLoadUploadedFile,
+  loadKnownUploadedFile,
+  lockFileForMutation,
+  prepareFileRemoval
+} from '../services/file-mutation';
+import { mediaRules } from '../services/media-file';
 import { readUploadedMedia } from './admin/upload';
 
 const uploadDir = () => path.resolve(process.cwd(), config.uploadDir);
+const avatarMultipartLimit = mediaRules.image.maxSize + 1024 * 1024;
 const fileSelect = {
   id: true,
   url: true,
@@ -23,6 +34,7 @@ const fileSelect = {
   height: true,
   durationSeconds: true,
   storageKind: true,
+  status: true,
   createdAt: true
 } as const;
 
@@ -40,66 +52,111 @@ const upload = async (req: Request, res: Response) => {
   const parsedPurpose = z.enum(['content', 'avatar', 'family-avatar']).default('content').safeParse(req.query.purpose);
   if (!parsedPurpose.success) throw new HttpError('上传用途不支持', 400, 400);
   const purpose = parsedPurpose.data;
-  const media = await readUploadedMedia(req);
+  const media = purpose === 'content'
+    ? await readUploadedMedia(req)
+    : await readUploadedMedia(req, 'image', { maxBodySize: avatarMultipartLimit });
+  const storedSha256 = buildStoredFileSha256(media.sha256, req.appUser?.id);
   if (purpose !== 'content') {
     if (media.type !== 'image') throw new HttpError('头像必须是图片', 400, 400);
     if (!media.width || !media.height) throw new HttpError('无法识别头像尺寸', 400, 400);
     if (media.width < 512 || media.height < 512) throw new HttpError('头像尺寸至少为 512×512', 400, 400);
   }
 
-  const knownFile = await prisma.file.findUnique({ where: { sha256: media.sha256 }, select: { ...fileSelect, deletedAt: true } });
-  if (knownFile && !knownFile.deletedAt) {
-    const { deletedAt: _deletedAt, ...duplicate } = knownFile;
-    res.json(ok(duplicate));
-    return;
+  const knownFile = await prisma.file.findFirst({
+    where: { sha256: storedSha256, deletedAt: null, status: 'ACTIVE' },
+    select: { ...fileSelect, deletedAt: true }
+  });
+  if (knownFile) {
+    const reusableKnownFile = await loadKnownUploadedFile({
+      runExclusive: async <Result>(operation: (transaction: Prisma.TransactionClient) => Promise<Result>) =>
+        prisma.$transaction(async (transaction) => {
+          await lockFileForMutation(transaction, knownFile!.id);
+          return operation(transaction);
+        }),
+      load: async (transaction) => transaction.file.findUnique({
+        where: { id: knownFile!.id },
+        select: { ...fileSelect, deletedAt: true }
+      })
+    });
+    if (reusableKnownFile) {
+      const { deletedAt: _deletedAt, ...duplicate } = reusableKnownFile;
+      res.json(ok(duplicate));
+      return;
+    }
   }
 
   const filename = `${Date.now()}-${randomUUID()}.${media.extension}`;
   const relativePath = path.posix.join('uploads', filename);
   await fs.mkdir(uploadDir(), { recursive: true });
-  await fs.writeFile(path.join(uploadDir(), filename), media.content, { flag: 'wx' });
+  const absolutePath = path.join(uploadDir(), filename);
+  await fs.writeFile(absolutePath, media.content, { flag: 'wx' });
 
-  try {
-    const data = {
-        url: `/${relativePath}`,
-        path: relativePath,
-        mimeType: media.mimeType,
-        size: media.size,
-        width: media.width,
-        height: media.height,
-        sha256: media.sha256,
-        storageKind: 'LOCAL' as const,
-        uploaderId: req.appUser?.id ?? null,
-        createdBy: req.admin ? Number.parseInt(req.admin.sub, 10) || null : null
-    };
-    const created = knownFile
-      ? await prisma.file.update({ where: { id: knownFile.id }, data: { ...data, deletedAt: null, status: 'ACTIVE' }, select: fileSelect })
-      : await prisma.file.create({ data, select: fileSelect });
-    res.status(201).json(ok(created));
-  } catch (error) {
-    await fs.unlink(path.join(uploadDir(), filename)).catch(() => undefined);
-    throw error;
-  }
+  const data = {
+    url: `/${relativePath}`,
+    path: relativePath,
+    mimeType: media.mimeType,
+    size: media.size,
+    width: media.width,
+    height: media.height,
+    sha256: storedSha256,
+    storageKind: 'LOCAL' as const,
+    uploaderId: req.appUser?.id ?? null,
+    createdBy: req.admin ? Number.parseInt(req.admin.sub, 10) || null : null
+  };
+
+  const persisted = await createOrLoadUploadedFile({
+    load: async () => prisma.file.findFirst({
+      where: { sha256: storedSha256, deletedAt: null, status: 'ACTIVE' },
+      select: fileSelect
+    }),
+    create: async () => prisma.file.create({ data, select: fileSelect }),
+    cleanup: async () => {
+      await fs.unlink(absolutePath).catch(() => undefined);
+    },
+    isCurrentUpload: (record) => record.url === data.url
+  });
+  res.status(persisted.created ? 201 : 200).json(ok(persisted.record));
 };
 
 const getFile = async (req: Request, res: Response) => {
-  const file = await prisma.file.findFirst({ where: { id: idParam(req.params.id), deletedAt: null }, select: fileSelect });
+  const file = await prisma.file.findFirst({
+    where: buildFileReadWhere(idParam(req.params.id), req.appUser?.id),
+    select: fileSelect
+  });
   if (!file) throw new HttpError('文件不存在', 404, 404);
   res.json(ok(file));
 };
 
 const removeFile = async (req: Request, res: Response) => {
   const id = idParam(req.params.id);
-  const file = await prisma.file.findFirst({
-    where: { id, deletedAt: null },
-    include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true } } }
+  const file = await prepareFileRemoval({
+    runExclusive: async <Result>(operation: (transaction: Prisma.TransactionClient) => Promise<Result>) =>
+      prisma.$transaction(async (transaction) => {
+        await lockFileForMutation(transaction, id);
+        return operation(transaction);
+      }),
+    load: async (transaction) => {
+      const lockedFile = await transaction.file.findFirst({
+        where: { id },
+        include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true } } }
+      });
+      if (!lockedFile) return null;
+      return {
+        ...lockedFile,
+        referenceCount: lockedFile._count.references
+          + lockedFile._count.recipeSteps
+          + lockedFile._count.beverageSteps
+      };
+    },
+    softDelete: async (transaction) => {
+      await transaction.file.update({
+        where: { id },
+        data: { deletedAt: new Date(), status: 'DISABLED', sha256: null }
+      });
+    },
+    appUserId: req.appUser?.id
   });
-  if (!file) throw new HttpError('文件不存在', 404, 404);
-  if (req.appUser && file.uploaderId !== req.appUser.id) throw new HttpError('无权删除该文件', 403, 403);
-  const referenceCount = file._count.references + file._count.recipeSteps + file._count.beverageSteps;
-  if (referenceCount > 0) throw new HttpError('文件正在被内容引用，不能删除', 409, 409);
 
-  await prisma.file.update({ where: { id }, data: { deletedAt: new Date(), status: 'DISABLED' } });
   if (file.storageKind === 'LOCAL') {
     await fs.unlink(path.resolve(process.cwd(), file.path)).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error;
@@ -119,6 +176,7 @@ const listFiles = async (req: Request, res: Response) => {
   const { page, pageSize, q, type } = parsed.data;
   const where = {
     deletedAt: null,
+    status: 'ACTIVE' as const,
     ...(type ? { mimeType: { startsWith: `${type}/` } } : {}),
     ...(q ? { OR: [{ path: { contains: q, mode: 'insensitive' as const } }, { mimeType: { contains: q, mode: 'insensitive' as const } }] } : {})
   };

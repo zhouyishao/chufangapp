@@ -34,7 +34,6 @@
 import { ref } from 'vue';
 import AppIcon from '../../components/app/app-icon.vue';
 import { createAuthUser, isValidPhone, saveAuthUser, syncAuthUserWithBackend } from '../../services/auth';
-import { saveUserProfile } from '../../services/profile';
 
 const phone = ref('');
 const password = ref('');
@@ -62,11 +61,6 @@ const login = async () => {
   const user = createAuthUser(phone.value);
   const remoteUser = await syncAuthUserWithBackend(user);
   saveAuthUser(remoteUser ?? user);
-  saveUserProfile({
-    nickname: remoteUser?.nickname ?? user.nickname,
-    avatarUrl: '',
-    bio: '一起把一日三餐过得更松弛'
-  });
   uni.showToast({ title: '登录成功', icon: 'success' });
   setTimeout(() => {
     uni.reLaunch({ url: '/pages/mine/index' });

@@ -14,6 +14,7 @@ const protectedRoutes = [
   { method: 'POST', path: '/api/mobile/ingredient-price-records' },
   { method: 'DELETE', path: '/api/mobile/ingredient-price-records/1' },
   { method: 'GET', path: '/api/mobile/profile' },
+  { method: 'PATCH', path: '/api/mobile/profile' },
   { method: 'GET', path: '/api/mobile/families' },
   { method: 'POST', path: '/api/mobile/families' },
   { method: 'GET', path: '/api/mobile/families/1' },
@@ -67,7 +68,8 @@ test('用户资产路由只以 App Token 用户为可信身份', async () => {
     /apiMobileRouter\.get\('\/view-histories', requireAppAuth,/,
     /apiMobileRouter\.post\('\/view-histories', requireAppAuth,/,
     /apiMobileRouter\.get\('\/search-histories', requireAppAuth,/,
-    /apiMobileRouter\.delete\('\/search-histories', requireAppAuth,/
+    /apiMobileRouter\.delete\('\/search-histories', requireAppAuth,/,
+    /apiMobileRouter\.patch\('\/profile', requireAppAuth,/
   ];
 
   for (const pattern of routePatterns) assert.match(source, pattern);

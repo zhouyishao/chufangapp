@@ -157,6 +157,7 @@ model User {
   phone        String?   @unique @db.VarChar(32)
   openid       String?   @unique @db.VarChar(80)
   nickname     String?   @db.VarChar(60)
+  bio          String?   @db.VarChar(120)
   avatar       String?   @db.VarChar(255)
   gender       String?   @db.VarChar(16)
   email        String?   @unique @db.VarChar(120)
@@ -1438,7 +1439,7 @@ model FileReference {
   createdAt DateTime @default(now()) @map("created_at")
   file      File     @relation(fields: [fileId], references: [id])
 
-  @@unique([fileId, ownerType, ownerId, field, sortIndex])
+  @@unique([ownerType, ownerId, field, sortIndex])
   @@index([ownerType, ownerId])
   @@map("file_references")
 }

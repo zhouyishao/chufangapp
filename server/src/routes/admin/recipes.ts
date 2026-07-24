@@ -6,6 +6,7 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
+import { lockActiveMediaFiles } from '../../services/file-mutation';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -24,7 +25,8 @@ const stepSchema = z.object({
   description: z.string().trim().min(1),
   image: z.string().trim().max(255).nullable().optional(),
   video: z.string().trim().max(255).nullable().optional(),
-  duration: z.coerce.number().int().min(0).nullable().optional()
+  duration: z.coerce.number().int().min(0).nullable().optional(),
+  mediaFileId: z.coerce.number().int().positive().nullable().optional()
 });
 
 const ingredientSchema = z.object({
@@ -208,21 +210,24 @@ adminRecipesRouter.post('/', requireAdminAuth, async (req, res) => {
     }
   }
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
-  const created = await prisma.recipe.create({
-    data: {
-      ...recipePayload,
-      categoryId,
-      bizId: createBusinessId('recipe'),
-      code: nextCodeFromItems('recipe', codes),
-      sortOrder: parsed.data.sort,
-      ...importSource,
-      steps: { create: steps },
-      ingredients: { create: ingredients }
-    },
-    include: {
-      steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-      ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
-    }
+  const created = await prisma.$transaction(async (tx) => {
+    await lockActiveMediaFiles(tx, steps.map((step) => step.mediaFileId));
+    return tx.recipe.create({
+      data: {
+        ...recipePayload,
+        categoryId,
+        bizId: createBusinessId('recipe'),
+        code: nextCodeFromItems('recipe', codes),
+        sortOrder: parsed.data.sort,
+        ...importSource,
+        steps: { create: steps },
+        ingredients: { create: ingredients }
+      },
+      include: {
+        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
+      }
+    });
   });
   res.json(ok(serializeRecipe(created)));
 });
@@ -235,6 +240,7 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
+    await lockActiveMediaFiles(tx, steps.map((step) => step.mediaFileId));
     const existing = await tx.recipe.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
     if (!existing) throw new HttpError('not found', 404, 404);
     const id = existing.id;

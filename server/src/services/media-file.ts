@@ -36,11 +36,54 @@ const jpegSize = (buffer: Buffer) => {
   return null;
 };
 
+const webpSize = (buffer: Buffer) => {
+  if (!isWebp(buffer) || buffer.length < 20) return null;
+  const riffPayloadSize = buffer.readUInt32LE(4);
+  if (riffPayloadSize !== buffer.length - 8) return null;
+  const chunkSize = buffer.readUInt32LE(16);
+  const chunkEnd = 20 + chunkSize;
+  const paddedChunkEnd = chunkEnd + (chunkSize % 2);
+  if (chunkSize === 0 || chunkEnd > buffer.length || paddedChunkEnd > buffer.length) return null;
+
+  const chunkType = buffer.toString('ascii', 12, 16);
+  if (chunkType === 'VP8X') {
+    if (chunkSize < 10) return null;
+    return {
+      width: buffer.readUIntLE(24, 3) + 1,
+      height: buffer.readUIntLE(27, 3) + 1
+    };
+  }
+
+  if (chunkType === 'VP8 ') {
+    if (
+      chunkSize < 10
+      || buffer[23] !== 0x9d
+      || buffer[24] !== 0x01
+      || buffer[25] !== 0x2a
+    ) return null;
+    const width = buffer.readUInt16LE(26) & 0x3fff;
+    const height = buffer.readUInt16LE(28) & 0x3fff;
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+
+  if (chunkType === 'VP8L') {
+    if (chunkSize < 5 || buffer[20] !== 0x2f) return null;
+    const dimensions = buffer.readUInt32LE(21);
+    return {
+      width: (dimensions & 0x3fff) + 1,
+      height: ((dimensions >>> 14) & 0x3fff) + 1
+    };
+  }
+
+  return null;
+};
+
 export const getImageSize = (buffer: Buffer, mimeType: string) => {
   if (mimeType === 'image/png' && isPng(buffer)) {
     return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
   }
   if (mimeType === 'image/jpeg' && isJpeg(buffer)) return jpegSize(buffer);
+  if (mimeType === 'image/webp') return webpSize(buffer);
   return null;
 };
 
@@ -63,6 +106,7 @@ export const validateMediaFile = (content: Buffer, mimeType: string) => {
   if (!signatureMatches) throw new HttpError('文件内容与格式不一致', 400, 400);
 
   const dimensions = type === 'image' ? getImageSize(content, normalized) : null;
+  if (type === 'image' && !dimensions) throw new HttpError('无法识别图片尺寸', 400, 400);
   return {
     type,
     extension: mediaRules[type].mimeTypes[normalized],

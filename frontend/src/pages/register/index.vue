@@ -75,7 +75,6 @@ import {
   saveAuthUser,
   syncAuthUserWithBackend
 } from '../../services/auth';
-import { saveUserProfile } from '../../services/profile';
 
 type RegisterStep = 'phone' | 'code' | 'password';
 
@@ -178,11 +177,6 @@ const finishRegister = async () => {
   const user = createAuthUser(account.phone, account.nickname);
   const remoteUser = await syncAuthUserWithBackend(user);
   saveAuthUser(remoteUser ?? user);
-  saveUserProfile({
-    nickname: remoteUser?.nickname ?? user.nickname,
-    avatarUrl: '',
-    bio: '正在整理自己的家庭菜谱'
-  });
   uni.showToast({ title: '注册成功', icon: 'success' });
   setTimeout(() => {
     uni.reLaunch({ url: '/pages/mine/index' });

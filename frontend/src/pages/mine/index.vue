@@ -213,7 +213,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
@@ -221,7 +221,7 @@ import { clearAuthUser, loadAuthUser } from '../../services/auth';
 import { loadBasketItems } from '../../services/basket';
 import { loadActiveFamilyId, loadFamilies } from '../../services/family';
 import { loadMyRecipes } from '../../services/my-recipes';
-import { loadUserProfile } from '../../services/profile';
+import { getDefaultUserProfile, getUserProfile } from '../../services/profile';
 import { listMobileFavorites, listMobileViewHistories } from '../../services/public-api';
 import kitchenBackgroundUrl from '../../static/mine-kitchen-bg.png';
 import type { FamilyProfile } from '../../types/family';
@@ -238,7 +238,7 @@ const notificationOn = ref(true);
 const familyShareOn = ref(false);
 const isBackgroundEditorVisible = ref(false);
 const authUser = ref(loadAuthUser());
-const profile = ref<UserProfile>(loadUserProfile());
+const profile = ref<UserProfile>(getDefaultUserProfile());
 const avatarPlaceholderUrl =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22%3E%3Crect width=%22200%22 height=%22200%22 rx=%22100%22 fill=%22%23E9E2D6%22/%3E%3Ccircle cx=%22100%22 cy=%2278%22 r=%2234%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3Cpath d=%22M42 174c16-38 36-57 58-57s42 19 58 57%22 fill=%22%237A8B6F%22 opacity=%22.72%22/%3E%3C/svg%3E';
 const profileBackgroundPlaceholderUrl = kitchenBackgroundUrl;
@@ -252,6 +252,7 @@ const favoriteCount = ref(0);
 const recentViewCount = ref(0);
 const myRecipeCount = ref(0);
 const purchaseCount = ref(0);
+const mineRequestSequence = ref(0);
 const isLoggedIn = computed(() => authUser.value !== null);
 const profileAvatarUrl = computed(() => profile.value.avatarUrl || avatarPlaceholderUrl);
 const displayNickname = computed(() => {
@@ -352,7 +353,9 @@ const logout = () => {
       }
 
       clearAuthUser();
+      mineRequestSequence.value += 1;
       authUser.value = null;
+      profile.value = getDefaultUserProfile();
       uni.showToast({ title: '已退出登录', icon: 'none' });
     }
   });
@@ -363,8 +366,8 @@ const goToCurrentFamily = () => {
   uni.navigateTo({ url: familyId ? `/pages/family-manage/index?id=${encodeURIComponent(familyId)}` : '/pages/family/index' });
 };
 
-const refreshUserStats = async () => {
-  if (!authUser.value?.id) {
+const refreshUserStats = async (expectedToken: string, sequence: number) => {
+  if (!authUser.value?.id || loadAuthUser()?.token !== expectedToken) {
     favoriteCount.value = 0;
     recentViewCount.value = 0;
     myRecipeCount.value = 0;
@@ -377,6 +380,7 @@ const refreshUserStats = async () => {
     loadBasketItems(),
     loadMyRecipes()
   ]);
+  if (sequence !== mineRequestSequence.value || loadAuthUser()?.token !== expectedToken) return;
   favoriteCount.value = favorites.total;
   recentViewCount.value = recentViews.total;
   myRecipeCount.value = myRecipes.length;
@@ -384,26 +388,41 @@ const refreshUserStats = async () => {
 };
 
 const refreshMinePage = async () => {
-  authUser.value = loadAuthUser();
-  profile.value = loadUserProfile();
+  const sequence = mineRequestSequence.value + 1;
+  mineRequestSequence.value = sequence;
+  const session = loadAuthUser();
+  authUser.value = session;
+  profile.value = getDefaultUserProfile();
   try {
-    if (authUser.value) {
-      familyOptions.value = await loadFamilies();
+    if (session) {
+      const [remoteProfile, families] = await Promise.all([
+        getUserProfile(),
+        loadFamilies()
+      ]);
+      if (sequence !== mineRequestSequence.value || loadAuthUser()?.token !== session.token) return;
+      profile.value = remoteProfile;
+      familyOptions.value = families;
       activeFamilyId.value = loadActiveFamilyId();
-      await refreshUserStats();
+      await refreshUserStats(session.token, sequence);
     } else {
       familyOptions.value = [];
       activeFamilyId.value = '';
-      await refreshUserStats();
+      favoriteCount.value = 0;
+      recentViewCount.value = 0;
+      myRecipeCount.value = 0;
+      purchaseCount.value = 0;
     }
   } catch (error) {
+    if (sequence !== mineRequestSequence.value) return;
+    if (!loadAuthUser()) {
+      authUser.value = null;
+      profile.value = getDefaultUserProfile();
+      familyOptions.value = [];
+      activeFamilyId.value = '';
+    }
     uni.showToast({ title: error instanceof Error ? error.message : '我的页面加载失败', icon: 'none' });
   }
 };
-
-onMounted(() => {
-  void refreshMinePage();
-});
 
 onShow(() => {
   void refreshMinePage();
