@@ -36,6 +36,8 @@ const unwrapStoredValue = (value: unknown): unknown => {
 export const mapApiFamily = (family: ApiFamily): FamilyProfile => ({
   id: String(family.id),
   name: family.name,
+  avatar: family.avatarSource || family.avatar || '',
+  avatarFileId: family.avatarFileId ?? null,
   description: family.description || `${family.memberCount} 位成员 · 菜谱和菜篮子共享中`,
   commonRecipes: 0,
   pendingItems: family.pendingItems,
@@ -109,7 +111,8 @@ export const updateFamily = async (family: FamilyProfile) => {
   await updateMobileFamily(Number(family.id), {
     userId: user.id,
     name: family.name,
-    description: family.description
+    description: family.description,
+    avatarFileId: family.avatarFileId
   });
   await saveMobileFamilyPreferences(Number(family.id), {
     userId: user.id,

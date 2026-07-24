@@ -18,6 +18,8 @@ export type UploadAvatarOptions = {
   onProgress?: (progress: number) => void;
 };
 
+export type UploadPurpose = 'avatar' | 'family-avatar';
+
 export type UploadController = {
   promise: Promise<UploadedFile>;
   abort: () => void;
@@ -145,7 +147,8 @@ const parseUploadResponse = (raw: string): ApiUploadResponse => {
 
 export const uploadAvatarFile = (
   filePath: string,
-  options: UploadAvatarOptions = {}
+  options: UploadAvatarOptions = {},
+  purpose: UploadPurpose = 'avatar'
 ): UploadController => {
   const token = getAuthToken();
   if (!token) {
@@ -159,7 +162,7 @@ export const uploadAvatarFile = (
   let task: UniApp.UploadTask | undefined;
   const promise = new Promise<UploadedFile>((resolve, reject) => {
     task = uni.uploadFile({
-      url: `${API_BASE}/files?purpose=avatar`,
+      url: `${API_BASE}/files?purpose=${purpose}`,
       filePath,
       name: 'file',
       header: {
@@ -175,7 +178,7 @@ export const uploadAvatarFile = (
             return;
           }
           if (result.code !== 0 || !result.data) {
-            reject(new ApiError(result.message || '头像上传失败', result.code || response.statusCode));
+            reject(new ApiError(result.message || '图片上传失败', result.code || response.statusCode));
             return;
           }
           resolve({
@@ -183,7 +186,7 @@ export const uploadAvatarFile = (
             url: resolveAssetUrl(result.data.url)
           });
         } catch (error) {
-          reject(error instanceof Error ? error : new ApiError('头像上传失败'));
+          reject(error instanceof Error ? error : new ApiError('图片上传失败'));
         }
       },
       fail: (error) => {

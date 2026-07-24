@@ -376,6 +376,8 @@ const activeFamily = computed<FamilyProfile>(() => {
     return {
       id: '',
       name: '选择家庭',
+      avatar: '',
+      avatarFileId: null,
       description: '',
       commonRecipes: 0,
       pendingItems: 0,
@@ -386,6 +388,8 @@ const activeFamily = computed<FamilyProfile>(() => {
   return families.value.find((family) => family.id === activeFamilyId.value) ?? {
     id: '',
     name: '选择家庭',
+    avatar: '',
+    avatarFileId: null,
     description: '',
     commonRecipes: 0,
     pendingItems: 0,

@@ -22,6 +22,8 @@ export interface FamilyPreference {
 export interface FamilyProfile {
   id: string;
   name: string;
+  avatar: string;
+  avatarFileId: number | null;
   description: string;
   commonRecipes: number;
   pendingItems: number;

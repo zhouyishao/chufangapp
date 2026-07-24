@@ -123,6 +123,8 @@ const loadInvitePage = async (options?: Record<string, string | undefined>) => {
       family.value = {
         id: String(invite.family.id),
         name: invite.family.name,
+        avatar: invite.family.avatarSource || invite.family.avatar || '',
+        avatarFileId: invite.family.avatarFileId ?? null,
         description: invite.family.description || '',
         commonRecipes: 0,
         pendingItems: invite.family.pendingItems,

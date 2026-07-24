@@ -693,6 +693,8 @@ export type ApiFamily = {
   id: number;
   name: string;
   avatar: string | null;
+  avatarFileId: number | null;
+  avatarSource?: string | null;
   city: string | null;
   district: string | null;
   description: string | null;
@@ -727,7 +729,7 @@ export const getMobileFamily = async (familyId: number) => {
   return request<ApiFamily>(`/mobile/families/${familyId}`);
 };
 
-export const updateMobileFamily = async (familyId: number, payload: { userId: number; name: string; description?: string | null }) => {
+export const updateMobileFamily = async (familyId: number, payload: { userId: number; name: string; description?: string | null; avatarFileId?: number | null }) => {
   return request<ApiFamily>(`/mobile/families/${familyId}`, { method: 'PUT', data: payload });
 };
 

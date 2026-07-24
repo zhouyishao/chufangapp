@@ -115,6 +115,7 @@ const purchaseItemInclude = {
 };
 
 const familyInclude = {
+  avatarFile: { select: { id: true, url: true, mimeType: true, width: true, height: true } },
   owner: { select: { id: true, nickname: true, phone: true, avatar: true } },
   members: {
     where: { deletedAt: null, memberStatus: 'ACTIVE' as const },
@@ -178,6 +179,8 @@ const toFamily = (family: {
   id: number;
   name: string;
   avatar: string | null;
+  avatarFileId: number | null;
+  avatarFile?: { id: number; url: string; mimeType: string; width: number | null; height: number | null } | null;
   city: string | null;
   district: string | null;
   description: string | null;
@@ -203,6 +206,8 @@ const toFamily = (family: {
   id: family.id,
   name: family.name,
   avatar: family.avatar,
+  avatarFileId: family.avatarFileId,
+  avatarSource: family.avatarFile?.url ?? family.avatar,
   city: family.city,
   district: family.district,
   description: family.description,
@@ -784,7 +789,8 @@ apiMobileRouter.put('/families/:id', requireAppAuth, async (req, res) => {
   const parsed = z.object({
     userId: z.coerce.number().int().positive().optional(),
     name: z.string().trim().min(1).max(80),
-    description: z.string().trim().max(255).nullable().optional()
+    description: z.string().trim().max(255).nullable().optional(),
+    avatarFileId: z.coerce.number().int().positive().nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
@@ -792,9 +798,30 @@ apiMobileRouter.put('/families/:id', requireAppAuth, async (req, res) => {
     where: { familyId: id, userId, deletedAt: null, memberStatus: 'ACTIVE' }
   });
   if (!member || member.role === 'MEMBER') throw new HttpError('无权修改该家庭', 403, 403);
+  let avatarUpdate: { avatarFileId?: number | null; avatar?: string | null } = {};
+  if (parsed.data.avatarFileId !== undefined) {
+    if (parsed.data.avatarFileId === null) {
+      avatarUpdate = { avatarFileId: null, avatar: null };
+    } else {
+      const avatarFile = await prisma.file.findFirst({
+        where: {
+          id: parsed.data.avatarFileId,
+          uploaderId: userId,
+          deletedAt: null,
+          status: 'ACTIVE',
+          mimeType: { startsWith: 'image/' },
+          width: { gte: 512 },
+          height: { gte: 512 }
+        },
+        select: { id: true, url: true }
+      });
+      if (!avatarFile) throw new HttpError('家庭头像文件无效或无权使用', 422, 422);
+      avatarUpdate = { avatarFileId: avatarFile.id, avatar: avatarFile.url };
+    }
+  }
   const family = await prisma.family.update({
     where: { id },
-    data: { name: parsed.data.name, description: parsed.data.description },
+    data: { name: parsed.data.name, description: parsed.data.description, ...avatarUpdate },
     include: familyInclude
   });
   res.json(ok(toFamily(family)));

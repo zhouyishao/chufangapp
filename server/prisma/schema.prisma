@@ -218,8 +218,10 @@ model Family {
   memberLimit Int       @default(8) @map("member_limit")
   activeAt    DateTime? @map("active_at")
   description String?   @db.VarChar(255)
+  avatarFileId Int?     @map("avatar_file_id")
 
   owner             User?              @relation("FamilyOwner", fields: [ownerId], references: [id])
+  avatarFile        File?              @relation("FamilyAvatar", fields: [avatarFileId], references: [id])
   members           FamilyMember[]
   invites           FamilyInvite[]
   purchaseListItems PurchaseListItem[]
@@ -1268,6 +1270,7 @@ model File {
   references    FileReference[]
   recipeSteps   RecipeStep[]    @relation("RecipeStepMedia")
   beverageSteps BeverageStep[]  @relation("BeverageStepMedia")
+  familyAvatars Family[]        @relation("FamilyAvatar")
 
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")

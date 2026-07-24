@@ -263,6 +263,8 @@ const currentFamily = computed<FamilyProfile>(() => {
   return familyOptions.value.find((family) => family.id === activeFamilyId.value) ?? familyOptions.value[0] ?? {
     id: '',
     name: '暂未加入家庭',
+    avatar: '',
+    avatarFileId: null,
     description: '创建或加入家庭后可共享菜篮子',
     commonRecipes: 0,
     pendingItems: 0,

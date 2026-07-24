@@ -8,7 +8,7 @@ test('avatar upload uses authenticated cancellable upload task with progress and
   const source = await readSource('../src/services/file-upload.ts');
 
   assert.match(source, /uni\.uploadFile\(/);
-  assert.match(source, /\/files\?purpose=avatar/);
+  assert.match(source, /\/files\?purpose=\$\{purpose\}/);
   assert.match(source, /Authorization:\s*`Bearer \$\{token\}`/);
   assert.match(source, /timeout:\s*(?:[2-9]\d{4}|1[5-9]\d{3})/);
   assert.match(source, /\.onProgressUpdate\(/);

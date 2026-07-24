@@ -138,7 +138,7 @@ const removeFile = async (req: Request, res: Response) => {
     load: async (transaction) => {
       const lockedFile = await transaction.file.findFirst({
         where: { id },
-        include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true } } }
+        include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true, familyAvatars: true } } }
       });
       if (!lockedFile) return null;
       return {
@@ -146,6 +146,7 @@ const removeFile = async (req: Request, res: Response) => {
         referenceCount: lockedFile._count.references
           + lockedFile._count.recipeSteps
           + lockedFile._count.beverageSteps
+          + lockedFile._count.familyAvatars
       };
     },
     softDelete: async (transaction) => {

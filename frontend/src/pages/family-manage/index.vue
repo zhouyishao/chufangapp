@@ -10,6 +10,11 @@
     </view>
 
     <view v-if="hasFamilies" class="title-block" @tap="toggleFamilySelect">
+      <view class="family-avatar-wrap" @tap.stop="chooseFamilyAvatar">
+        <image v-if="currentFamily.avatar" class="family-avatar" :src="currentFamily.avatar" mode="aspectFill" />
+        <view v-else class="family-avatar family-avatar--empty">＋</view>
+        <text class="family-avatar-action">更换头像</text>
+      </view>
       <view class="title-row">
         <text class="family-title">{{ currentFamily.name }}</text>
         <app-icon :class="['title-arrow', { 'is-open': isFamilySelectVisible }]" name="chevron-down" size="22rpx" />
@@ -162,6 +167,13 @@ import {
   updateFamily
 } from '../../services/family';
 import type { FamilyProfile } from '../../types/family';
+import {
+  enqueuePendingFileCleanup,
+  handlePendingFileCleanupFailure,
+  deleteUploadedFile,
+  removePendingFileCleanup,
+  uploadAvatarFile
+} from '../../services/file-upload';
 
 type EditField = 'name' | 'rules';
 type RefreshOptions = {
@@ -177,6 +189,7 @@ const isLeaving = ref(false);
 const errorMessage = ref('');
 const isFamilySelectVisible = ref(false);
 const isEditPanelVisible = ref(false);
+const isUploadingAvatar = ref(false);
 const editingField = ref<EditField>('name');
 const editValue = ref('');
 
@@ -186,7 +199,9 @@ const emptyFamily: FamilyProfile = {
   description: '',
   commonRecipes: 0,
   pendingItems: 0,
-  members: []
+  members: [],
+  avatar: '',
+  avatarFileId: null
 };
 
 const currentFamily = computed<FamilyProfile>(() => {
@@ -291,6 +306,51 @@ const saveEdit = async () => {
     uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' });
   } finally {
     isSaving.value = false;
+  }
+};
+
+const chooseFamilyAvatar = () => {
+  if (!currentFamily.value.id || isUploadingAvatar.value) return;
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: ({ tempFilePaths }) => {
+      const filePath = tempFilePaths?.[0];
+      if (filePath) void uploadFamilyAvatar(filePath);
+    }
+  });
+};
+
+const uploadFamilyAvatar = async (filePath: string) => {
+  isUploadingAvatar.value = true;
+  const previous = currentFamily.value;
+  const owner = loadAuthUser();
+  let uploadedFileId: number | null = null;
+  try {
+    const uploaded = await uploadAvatarFile(filePath, {
+      onProgress: (progress) => {
+        if (progress === 100) uni.showToast({ title: '头像上传完成', icon: 'none', duration: 700 });
+      }
+    }, 'family-avatar').promise;
+    uploadedFileId = uploaded.id;
+    const nextFamily = { ...previous, avatar: uploaded.url, avatarFileId: uploaded.id };
+    families.value = await updateFamily(nextFamily);
+    uploadedFileId = null;
+    uni.showToast({ title: '家庭头像已更新', icon: 'success' });
+  } catch (error) {
+    if (uploadedFileId !== null && owner?.id) {
+      enqueuePendingFileCleanup(owner.id, uploadedFileId);
+      try {
+        await deleteUploadedFile(uploadedFileId);
+        removePendingFileCleanup(owner.id, uploadedFileId);
+      } catch (cleanupError) {
+        handlePendingFileCleanupFailure(owner.id, uploadedFileId, cleanupError);
+      }
+    }
+    uni.showToast({ title: error instanceof Error ? error.message : '头像上传失败', icon: 'none' });
+  } finally {
+    isUploadingAvatar.value = false;
   }
 };
 
@@ -426,6 +486,35 @@ onShow(async () => {
 
 .title-block {
   margin-top: 18rpx;
+}
+
+.family-avatar-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 14rpx;
+  width: fit-content;
+  margin-bottom: 14rpx;
+}
+
+.family-avatar {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 30rpx;
+  background: var(--app-surface-strong);
+}
+
+.family-avatar--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-secondary);
+  font-size: 46rpx;
+}
+
+.family-avatar-action {
+  color: var(--app-accent);
+  font-size: var(--font-size-tag);
 }
 
 .title-row {
