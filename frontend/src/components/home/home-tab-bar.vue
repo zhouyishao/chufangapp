@@ -1,16 +1,17 @@
 <template>
-  <view class="home-tab-bar glass-card">
-    <view
+  <view class="home-tab-bar app-fixed-glass" role="navigation" aria-label="主导航">
+    <button
       v-for="tab in tabs"
       :key="tab.id"
       :class="['home-tab-bar__item', { 'is-active': tab.active }]"
+      :aria-current="tab.active ? 'page' : undefined"
       @tap="handleTabClick(tab.id)"
     >
       <view class="icon-wrapper">
         <app-icon class="tab-icon" :name="getTabIcon(tab.id)" :filled="tab.active" size="24rpx" />
       </view>
       <text class="home-tab-bar__label">{{ tab.label }}</text>
-    </view>
+    </button>
   </view>
 </template>
 
@@ -60,11 +61,8 @@ const handleTabClick = (tabId: string) => {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8rpx;
-  padding: 18rpx 14rpx calc(18rpx + env(safe-area-inset-bottom, 0));
-  background: rgba(255, 253, 252, 0.94);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: var(--app-shadow);
+  padding: 18rpx 14rpx calc(18rpx + var(--app-safe-area-bottom));
+  border-radius: var(--radius-lg);
 }
 
 .home-tab-bar__item {
@@ -72,15 +70,19 @@ const handleTabClick = (tabId: string) => {
   flex-direction: column;
   align-items: center;
   gap: 6rpx;
+  min-height: var(--touch-target);
   padding: 10rpx 0 6rpx;
+  border: 0;
+  background: transparent;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 180ms ease;
 }
 
 .home-tab-bar__item:active {
-  opacity: 0.72;
+  opacity: 0.78;
+  transform: scale(0.96);
 }
 
 .icon-wrapper {
@@ -97,16 +99,11 @@ const handleTabClick = (tabId: string) => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.is-active .icon-wrapper {
-  background: var(--app-accent-soft);
-  box-shadow: none;
-}
-
 .tab-icon {
   width: 24rpx;
   height: 24rpx;
   color: var(--app-text-secondary);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 180ms ease;
 }
 
 .is-active .tab-icon {
