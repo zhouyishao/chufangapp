@@ -47,6 +47,8 @@
         <text class="section-title">说明</text>
         <text class="section-desc">{{ ingredient.selectionTips || ingredient.storageMethod || ingredient.nutrition || '暂无说明，后续可由后台补充。' }}</text>
       </view>
+
+      <content-detail-actions target-type="FRUIT" :target-id="ingredient.id" :ingredient-id="ingredient.id" :name="ingredient.name" />
     </template>
   </view>
 </template>
@@ -55,6 +57,7 @@
 import { onMounted, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
+import ContentDetailActions from '../../components/content-detail-actions.vue';
 import { getIngredient, resolveAssetUrl, type ApiIngredientDetail } from '../../services/public-api';
 
 const fallbackImage =

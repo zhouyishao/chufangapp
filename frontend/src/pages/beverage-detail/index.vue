@@ -59,6 +59,8 @@
       <view v-if="beverage.kind === 'MIXED' && beverage.steps.length" class="bottom-action">
         <button class="make-button" @tap="startMaking">去制作</button>
       </view>
+
+      <content-detail-actions target-type="BEVERAGE" :target-id="beverage.id" :name="beverage.name" />
     </template>
   </view>
 </template>
@@ -67,6 +69,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
+import ContentDetailActions from '../../components/content-detail-actions.vue';
 import { getBeverage, type ApiBeverageDetail } from '../../services/public-api';
 
 const beverage = ref<ApiBeverageDetail | null>(null);
