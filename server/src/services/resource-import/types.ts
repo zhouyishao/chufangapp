@@ -32,7 +32,15 @@ export type NormalizedResourcePayload = {
   taste?: string | null;
   scene?: string | null;
   tips?: string | null;
-  steps?: Array<string | { sortIndex?: number; description: string; image?: string | null }>;
+  steps?: Array<string | {
+    sortIndex?: number;
+    title?: string | null;
+    description: string;
+    image?: string | null;
+    video?: string | null;
+    timerSeconds?: number | null;
+    tip?: string | null;
+  }>;
   ingredients?: Array<string | { name: string; amount?: string; unit?: string; sortIndex?: number }>;
   seasonings?: Array<string | { name: string; amount?: string; unit?: string; sortIndex?: number }>;
   seasonMonth?: string | null;

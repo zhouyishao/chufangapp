@@ -26,6 +26,11 @@
         <button class="text-button" @tap="goToRegister">注册账号</button>
         <button class="text-button" @tap="goToForgotPassword">忘记密码</button>
       </view>
+      <view class="agreement">
+        <button class="text-button" @tap="goLegal('terms')">服务协议</button>
+        <text>与</text>
+        <button class="text-button" @tap="goLegal('privacy')">隐私政策</button>
+      </view>
     </view>
   </view>
 </template>
@@ -74,12 +79,16 @@ const goToRegister = () => {
 const goToForgotPassword = () => {
   uni.navigateTo({ url: '/pages/forgot-password/index' });
 };
+
+const goLegal = (type: 'terms' | 'privacy') => {
+  uni.navigateTo({ url: `/pages/legal/index?type=${type}` });
+};
 </script>
 
 <style scoped lang="scss">
 .auth-page {
   min-height: 100vh;
-  padding: calc(var(--status-bar-height) + 22rpx) 30rpx 60rpx;
+  padding: calc(var(--app-safe-area-top) + 22rpx) 30rpx 60rpx;
   background: var(--app-bg);
 }
 
@@ -177,6 +186,15 @@ const goToForgotPassword = () => {
   display: flex;
   justify-content: space-between;
   margin-top: 16rpx;
+}
+
+.agreement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6rpx;
+  color: var(--app-text-tertiary);
+  font-size: var(--font-size-tag);
 }
 
 .text-button {

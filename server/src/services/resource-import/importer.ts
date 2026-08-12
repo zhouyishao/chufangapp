@@ -147,9 +147,9 @@ export async function createOfficialRecord(
         tips: mapped.tips ?? null,
         categoryId,
         cuisineId,
-        isDraft: false,
-        isPublish: true,
-        auditStatus: 'APPROVED',
+        isDraft: true,
+        isPublish: false,
+        auditStatus: 'PENDING',
         sourceType: 'IMPORT',
         sourceId: importItemId,
         importSourceType: 'PUBLIC_API',
@@ -162,8 +162,12 @@ export async function createOfficialRecord(
               ? { sortIndex: index + 1, description: step, sourceType: 'IMPORT', sourceId: importItemId }
               : {
                   sortIndex: step.sortIndex ?? index + 1,
+                  title: step.title ?? null,
                   description: step.description,
                   image: step.image ?? null,
+                  video: step.video ?? null,
+                  timerSeconds: step.timerSeconds ?? null,
+                  tip: step.tip ?? null,
                   sourceType: 'IMPORT',
                   sourceId: importItemId
                 }
@@ -218,8 +222,8 @@ export async function createOfficialRecord(
         rawJson: mapped.rawJson ? (mapped.rawJson as Prisma.InputJsonValue) : Prisma.DbNull,
         sourceType: 'IMPORT',
         sourceId: importItemId,
-        isPublish: true,
-        auditStatus: 'APPROVED'
+        isPublish: false,
+        auditStatus: 'PENDING'
       }
     });
     return created.id;
@@ -244,10 +248,10 @@ export async function createOfficialRecord(
       priceUnit: mapped.priceUnit ?? null,
       priceSource: mapped.priceSource ?? null,
       priceDate: mapped.priceDate ? new Date(mapped.priceDate) : null,
-      isPublish: true,
+      isPublish: false,
       sourceType: 'IMPORT',
       sourceId: importItemId,
-      auditStatus: 'APPROVED'
+      auditStatus: 'PENDING'
     }
   });
   return created.id;

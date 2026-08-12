@@ -477,6 +477,14 @@ function updateScrollState() {
   if (current <= 32) setScrolledState(false);
   else if (current > 96 && scrollDirection === 'down') setScrolledState(true);
   else if (scrollDirection === 'up' && Math.abs(delta) >= 24) setScrolledState(false);
+  const detailView = document.querySelector('#detailView');
+  if (detailView?.classList.contains('is-recipe-detail') && !detailView.hidden) {
+    const contentTop = detailView.querySelector('.detail-content')?.getBoundingClientRect().top ?? Infinity;
+    const lockTop = detailView.querySelector('.detail-sheet-cap')?.getBoundingClientRect().top ?? 116;
+    detailView.classList.toggle('is-sheet-locked', contentTop <= lockTop);
+  } else {
+    detailView?.classList.remove('is-sheet-locked');
+  }
   lastScrollY = current;
 }
 
@@ -756,8 +764,13 @@ const recipeIngredients = [
 ];
 
 function recipeIngredientPanel() {
-  const cards = recipeIngredients.map(([name, amount, image], index) => `<article class="detail-ingredient-card${index > 7 ? ' detail-extra-ingredient' : ''}"${index > 7 ? ' hidden' : ''}><img src="${image}" width="80" height="72" alt="${name}" loading="lazy"><strong>${name}</strong><span>${amount}</span></article>`).join('');
-  return `<section class="detail-ingredient-panel" aria-label="食材清单"><div class="detail-ingredient-grid">${cards}</div><button type="button" class="detail-more detail-ingredient-more" data-detail-more aria-expanded="false">展开全部 <span aria-hidden="true">⌄</span></button></section>`;
+  const cards = recipeIngredients.map(([name, amount, image], index) => {
+    const photo = index < 12
+      ? `<span class="detail-ingredient-photo ingredient-photo-${index + 1}" role="img" aria-label="${name}"></span>`
+      : `<img src="${image}" width="80" height="80" alt="${name}" loading="lazy">`;
+    return `<article class="detail-ingredient-card">${photo}<strong>${name}</strong><span>${amount}</span></article>`;
+  }).join('');
+  return `<section class="detail-ingredient-panel" aria-label="食材清单"><div class="detail-ingredient-grid">${cards}</div></section>`;
 }
 
 function recipeDiscoveryPanel() {
@@ -1135,17 +1148,6 @@ async function shareDetail(data) {
 }
 
 function bindRecipeDetailBody(view) {
-  const moreButton = view.querySelector('[data-detail-more]');
-  if (moreButton) {
-    moreButton.addEventListener('click', () => {
-      const expanded = moreButton.getAttribute('aria-expanded') === 'true';
-      view.querySelectorAll('.detail-extra-ingredient').forEach((row) => { row.hidden = expanded; });
-      moreButton.setAttribute('aria-expanded', String(!expanded));
-      moreButton.firstChild.textContent = expanded ? '展开全部 ' : '收起食材 ';
-      const arrow = moreButton.querySelector('span');
-      if (arrow) arrow.textContent = expanded ? '⌄' : '⌃';
-    });
-  }
   view.querySelectorAll('[data-detail-step-media]').forEach((button) => button.addEventListener('click', () => showToast(button.dataset.detailStepMedia)));
   view.querySelectorAll('[data-detail-timer]').forEach((button) => button.addEventListener('click', () => showToast(`计时器已设置为 ${button.dataset.detailTimer} 分钟`)));
 }
@@ -1303,10 +1305,13 @@ function showDetailView(type, id) {
   view.classList.toggle('is-mixology-detail', data.action === 'mixology');
   view.classList.toggle('is-seasoning-detail', type === 'seasoning');
   view.hidden = false;
-  view.innerHTML = `<div class="detail-hero"><img src="${data.image}" width="393" height="389" alt="${data.name}" fetchpriority="high"><div class="detail-hero-actions"><button type="button" data-detail-back aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><div><button type="button" data-detail-favorite aria-label="收藏${data.name}" aria-pressed="false"><svg class="detail-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button><button type="button" data-detail-share aria-label="分享${data.name}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0-12-4 4m4-4 4 4M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8"/></svg></button></div></div></div><section class="detail-content"><header class="detail-heading"><h1>${data.name}</h1><p class="detail-subtitle">${data.subtitle}</p>${detailSummary}</header><div class="detail-tab-module"><nav class="detail-tabs" role="tablist" aria-label="${data.name}详情内容">${data.tabs.map((tab, index) => `<button type="button" id="detail-tab-${index}" role="tab" aria-controls="detail-panel" aria-selected="${index === data.active}" tabindex="${index === data.active ? '0' : '-1'}" data-detail-tab="${index}">${tab}</button>`).join('')}</nav><section class="detail-body" id="detail-panel" role="tabpanel" aria-labelledby="detail-tab-${data.active}">${data.panels?.[data.active] || data.body}</section></div>${detailDiscovery}${detailIngredientDiscovery}${detailFruitDiscovery}${detailDrinkDiscovery}${detailSeasoningDiscovery}</section><div class="detail-bottom">${bottomActions}</div>`;
+  const detailHeroActions = `<div class="detail-hero-actions"><button type="button" data-detail-back aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><div><button type="button" data-detail-favorite aria-label="收藏${data.name}" aria-pressed="false"><svg class="detail-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button><button type="button" data-detail-share aria-label="分享${data.name}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0-12-4 4m4-4 4 4M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8"/></svg></button></div></div>`;
+  const detailSheetLock = data.action === 'recipe' ? `<div class="detail-sheet-safe-zone" aria-hidden="true"><img src="${data.image}" alt=""></div><div class="detail-sheet-cap" aria-hidden="true"></div>` : '';
+  view.innerHTML = `<div class="detail-hero"><img src="${data.image}" width="393" height="389" alt="${data.name}" fetchpriority="high"></div>${detailHeroActions}${detailSheetLock}<section class="detail-content"><header class="detail-heading"><h1>${data.name}</h1><p class="detail-subtitle">${data.subtitle}</p>${detailSummary}</header><div class="detail-tab-module"><nav class="detail-tabs" role="tablist" aria-label="${data.name}详情内容">${data.tabs.map((tab, index) => `<button type="button" id="detail-tab-${index}" role="tab" aria-controls="detail-panel" aria-selected="${index === data.active}" tabindex="${index === data.active ? '0' : '-1'}" data-detail-tab="${index}">${tab}</button>`).join('')}</nav><section class="detail-body" id="detail-panel" role="tabpanel" aria-labelledby="detail-tab-${data.active}">${data.panels?.[data.active] || data.body}</section></div>${detailDiscovery}${detailIngredientDiscovery}${detailFruitDiscovery}${detailDrinkDiscovery}${detailSeasoningDiscovery}<div class="detail-bottom">${bottomActions}</div></section>`;
   currentView = 'detail';
   bindImageFallbacks(view);
   bindRoutes(view);
+  window.requestAnimationFrame(updateScrollState);
   view.querySelector('[data-detail-back]').addEventListener('click', closeDetailView);
   view.querySelector('[data-detail-favorite]').addEventListener('click', (event) => toggleFavorite(event.currentTarget));
   view.querySelector('[data-detail-share]').addEventListener('click', () => shareDetail(data));

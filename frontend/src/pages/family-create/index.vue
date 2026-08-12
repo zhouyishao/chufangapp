@@ -1,8 +1,9 @@
 <template>
   <view class="app-page create-page">
+    <view class="safe-top-spacer" aria-hidden="true" />
     <view class="topbar">
-      <button class="nav-button" @tap="goBack">
-        <app-icon name="arrow-left" size="26rpx" />
+      <button class="app-icon-button nav-button" aria-label="返回" @tap="goBack">
+        <app-icon name="arrow-left" size="40rpx" />
       </button>
       <text class="topbar-title">创建家庭</text>
       <view class="topbar-spacer" />
@@ -71,12 +72,16 @@ const submit = async () => {
 
 <style scoped lang="scss">
 .create-page {
-  padding-bottom: calc(90rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(90rpx + var(--app-safe-area-bottom));
+}
+
+.safe-top-spacer {
+  height: calc(var(--app-safe-area-top) + 8rpx);
 }
 
 .topbar {
   display: grid;
-  grid-template-columns: 72rpx 1fr 72rpx;
+  grid-template-columns: var(--touch-target) 1fr var(--touch-target);
   align-items: center;
 }
 
@@ -86,12 +91,12 @@ const submit = async () => {
 }
 
 .nav-button {
-  width: 72rpx;
-  height: 72rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   background: var(--app-surface-strong);
   color: var(--app-text);
-  font-size: var(--font-size-card-title);
 }
 
 .topbar-title {
@@ -160,13 +165,18 @@ const submit = async () => {
 }
 
 .primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 88rpx;
   margin-top: 30rpx;
+  padding: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-primary);
   color: var(--text-white);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-semibold);
+  line-height: var(--line-body-sm);
 }
 </style>

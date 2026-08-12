@@ -1,8 +1,8 @@
 <template>
   <view class="app-page profile-edit-page">
     <view class="topbar">
-      <button class="back-button" @tap="goBack">
-        <app-icon name="arrow-left" size="26rpx" />
+      <button class="app-icon-button back-button" aria-label="返回" @tap="goBack">
+        <app-icon name="arrow-left" size="40rpx" />
       </button>
       <text class="page-title">个人信息</text>
       <view class="topbar-spacer" />
@@ -365,28 +365,21 @@ onUnload(() => {
 <style scoped lang="scss">
 .profile-edit-page {
   min-height: 100vh;
-  padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
+  padding-top: calc(var(--app-safe-area-top) + var(--space-3));
+  padding-bottom: calc(180rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {
   display: grid;
-  grid-template-columns: 72rpx 1fr 72rpx;
+  grid-template-columns: var(--touch-target) 1fr var(--touch-target);
   align-items: center;
-  margin-bottom: 24rpx;
+  margin-bottom: var(--space-5);
 }
 
 .back-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 72rpx;
-  height: 72rpx;
-  border: 0;
   border-radius: 50%;
-  background: #fffdfc;
+  background: var(--app-surface-strong);
   color: var(--app-text);
-  font-size: var(--font-size-card-title);
-  font-weight: var(--font-semibold);
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -412,8 +405,8 @@ onUnload(() => {
 }
 
 .topbar-spacer {
-  width: 72rpx;
-  height: 72rpx;
+  width: var(--touch-target);
+  height: var(--touch-target);
 }
 
 .profile-hero {
@@ -588,7 +581,7 @@ onUnload(() => {
 .actions {
   position: fixed;
   right: 24rpx;
-  bottom: calc(24rpx + env(safe-area-inset-bottom, 0));
+  bottom: calc(24rpx + var(--app-safe-area-bottom));
   left: 24rpx;
   z-index: 20;
   display: flex;

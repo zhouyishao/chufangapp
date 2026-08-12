@@ -13,7 +13,7 @@
       :disabled="basketChanging"
       @tap="toggleBasket"
     >
-      <app-icon :name="isInBasket ? 'check' : 'basket'" size="24rpx" />
+      <app-icon :name="isInBasket ? 'check' : 'basket-action'" size="24rpx" />
       <text>{{ isInBasket ? '已在菜篮' : '加入菜篮' }}</text>
     </button>
   </view>

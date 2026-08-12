@@ -1,6 +1,6 @@
 import { ArrowLeft, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import {
   createContentModule,
@@ -16,6 +16,7 @@ import {
   type ContentModuleContentType,
   type ContentModuleDisplayStyle,
   type ContentModuleItem,
+  type HomeModuleKey,
   type ContentModulePayload,
   type ContentModuleStatus,
   type ContentSelectorItem,
@@ -23,6 +24,14 @@ import {
   type TagItem
 } from '../api';
 import { Button } from '../components/Button';
+import { channelKeyFromNav, getPrototypeModuleSlots } from '../home-module-catalog';
+import {
+  getMinimumManualContentCount,
+  getMissingCoverContentIds,
+  getContentTypeChangeImpact,
+  isDisplayStyleCompatibleWithContent,
+  resolveDefaultModuleContentType
+} from '../home-module-form-rules';
 
 const plusIconUrl = new URL('../assets/icons/icon_plus.svg', import.meta.url).href;
 const searchIconUrl = new URL('../assets/icons/icon_search.svg', import.meta.url).href;
@@ -36,18 +45,180 @@ type StyleOption = {
   value: ContentModuleDisplayStyle;
   label: string;
   desc: string;
+  examples: string;
   allowedTypes: ContentModuleContentType[];
   isNew?: boolean;
 };
 
 const displayStyleOptions: StyleOption[] = [
-  { value: 'HORIZONTAL_RECIPE_CARD',    label: '横向菜谱卡片',   desc: '图片、标题、标签、时间、人数、难度、收藏', allowedTypes: ['RECIPE'] },
-  { value: 'SEASONAL_INGREDIENT_CARD',  label: '时令食材卡片',   desc: '图片、名称、价格、单位',                     allowedTypes: ['INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'] },
-  { value: 'IMAGE_TEXT_LIST',           label: '图文列表',       desc: '左图右文、标题、简介、时间、人数、难度、收藏', allowedTypes: ['RECIPE'] },
-  { value: 'TWO_COLUMN_RECIPE_GRID',    label: '双列菜谱卡片',   desc: '双列大卡片、图片、标题、简介、时间、人数、难度', allowedTypes: ['RECIPE'] },
-  { value: 'LARGE_IMAGE_CAROUSEL',      label: '大矩形图片模块', desc: '单张大图或多张轮播图，可配置标题、副标题、按钮和跳转', allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'], isNew: true },
-  { value: 'FOUR_CARD_GRID',            label: '四宫格小卡片模块', desc: '一排固定4个，适合展示热门内容或分类入口',         allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'], isNew: true }
+  { value: 'HORIZONTAL_RECIPE_CARD',    label: '方图内容卡横滑', desc: '正方形主图、标题和一行元信息，首屏约露出 2.5 张', examples: '家常精选、今天吃什么、清爽饮品', allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'] },
+  { value: 'SEASONAL_INGREDIENT_CARD',  label: '小方图横滑',     desc: '紧凑正方形图片与名称，一屏展示更多轻量内容', examples: '时令果蔬、饮品搭配', allowedTypes: ['INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'] },
+  { value: 'IMAGE_TEXT_LIST',           label: '横向图文内容',   desc: '左图右文；套用原型模板后可呈现知识卡或紧凑列表', examples: '挑选指南、食材灵感、本周热门', allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'] },
+  { value: 'TWO_COLUMN_RECIPE_GRID',    label: '双列图文卡',     desc: '两列图片内容卡，适合成组浏览与组合推荐', examples: '清爽一餐、水果也能入菜、酒水基础', allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'] },
+  { value: 'LARGE_IMAGE_CAROUSEL',      label: '大图入口 / 轮播', desc: '单张横幅或多张轮播，可配置标题、副标题、按钮和跳转', examples: '调饮配方、专题入口', allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'], isNew: true },
+  { value: 'FOUR_CARD_GRID',            label: '紧凑宫格内容',   desc: '用于固定四入口或双列方图内容，具体构图由原型模板决定', examples: '按一餐来选、当季食材、本月正当季', allowedTypes: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'], isNew: true }
 ];
+
+const StylePreviewDiagram = ({ style }: { style: ContentModuleDisplayStyle }) => {
+  const imageBlock = 'bg-[#dfe5d9]';
+  const textLine = 'rounded-full bg-[#aeb7a7]';
+  const mutedLine = 'rounded-full bg-[#d7d4cd]';
+
+  if (style === 'LARGE_IMAGE_CAROUSEL') {
+    return (
+      <div className="relative h-[92px] overflow-hidden rounded-xl bg-[#d6ddcf]">
+        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[#4f5949]/70 to-transparent" />
+        <div className="absolute bottom-3 left-3 space-y-1.5">
+          <div className="h-2.5 w-20 rounded-full bg-white/90" />
+          <div className="h-1.5 w-12 rounded-full bg-white/65" />
+        </div>
+        <div className="absolute bottom-3 right-3 flex gap-1">
+          <span className="h-1.5 w-4 rounded-full bg-white" />
+          <span className="h-1.5 w-1.5 rounded-full bg-white/55" />
+          <span className="h-1.5 w-1.5 rounded-full bg-white/55" />
+        </div>
+      </div>
+    );
+  }
+
+  if (style === 'FOUR_CARD_GRID') {
+    return (
+      <div className="grid h-[92px] grid-cols-4 items-center gap-2 rounded-xl bg-[#f6f3ed] px-3">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="min-w-0 text-center">
+            <div className={`mx-auto aspect-square w-full max-w-[42px] rounded-lg ${imageBlock}`} />
+            <div className={`mx-auto mt-1.5 h-1.5 ${index % 2 ? 'w-6' : 'w-8'} ${textLine}`} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (style === 'IMAGE_TEXT_LIST') {
+    return (
+      <div className="flex h-[92px] flex-col justify-center gap-2 rounded-xl bg-[#f6f3ed] px-3">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-2 rounded-lg bg-[#fffdfc] p-1.5">
+            <div className={`h-7 w-9 shrink-0 rounded-md ${imageBlock}`} />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className={`h-2 ${index ? 'w-16' : 'w-20'} ${textLine}`} />
+              <div className={`h-1.5 w-24 max-w-full ${mutedLine}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (style === 'TWO_COLUMN_RECIPE_GRID') {
+    return (
+      <div className="grid h-[92px] grid-cols-2 gap-2 rounded-xl bg-[#f6f3ed] p-2">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="overflow-hidden rounded-lg bg-[#fffdfc]">
+            <div className={`h-11 w-full ${imageBlock}`} />
+            <div className="space-y-1 p-1.5">
+              <div className={`h-2 ${index ? 'w-14' : 'w-16'} ${textLine}`} />
+              <div className={`h-1.5 w-10 ${mutedLine}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (style === 'SEASONAL_INGREDIENT_CARD') {
+    return (
+      <div className="flex h-[92px] items-center gap-2 overflow-hidden rounded-xl bg-[#f6f3ed] px-3">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="w-[46px] shrink-0 text-center">
+            <div className={`aspect-square w-full rounded-xl ${imageBlock}`} />
+            <div className={`mx-auto mt-1.5 h-1.5 ${index % 2 ? 'w-6' : 'w-8'} ${textLine}`} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[92px] items-center gap-2 overflow-hidden rounded-xl bg-[#f6f3ed] p-2">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="w-[62px] shrink-0 overflow-hidden rounded-lg bg-[#fffdfc]">
+          <div className={`aspect-square w-full ${imageBlock}`} />
+          <div className="space-y-1 p-1.5">
+            <div className={`h-2 ${index % 2 ? 'w-10' : 'w-12'} ${textLine}`} />
+            <div className={`h-1.5 w-8 ${mutedLine}`} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const guideTemplateKeys = new Set<HomeModuleKey>(['SELECTION_GUIDE', 'INGREDIENT_INSPIRATION', 'INGREDIENT_SELECTION_GUIDE']);
+const compactListTemplateKeys = new Set<HomeModuleKey>(['WEEKLY_HOT', 'MORE_HOME_RECIPES', 'MEAL_DRINK_PAIRING']);
+const productGridTemplateKeys = new Set<HomeModuleKey>(['SEASONAL_INGREDIENTS', 'SEASONAL_FRUITS']);
+
+const PrototypeTemplateDiagram = ({ moduleKey, style }: { moduleKey: HomeModuleKey; style: ContentModuleDisplayStyle }) => {
+  if (guideTemplateKeys.has(moduleKey)) {
+    return (
+      <div className="flex h-[76px] items-center gap-3 rounded-xl bg-[#f6f3ed] p-2.5">
+        <div className="aspect-square h-full rounded-lg bg-[#dfe5d9]" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="ml-auto h-4 w-14 rounded-full bg-[#e7eee2]" />
+          <div className="h-2.5 w-20 rounded-full bg-[#aeb7a7]" />
+          <div className="h-2 w-full rounded-full bg-[#d7d4cd]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (compactListTemplateKeys.has(moduleKey)) {
+    return (
+      <div className="flex h-[76px] flex-col justify-center gap-1.5 rounded-xl bg-[#f6f3ed] px-2.5">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-2 rounded-md bg-[#fffdfc] px-2 py-1.5">
+            <span className="h-3.5 w-3.5 rounded-full bg-[#dfe5d9]" />
+            <span className={`h-2 rounded-full bg-[#aeb7a7] ${index === 1 ? 'w-20' : 'w-16'}`} />
+            <span className="ml-auto h-1.5 w-8 rounded-full bg-[#d7d4cd]" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (productGridTemplateKeys.has(moduleKey)) {
+    return (
+      <div className="grid h-[76px] grid-cols-2 gap-2 rounded-xl bg-[#f6f3ed] p-2">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="flex overflow-hidden rounded-lg bg-[#fffdfc]">
+            <div className="aspect-square h-full bg-[#dfe5d9]" />
+            <div className="flex-1 space-y-1.5 p-2">
+              <div className="h-2 w-10 rounded-full bg-[#aeb7a7]" />
+              <div className="h-1.5 w-8 rounded-full bg-[#d7d4cd]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (moduleKey === 'ONE_INGREDIENT_MANY_DISHES') {
+    return (
+      <div className="flex h-[76px] items-center gap-3 rounded-xl bg-[#f6f3ed] p-2.5">
+        <div className="aspect-square h-full rounded-lg bg-[#dfe5d9]" />
+        <div className="flex-1">
+          <div className="h-2.5 w-16 rounded-full bg-[#aeb7a7]" />
+          <div className="mt-2 flex gap-1.5">
+            <span className="h-5 w-14 rounded-full border border-[#cfd8c8] bg-[#fffdfc]" />
+            <span className="h-5 w-14 rounded-full border border-[#cfd8c8] bg-[#fffdfc]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <StylePreviewDiagram style={style} />;
+};
 
 const contentTypeOptions: { value: ContentModuleContentType; label: string }[] = [
   { value: 'RECIPE', label: '菜谱' },
@@ -60,8 +231,7 @@ const contentTypeOptions: { value: ContentModuleContentType; label: string }[] =
 const contentSourceOptions: { value: ContentModuleContentSource; label: string; desc: string; disabled?: boolean }[] = [
   { value: 'MANUAL',           label: '手动选择',         desc: '运营人工选择具体内容项' },
   { value: 'CATEGORY_CONTENT', label: '分类内容自动读取', desc: '绑定分类后，内容根据所属分类自动展示，无需重复选择' },
-  { value: 'CATEGORY_GROUP',   label: '分类管理入口',   desc: '展示该内容类型下的所有一级分类入口' },
-  { value: 'CATEGORY',         label: '按分类筛选(旧)',    desc: '建议使用「分类内容自动读取」' },
+  { value: 'CATEGORY_GROUP',   label: '分类入口',         desc: '展示当前内容类型下已发布的分类入口' },
   { value: 'TAG',              label: '按标签筛选',       desc: '按标签筛选内容' },
 ];
 
@@ -112,11 +282,13 @@ const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (checked: b
 export const TopNavModuleFormPage = () => {
   const { id, moduleId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(moduleId);
 
   // ====== 基础字段 ======
   const [nav, setNav] = useState<HomeTopNav | null>(null);
   const [title, setTitle] = useState('');
+  const [moduleKey, setModuleKey] = useState<HomeModuleKey | null>(null);
   const [subtitle, setSubtitle] = useState('');
   const [displayStyle, setDisplayStyle] = useState<ContentModuleDisplayStyle>('HORIZONTAL_RECIPE_CARD');
   const [contentType, setContentType] = useState<ContentModuleContentType>('RECIPE');
@@ -129,6 +301,7 @@ export const TopNavModuleFormPage = () => {
   const [status, setStatus] = useState<ContentModuleStatus>('ENABLED');
   const [items, setItems] = useState<ContentModuleItem[]>([]);
   const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [sourceCategoryId, setSourceCategoryId] = useState<number | null>(null);
   const [tagId, setTagId] = useState<number | null>(null);
 
   // ====== 大矩形图片列表 ======
@@ -136,7 +309,8 @@ export const TopNavModuleFormPage = () => {
 
   // ====== 内容选择器 ======
   const [contentOptions, setContentOptions] = useState<ContentSelectorItem[]>([]);
-  const [categoryOptions, setCategoryOptions] = useState<{ id: number; name: string }[]>([]);
+  const [placementCategoryOptions, setPlacementCategoryOptions] = useState<{ id: number; name: string }[]>([]);
+  const [sourceCategoryOptions, setSourceCategoryOptions] = useState<{ id: number; name: string }[]>([]);
   const [tagOptions, setTagOptions] = useState<TagItem[]>([]);
   const [contentPage, setContentPage] = useState(1);
   const [contentTotal, setContentTotal] = useState(0);
@@ -152,34 +326,33 @@ export const TopNavModuleFormPage = () => {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   const selectedStyle = useMemo(() => displayStyleOptions.find(s => s.value === displayStyle) ?? displayStyleOptions[0], [displayStyle]);
-  const allowedTypes = useMemo(() => selectedStyle.allowedTypes, [selectedStyle]);
   const isLargeImage = displayStyle === 'LARGE_IMAGE_CAROUSEL';
   const isFourCardGrid = displayStyle === 'FOUR_CARD_GRID';
-  const isLegacyStyle = !isLargeImage && !isFourCardGrid;
   const selectedItemIds = useMemo(() => new Set(items.map(item => item.id)), [items]);
-  const navName = nav?.name ?? '当前导航';
-  const navContentTypeMap: Record<string, ContentModuleContentType> = {
-    recipe: 'RECIPE',
-    ingredient: 'INGREDIENT',
-    fruit: 'FRUIT',
-    seasoning: 'SEASONING',
-    beverage: 'BEVERAGE'
-  };
-  const effectiveContentType = useMemo(
-    () => (isLargeImage ? (navContentTypeMap[nav?.contentType ?? ''] ?? contentType) : contentType),
-    [contentType, isLargeImage, nav?.contentType]
+  const missingCoverContentIds = useMemo(
+    () => getMissingCoverContentIds(items, selectedContentById),
+    [items, selectedContentById]
   );
-
+  const missingCoverContentIdSet = useMemo(
+    () => new Set(missingCoverContentIds),
+    [missingCoverContentIds]
+  );
+  const minimumManualContentCount = useMemo(
+    () => getMinimumManualContentCount(moduleKey),
+    [moduleKey]
+  );
+  const navName = nav?.name ?? '当前导航';
+  const moduleSlots = useMemo(() => getPrototypeModuleSlots(channelKeyFromNav(nav)), [nav]);
   const navContentType = useMemo(
-    () => (navContentTypeMap[nav?.contentType ?? ''] ?? 'RECIPE') as ContentModuleContentType,
+    () => resolveDefaultModuleContentType(nav?.contentType),
     [nav?.contentType]
   );
 
   const selectedCategoryName = useMemo(() => {
     if (!categoryId) return '推荐';
-    const cat = categoryOptions.find(c => c.id === categoryId);
+    const cat = placementCategoryOptions.find(c => c.id === categoryId);
     return cat ? cat.name : '推荐';
-  }, [categoryId, categoryOptions]);
+  }, [categoryId, placementCategoryOptions]);
 
   const placementTipText = useMemo(() => {
     if (!categoryId) {
@@ -207,11 +380,12 @@ export const TopNavModuleFormPage = () => {
     if (!id || !moduleId) return;
     try {
       const mod = await getContentModule(id, Number(moduleId));
+      setModuleKey(mod.moduleKey);
       setTitle(mod.title);
       setSubtitle(mod.subtitle ?? '');
       setDisplayStyle(mod.displayStyle);
       setContentType(mod.contentType);
-      setContentSource(mod.contentSource);
+      setContentSource(mod.contentSource === 'CATEGORY' ? 'CATEGORY_CONTENT' : mod.contentSource);
       setDisplayCount(String(mod.displayCount));
       setShowMore(mod.showMore);
       setShowTitle(mod.showTitle ?? true);
@@ -230,6 +404,9 @@ export const TopNavModuleFormPage = () => {
         setItems((mod.items as ContentModuleItem[]) ?? []);
       }
       setCategoryId(mod.categoryId);
+      setSourceCategoryId(mod.sourceCategoryId ?? (
+        ['CATEGORY', 'CATEGORY_CONTENT'].includes(mod.contentSource) ? mod.categoryId : null
+      ));
       setTagId(mod.tagId);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载模块失败');
@@ -262,11 +439,18 @@ export const TopNavModuleFormPage = () => {
     }
   };
 
-  const loadCategoryOptions = async () => {
+  const loadPlacementCategoryOptions = async () => {
     if (!nav) return;
     try {
       const result = await listCategoriesByContentType(navContentType);
-      setCategoryOptions(result.list.map(c => ({ id: c.legacyId ?? Number(c.id), name: c.name })));
+      setPlacementCategoryOptions(result.list.map(c => ({ id: c.legacyId ?? Number(c.id), name: c.name })));
+    } catch { /* silent */ }
+  };
+
+  const loadSourceCategoryOptions = async () => {
+    try {
+      const result = await listCategoriesByContentType(contentType);
+      setSourceCategoryOptions(result.list.map(c => ({ id: c.legacyId ?? Number(c.id), name: c.name })));
     } catch { /* silent */ }
   };
 
@@ -279,7 +463,24 @@ export const TopNavModuleFormPage = () => {
 
   useEffect(() => { void loadNav(); }, [id]);
   useEffect(() => { if (nav && moduleId) void loadModule(); }, [nav, moduleId]);
-  useEffect(() => { void loadCategoryOptions(); }, [navContentType, nav]);
+  useEffect(() => {
+    if (!nav || moduleId || searchParams.get('moduleKey')) return;
+    setContentType(resolveDefaultModuleContentType(nav.contentType));
+  }, [moduleId, nav, searchParams]);
+  useEffect(() => {
+    if (!nav || moduleId) return;
+    const requestedKey = searchParams.get('moduleKey') as HomeModuleKey | null;
+    const slot = moduleSlots.find((item) => item.key === requestedKey);
+    if (!slot) return;
+    setModuleKey(slot.key);
+    setTitle(slot.label);
+    setDisplayStyle(slot.displayStyle);
+    setContentType(slot.contentType);
+    setDisplayCount(String(slot.displayCount));
+    setSortOrder(String(moduleSlots.findIndex((item) => item.key === slot.key) + 1));
+  }, [moduleId, moduleSlots, nav, searchParams]);
+  useEffect(() => { void loadPlacementCategoryOptions(); }, [navContentType, nav]);
+  useEffect(() => { void loadSourceCategoryOptions(); }, [contentType]);
   useEffect(() => {
     if (!isLargeImage) {
       if (contentSource === 'MANUAL') {
@@ -293,11 +494,11 @@ export const TopNavModuleFormPage = () => {
   // ====== 展示样式切换 ======
   const handleDisplayStyleChange = (style: ContentModuleDisplayStyle) => {
     const styleOption = displayStyleOptions.find(s => s.value === style);
-    if (styleOption && !styleOption.allowedTypes.includes(contentType)) {
-      setContentType(styleOption.allowedTypes[0]);
-      setItems([]);
-      setNotice(`展示样式已切换，内容类型已自动调整为「${contentTypeOptions.find(c => c.value === styleOption.allowedTypes[0])?.label}」`);
+    if (styleOption && !isDisplayStyleCompatibleWithContent(styleOption.allowedTypes, contentType)) {
+      setError(`「${styleOption.label}」不支持内容类型「${contentTypeOptions.find(c => c.value === contentType)?.label}」`);
+      return;
     }
+    setError(null);
     setDisplayStyle(style);
     // Default showTitle per style
     if (style === 'LARGE_IMAGE_CAROUSEL') {
@@ -306,6 +507,41 @@ export const TopNavModuleFormPage = () => {
     } else if (style === 'FOUR_CARD_GRID') {
       setShowTitle(true);
     }
+  };
+
+  const applyPrototypeTemplate = (nextKey: HomeModuleKey | null) => {
+    if (!nextKey) {
+      setModuleKey(null);
+      return;
+    }
+    const slot = moduleSlots.find((item) => item.key === nextKey);
+    if (!slot) return;
+    setModuleKey(slot.key);
+    setTitle(slot.label);
+    setDisplayStyle(slot.displayStyle);
+    setContentType(slot.contentType);
+    setDisplayCount(String(slot.displayCount));
+    setSortOrder(String(moduleSlots.findIndex((item) => item.key === slot.key) + 1));
+    setShowTitle(slot.displayStyle !== 'LARGE_IMAGE_CAROUSEL');
+    setItems([]);
+    setSourceCategoryId(null);
+    setTagId(null);
+    setError(null);
+  };
+
+  const handleContentTypeChange = (nextType: ContentModuleContentType) => {
+    const impact = getContentTypeChangeImpact(contentType, nextType);
+    if (!impact.changed) return;
+    if (impact.clearSelections && (items.length > 0 || sourceCategoryId || tagId)) {
+      const confirmed = window.confirm('切换内容类型会清空已选内容、来源分类和标签，是否继续？');
+      if (!confirmed) return;
+    }
+    setContentType(nextType);
+    setItems([]);
+    setSourceCategoryId(null);
+    setTagId(null);
+    setContentOptions([]);
+    setSelectedContentById({});
   };
 
   // ====== 大矩形图片操作 ======
@@ -383,7 +619,13 @@ export const TopNavModuleFormPage = () => {
     } else {
       if (!contentSource) return '请选择内容来源';
       if (contentSource === 'MANUAL' && items.length === 0) return '手动选择模式下请至少选择一项内容';
-      if ((contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && !categoryId) return '请选择C端二级分类/展示位置';
+      if (contentSource === 'MANUAL' && items.length < minimumManualContentCount) {
+        return `该原型模块至少需要选择 ${minimumManualContentCount} 项内容，才能形成横滑露出效果`;
+      }
+      if (contentSource === 'MANUAL' && missingCoverContentIds.length > 0) {
+        return `有 ${missingCoverContentIds.length} 项内容缺少封面，请先到内容管理补齐封面后再保存`;
+      }
+      if ((contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && !sourceCategoryId) return '请选择内容来源分类';
       if (contentSource === 'TAG' && !tagId) return '请选择标签';
       // CATEGORY_GROUP 不需要选择分类
     }
@@ -411,10 +653,11 @@ export const TopNavModuleFormPage = () => {
         : (contentSource === 'MANUAL' ? items : []);
 
       const payload: ContentModulePayload = {
+        moduleKey,
         title: title.trim(),
         subtitle: subtitle.trim() || null,
         displayStyle,
-        contentType: effectiveContentType,
+        contentType,
         contentSource: isLargeImage ? 'MANUAL' : contentSource,
         displayCount: isLargeImage ? imageItems.length : Number(displayCount),
         showMore: isLargeImage ? false : showMore,
@@ -424,6 +667,7 @@ export const TopNavModuleFormPage = () => {
         status,
         items: payloadItems as ContentModuleItem[],
         categoryId,
+        sourceCategoryId: isLargeImage || !['CATEGORY', 'CATEGORY_CONTENT'].includes(contentSource) ? null : sourceCategoryId,
         tagId: isLargeImage ? null : (contentSource === 'TAG' ? tagId : null)
       };
 
@@ -443,7 +687,7 @@ export const TopNavModuleFormPage = () => {
 
   const backToConfig = () => {
     if (!id) return navigate('/home-ops');
-    navigate(`/home-ops/top-nav/${id}/content`);
+    navigate(`/home-ops?nav=${encodeURIComponent(id)}`);
   };
 
   const loadMoreContentOptions = () => {
@@ -505,11 +749,20 @@ export const TopNavModuleFormPage = () => {
             ) : (
               contentOptions.map((opt) => {
                 const isSelected = selectedItemIds.has(opt.id);
+                const hasCover = Boolean(opt.cover?.trim());
                 return (
-                  <div key={opt.id} className={['grid grid-cols-[1fr_auto] items-center gap-3 border-b border-[#f0eadf] px-4 py-3 text-sm last:border-b-0', isSelected ? 'bg-[#f6faf3]' : ''].join(' ')}>
+                  <div key={opt.id} className={['grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-[#f0eadf] px-4 py-3 text-sm last:border-b-0', isSelected ? 'bg-[#f6faf3]' : ''].join(' ')}>
+                    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-[#eee8dc] text-xs font-medium text-[#7a8b6f]">
+                      {hasCover ? (
+                        <img src={resolveAssetUrl(opt.cover!)} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span>缺图</span>
+                      )}
+                    </div>
                     <div className="min-w-0">
                       <p className="truncate font-medium text-[#2f2f2f]">{opt.name}</p>
                       <p className="mt-0.5 truncate text-xs text-[#9a9287]">{opt.code ?? opt.id}</p>
+                      {!hasCover ? <p className="mt-1 text-xs font-medium text-[#c66f45]">缺少封面，不能按 C 端原型展示</p> : null}
                     </div>
                     <button
                       type="button"
@@ -544,11 +797,12 @@ export const TopNavModuleFormPage = () => {
           ) : (
             <div className="max-h-[360px] overflow-y-auto p-3">
               {items.map((item, idx) => (
-                <div key={item.id} className="mb-2 grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-lg border border-[#e4ddd1] bg-[#fffdfc] px-3 py-2 text-sm last:mb-0">
+                <div key={item.id} className={['mb-2 grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-lg border bg-[#fffdfc] px-3 py-2 text-sm last:mb-0', missingCoverContentIdSet.has(item.id) ? 'border-[#e7b797]' : 'border-[#e4ddd1]'].join(' ')}>
                   <span className="text-xs font-semibold text-[#7a8b6f]">{idx + 1}</span>
                   <div className="min-w-0">
                     <p className="truncate font-medium text-[#2f2f2f]">{getSelectedContentName(item)}</p>
                     <p className="mt-0.5 truncate text-xs text-[#9a9287]">{item.id}</p>
+                    {missingCoverContentIdSet.has(item.id) ? <p className="mt-1 text-xs font-medium text-[#c66f45]">缺少封面</p> : null}
                   </div>
                   <div className="flex items-center gap-1">
                     <button type="button" className="text-xs text-[#6f8663] disabled:text-[#d9d2c6]" disabled={idx === 0} onClick={() => moveItem(item.id, 'up')}>上移</button>
@@ -574,9 +828,7 @@ export const TopNavModuleFormPage = () => {
     <div><span className={fieldLabel}>内容来源 <span className="text-red-500">*</span></span><div className="mt-2 flex flex-wrap gap-6">{contentSourceOptions.map((cs) => (<label key={cs.value} className="inline-flex items-center gap-2 text-sm text-[#2f2f2f]"><input type="radio" checked={contentSource === cs.value} onChange={() => { setContentSource(cs.value); setItems([]); }} />{cs.label}</label>))}</div></div>
     {contentSource === 'MANUAL' && renderManualContentSelector()}
     {(contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && (
-      <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs leading-relaxed text-[#5f7f56]">
-        当前内容来源会使用基础信息里的“C端二级分类 / 展示位置”自动读取内容。
-      </div>
+      <label className="block max-w-[400px]"><span className={fieldLabel}>内容来源分类 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2`} value={sourceCategoryId ?? ''} onChange={(e) => setSourceCategoryId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择{contentTypeOptions.find((item) => item.value === contentType)?.label}分类</option>{sourceCategoryOptions.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><span className="mt-2 block text-xs text-[#85877f]">这里只决定从哪个分类取内容，不改变模块在 C 端的展示位置。</span><button type="button" className="mt-2 text-xs font-medium text-[#5f7f56] hover:underline" onClick={() => window.open('/taxonomies/categories', '_blank', 'noopener,noreferrer')}>管理内容分类</button></label>
     )}
     {contentSource === 'TAG' && (<label><span className={fieldLabel}>选择标签 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2 max-w-[400px]`} value={tagId ?? ''} onChange={(e) => setTagId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择标签</option>{tagOptions.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></label>)}
     <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs text-[#5f7f56]"><p className="font-medium">ℹ️ 四宫格规则</p><p className="mt-1">每行固定 4 个，不允许运营修改列数。</p><p>点击卡片跳转详情页由前端根据内容类型自动处理。</p></div>
@@ -588,9 +840,7 @@ export const TopNavModuleFormPage = () => {
     <div><span className={fieldLabel}>内容来源 <span className="text-red-500">*</span></span><div className="mt-2 flex flex-wrap gap-6">{contentSourceOptions.map((cs) => (<label key={cs.value} className="inline-flex items-center gap-2 text-sm text-[#2f2f2f]"><input type="radio" checked={contentSource === cs.value} onChange={() => { setContentSource(cs.value); setItems([]); }} />{cs.label}</label>))}</div></div>
     {contentSource === 'MANUAL' && renderManualContentSelector()}
     {(contentSource === 'CATEGORY' || contentSource === 'CATEGORY_CONTENT') && (
-      <div className="rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs leading-relaxed text-[#5f7f56]">
-        当前内容来源会使用基础信息里的“C端二级分类 / 展示位置”自动读取内容。
-      </div>
+      <label className="block max-w-[400px]"><span className={fieldLabel}>内容来源分类 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2`} value={sourceCategoryId ?? ''} onChange={(e) => setSourceCategoryId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择{contentTypeOptions.find((item) => item.value === contentType)?.label}分类</option>{sourceCategoryOptions.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><span className="mt-2 block text-xs text-[#85877f]">这里只决定从哪个分类取内容，不改变模块在 C 端的展示位置。</span><button type="button" className="mt-2 text-xs font-medium text-[#5f7f56] hover:underline" onClick={() => window.open('/taxonomies/categories', '_blank', 'noopener,noreferrer')}>管理内容分类</button></label>
     )}
     {contentSource === 'TAG' && (<label><span className={fieldLabel}>选择标签 <span className="text-red-500">*</span></span><select className={`${fieldInput} mt-2 max-w-[400px]`} value={tagId ?? ''} onChange={(e) => setTagId(e.target.value ? Number(e.target.value) : null)}><option value="">请选择标签</option>{tagOptions.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></label>)}
     <div className="grid gap-4 md:grid-cols-2"><label><span className={fieldLabel}>展示数量 <span className="text-red-500">*</span></span><input className={`${fieldInput} mt-2`} type="number" min={1} max={50} value={displayCount} onChange={(e) => setDisplayCount(e.target.value)} /></label><div><span className={fieldLabel}>显示更多入口</span><div className="mt-2 flex items-center gap-3"><Toggle checked={showMore} onChange={setShowMore} /><span className="text-sm text-[#5f5f5f]">{showMore ? '是' : '否'}</span></div></div></div>
@@ -644,10 +894,11 @@ export const TopNavModuleFormPage = () => {
                   onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
                 >
                   <option value="">推荐</option>
-                  {categoryOptions.map((c) => (
+                  {placementCategoryOptions.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+                <button type="button" className="mt-2 text-xs font-medium text-[#5f7f56] hover:underline" onClick={() => window.open('/taxonomies/categories', '_blank', 'noopener,noreferrer')}>管理二级分类</button>
               </label>
               <div className="md:col-span-2 rounded-lg border border-[#d6decd] bg-[#eef3ea] px-4 py-3 text-xs leading-relaxed text-[#5f7f56]">
                 <p className="font-semibold mb-1">📍 模块展示位置规则说明：</p>
@@ -669,9 +920,45 @@ export const TopNavModuleFormPage = () => {
               模块信息
             </h2>
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <span className={fieldLabel}>选择 C 端原型模板（推荐）</span>
+                <span className="ml-2 text-xs font-normal text-[#85877f]">看到什么，C 端就按什么构图展示</span>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {moduleSlots.map((slot) => {
+                    const selected = moduleKey === slot.key;
+                    return (
+                      <button
+                        key={slot.key}
+                        type="button"
+                        aria-label={`套用${slot.label}原型模板：${slot.description}`}
+                        aria-pressed={selected}
+                        className={`rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a8b6f] focus-visible:ring-offset-2 ${selected ? 'border-[#7a8b6f] bg-[#eef3ea] shadow-[0_8px_22px_rgba(92,109,81,0.10)]' : 'border-[#e4ddd1] bg-[#fffdfc] hover:border-[#aeb9a5] hover:shadow-[0_8px_20px_rgba(80,72,60,0.07)]'}`}
+                        onClick={() => applyPrototypeTemplate(slot.key)}
+                      >
+                        <PrototypeTemplateDiagram moduleKey={slot.key} style={slot.displayStyle} />
+                        <div className="mt-3 flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-[#343632]">{slot.label}</p>
+                            <p className="mt-1 text-xs leading-5 text-[#7d7f78]">{slot.description}</p>
+                          </div>
+                          {selected ? <span className="shrink-0 rounded-full bg-[#7a8b6f] px-2 py-0.5 text-[10px] font-medium text-white">已套用</span> : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className={`mt-3 rounded-lg border px-3 py-2 text-xs font-medium transition ${moduleKey === null ? 'border-[#7a8b6f] bg-[#eef3ea] text-[#5f7f56]' : 'border-[#d9d2c6] bg-[#fffdfc] text-[#6f6f6f] hover:border-[#aeb9a5]'}`}
+                  onClick={() => applyPrototypeTemplate(null)}
+                >
+                  不套用模板，完全自由配置
+                </button>
+                <span className="mt-2 block text-xs leading-5 text-[#85877f]">模板来自已确认的 C 端原型，只带入构图、内容类型和推荐数量；标题和内容仍可继续修改。</span>
+              </div>
               <label>
                 <span className={fieldLabel}>模块名称 <span className="text-red-500">*</span></span>
-                <input className={`${fieldInput} mt-2`} value={title} maxLength={80} placeholder="C端直接展示的模块标题" onChange={(e) => setTitle(e.target.value)} />
+                <input className={`${fieldInput} mt-2`} value={title} maxLength={80} placeholder="例如：家常精选" onChange={(event) => setTitle(event.target.value)} />
               </label>
               <label>
                 <span className={fieldLabel}>模块副标题</span>
@@ -700,55 +987,61 @@ export const TopNavModuleFormPage = () => {
 
           {/* ====== 3. 展示样式 ====== */}
           <div className={sectionClass}>
-            <h2 className="mb-5 flex items-center gap-3 text-xl font-semibold text-[#2f2f2f]">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">3</span>
-              展示样式
-            </h2>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              {displayStyleOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`rounded-xl border p-4 text-left text-sm transition ${
-                    displayStyle === option.value
-                      ? 'border-[#7a8b6f] bg-[#eef3ea] text-[#2f2f2f]'
-                      : 'border-[#e4ddd1] bg-[#fffdfc] text-[#6f6f6f]'
-                  }`}
-                  onClick={() => handleDisplayStyleChange(option.value)}
-                >
-                  <p className="font-semibold">
-                    {option.label}
-                    {option.isNew ? <span className="ml-1.5 rounded bg-[#7a8b6f] px-1.5 py-0.5 text-[10px] text-white">NEW</span> : null}
-                  </p>
-                  <p className="mt-1 text-xs text-[#8c8c8c]">{option.desc}</p>
-                  <p className="mt-1 text-xs text-[#b7aea1]">适用：{option.allowedTypes.map(t => contentTypeOptions.find(c => c.value === t)?.label).join('、')}</p>
-                </button>
-              ))}
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <h2 className="flex items-center gap-3 text-xl font-semibold text-[#2f2f2f]">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7a8b6f] text-sm text-white">3</span>
+                展示样式
+              </h2>
+              <p className="text-xs text-[#85877f]">先看构图再选择，右侧同步预览 C 端效果</p>
             </div>
-            {isLegacyStyle ? (
-              <div className="mt-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              {displayStyleOptions.map((option) => {
+                const compatible = isDisplayStyleCompatibleWithContent(option.allowedTypes, contentType);
+                const selected = displayStyle === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={!compatible}
+                    aria-pressed={selected}
+                    aria-label={`${option.label}：${option.desc}`}
+                    className={`group relative rounded-2xl border p-3 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a8b6f] focus-visible:ring-offset-2 ${
+                      selected
+                        ? 'border-[#7a8b6f] bg-[#eef3ea] text-[#2f2f2f] shadow-[0_8px_24px_rgba(92,109,81,0.10)]'
+                        : !compatible
+                          ? 'cursor-not-allowed border-[#ece8e1] bg-[#f8f6f2] text-[#b7aea1] opacity-55'
+                          : 'border-[#e4ddd1] bg-[#fffdfc] text-[#6f6f6f] hover:-translate-y-0.5 hover:border-[#aeb9a5] hover:shadow-[0_8px_20px_rgba(80,72,60,0.08)]'
+                    }`}
+                    onClick={() => handleDisplayStyleChange(option.value)}
+                  >
+                    <StylePreviewDiagram style={option.value} />
+                    <div className="mt-3 flex items-start justify-between gap-2">
+                      <p className="font-semibold leading-5 text-[#3f403c]">
+                        {option.label}
+                        {option.isNew ? <span className="ml-1.5 rounded bg-[#7a8b6f] px-1.5 py-0.5 text-[10px] text-white">NEW</span> : null}
+                      </p>
+                      {selected ? <span className="shrink-0 rounded-full bg-[#7a8b6f] px-2 py-0.5 text-[10px] font-medium text-white">已选择</span> : null}
+                    </div>
+                    <p className="mt-1 min-h-10 text-xs leading-5 text-[#777a73]">{option.desc}</p>
+                    <p className="mt-2 rounded-lg bg-[#f6f3ed] px-2.5 py-2 text-[11px] leading-4 text-[#6f776a]">原型示例：{option.examples}</p>
+                    <p className="mt-2 border-t border-[#ebe5da] pt-2 text-[11px] leading-4 text-[#9b978f]">适用：{option.allowedTypes.map(t => contentTypeOptions.find(c => c.value === t)?.label).join('、')}</p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4">
                 <label>
-                  <span className={fieldLabel}>内容类型 <span className="text-red-500">*</span></span>
+                  <span className={fieldLabel}>内容类型</span>
                   <select
                     className={`${fieldInput} mt-2 max-w-[300px]`}
                     value={contentType}
-                    onChange={(e) => {
-                      const newType = e.target.value as ContentModuleContentType;
-                      if (!allowedTypes.includes(newType)) {
-                        setError(`当前展示样式不支持内容类型「${contentTypeOptions.find(c => c.value === newType)?.label}」`);
-                        return;
-                      }
-                      setContentType(newType);
-                      setItems([]);
-                    }}
+                    onChange={(event) => handleContentTypeChange(event.target.value as ContentModuleContentType)}
                   >
-                    {contentTypeOptions.filter(c => allowedTypes.includes(c.value)).map((c) => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
+                    {contentTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <span className="mt-2 block text-xs leading-5 text-[#85877f]">默认继承频道类型；需要混排时可主动修改。展示样式不会自动改变内容类型。</span>
                 </label>
-              </div>
-            ) : null}
+            </div>
           </div>
 
           {/* ====== 4. 内容配置 ====== */}

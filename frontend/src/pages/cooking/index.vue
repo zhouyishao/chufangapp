@@ -37,6 +37,19 @@
       <text class="status-text">暂无制作步骤</text>
     </view>
 
+    <view v-else-if="isCompleted" class="completion-card" aria-live="polite">
+      <view class="completion-card__icon">
+        <app-icon name="check" size="44rpx" />
+      </view>
+      <text class="completion-card__eyebrow">全部步骤已完成</text>
+      <text class="completion-card__title">{{ flowType === 'beverage' ? '制作完成' : '烹饪完成' }}</text>
+      <text class="completion-card__desc">{{ recipeName }}已经完成，趁着最佳状态享用吧。</text>
+      <view class="completion-card__actions">
+        <button class="completion-card__button is-secondary" @click="goHome">回到首页</button>
+        <button class="completion-card__button is-primary" @click="returnToDetail">返回{{ flowType === 'beverage' ? '饮品' : '菜谱' }}</button>
+      </view>
+    </view>
+
     <!-- Step content Card -->
     <view v-else-if="currentStep" class="step-display-card">
       <view class="card-header-row">
@@ -49,13 +62,23 @@
       <text class="step-main-title">{{ currentStep.title }}</text>
       
       <video
-        v-if="currentStep.mediaUrl && currentStep.mediaMimeType?.startsWith('video/')"
+        v-if="currentStep.mediaUrl && !mediaFailed && currentStep.mediaMimeType?.startsWith('video/')"
         class="step-card-img"
         :src="currentStep.mediaUrl"
         controls
         object-fit="cover"
+        @error="handleMediaError"
       />
-      <image v-else-if="currentStep.mediaUrl" class="step-card-img" :src="currentStep.mediaUrl" mode="aspectFill" />
+      <image
+        v-else-if="currentStep.mediaUrl && !mediaFailed"
+        class="step-card-img"
+        :src="currentStep.mediaUrl"
+        mode="aspectFill"
+        @error="handleMediaError"
+      />
+      <view v-else-if="currentStep.mediaUrl && mediaFailed" class="step-media-fallback">
+        <text>步骤媒体暂时无法显示，请按下方文字继续操作</text>
+      </view>
       
       <text class="step-card-desc">{{ currentStep.description }}</text>
       
@@ -90,7 +113,7 @@
     </view>
 
     <!-- Bottom Actions Bar -->
-    <view class="bottom-action-fixed-bar">
+    <view v-if="!isCompleted" class="bottom-action-fixed-bar">
       <view class="bottom-bar-inner-row">
         <button 
           class="nav-step-btn prev-step-btn" 
@@ -114,6 +137,7 @@
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
+import { getGuidedFlowPreviewFixture } from '../../dev/detail-preview-fixtures';
 import { getBeverageGuidedFlow, getRecipeGuidedFlow } from '../../services/public-api';
 
 type CookingStep = {
@@ -132,12 +156,19 @@ const steps = ref<CookingStep[]>([]);
 const currentIndex = ref(0);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const mediaFailed = ref(false);
+const previewOptions = ref<Record<string, string | undefined>>({});
+const isCompleted = ref(false);
 
 const isTimerRunning = ref(false);
 const remainingSeconds = ref(0);
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const currentStep = computed(() => steps.value[currentIndex.value] ?? null);
+
+const handleMediaError = () => {
+  mediaFailed.value = true;
+};
 
 const readRecipeIdFromRoute = (query?: Record<string, string | undefined>) => {
   const fromQuery = query?.id?.trim();
@@ -181,6 +212,19 @@ const goBack = () => {
     return;
   }
   uni.navigateBack();
+};
+
+const returnToDetail = () => {
+  if (!recipeId.value) {
+    uni.reLaunch({ url: '/' });
+    return;
+  }
+  const path = flowType.value === 'beverage' ? '/pages/beverage-detail/index' : '/pages/recipe-detail/index';
+  uni.redirectTo({ url: `${path}?id=${recipeId.value}` });
+};
+
+const goHome = () => {
+  uni.reLaunch({ url: '/' });
 };
 
 const showMoreActions = () => {
@@ -258,22 +302,13 @@ const nextStep = () => {
   if (currentIndex.value < steps.value.length - 1) {
     currentIndex.value++;
   } else {
-    uni.showToast({
-      title: flowType.value === 'beverage' ? '制作完成！' : '烹饪完成！',
-      icon: 'success',
-      duration: 2000
-    });
-    setTimeout(() => {
-      if (recipeId.value) {
-        uni.redirectTo({ url: flowType.value === 'beverage' ? `/pages/beverage-detail/index?id=${recipeId.value}` : `/pages/recipe-detail/index?id=${recipeId.value}` });
-      } else {
-        uni.reLaunch({ url: '/pages/ingredients/index?tab=recipes' });
-      }
-    }, 1500);
+    resetTimer();
+    isCompleted.value = true;
   }
 };
 
 watch(currentIndex, () => {
+  mediaFailed.value = false;
   initTimerForStep();
 });
 
@@ -282,10 +317,13 @@ const fetchRecipeDetails = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const data = flowType.value === 'beverage'
+    const preview = getGuidedFlowPreviewFixture(flowType.value, recipeId.value, previewOptions.value);
+    const data = preview ?? (flowType.value === 'beverage'
       ? await getBeverageGuidedFlow(recipeId.value)
-      : await getRecipeGuidedFlow(recipeId.value);
+      : await getRecipeGuidedFlow(recipeId.value));
     recipeName.value = data.title;
+    isCompleted.value = false;
+    mediaFailed.value = false;
     steps.value = data.steps.map((step) => {
       return {
         title: step.title,
@@ -297,15 +335,26 @@ const fetchRecipeDetails = async () => {
       } satisfies CookingStep;
     });
 
+    if (!steps.value.length) {
+      error.value = flowType.value === 'beverage'
+        ? '制作步骤暂时无法显示，请稍后再试'
+        : '烹饪步骤暂时无法显示，请稍后再试';
+      return;
+    }
+
+    currentIndex.value = Math.min(currentIndex.value, steps.value.length - 1);
     initTimerForStep();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败';
+  } catch {
+    error.value = flowType.value === 'beverage'
+      ? '制作步骤暂时无法显示，请稍后再试'
+      : '烹饪步骤暂时无法显示，请稍后再试';
   } finally {
     loading.value = false;
   }
 };
 
 onLoad((query?: Record<string, string | undefined>) => {
+  previewOptions.value = query ?? {};
   flowType.value = query?.type === 'beverage' ? 'beverage' : 'recipe';
   const id = readRecipeIdFromRoute(query);
   if (id) {
@@ -362,14 +411,14 @@ onUnload(() => {
   margin: 0 auto;
   min-height: 100vh;
   background: var(--app-bg);
-  padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(180rpx + var(--app-safe-area-bottom));
   position: relative;
   overflow-x: hidden;
   box-shadow: 0 0 40rpx rgba(0, 0, 0, 0.05);
 }
 
 .header-nav {
-  padding: calc(env(safe-area-inset-top, 0) + 24rpx) 32rpx 20rpx;
+  padding: calc(var(--app-safe-area-top) + 24rpx) 32rpx 20rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -467,7 +516,6 @@ onUnload(() => {
   height: 100%;
   background: var(--text-brand);
   border-radius: 999rpx;
-  transition: width 0.3s ease;
 }
 
 .status-banner {
@@ -487,6 +535,20 @@ onUnload(() => {
 
 .error-text {
   color: var(--app-danger);
+}
+
+.step-media-fallback {
+  display: flex;
+  min-height: 260rpx;
+  align-items: center;
+  justify-content: center;
+  padding: 32rpx;
+  border-radius: var(--app-radius-card);
+  background: var(--app-surface);
+  color: var(--app-text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+  text-align: center;
 }
 
 .retry-btn {
@@ -665,6 +727,88 @@ onUnload(() => {
   background: var(--app-accent-warm);
 }
 
+.completion-card {
+  margin: 48rpx 32rpx 0;
+  padding: 72rpx 40rpx 48rpx;
+  border-radius: var(--app-radius-card);
+  background: var(--app-surface-strong);
+  border: 1rpx solid var(--app-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.completion-card__icon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-white);
+  background: var(--text-brand);
+  margin-bottom: 32rpx;
+}
+
+.completion-card__eyebrow {
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tag);
+  color: var(--text-brand);
+}
+
+.completion-card__title {
+  margin-top: 8rpx;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-page-title);
+  color: var(--text-primary);
+}
+
+.completion-card__desc {
+  margin-top: 16rpx;
+  max-width: 520rpx;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body);
+  color: var(--text-secondary);
+}
+
+.completion-card__actions {
+  width: 100%;
+  margin-top: 48rpx;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+}
+
+.completion-card__button {
+  min-height: 88rpx;
+  border-radius: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body);
+}
+
+.completion-card__button::after {
+  border: 0;
+}
+
+.completion-card__button.is-secondary {
+  color: var(--text-brand);
+  background: var(--app-surface);
+  border: 1rpx solid var(--app-border);
+}
+
+.completion-card__button.is-primary {
+  color: var(--text-white);
+  background: var(--text-brand);
+}
+
 .bottom-action-fixed-bar {
   position: fixed;
   bottom: 0;
@@ -676,7 +820,7 @@ onUnload(() => {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1rpx solid rgba(183, 174, 161, 0.2);
-  padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom, 0));
+  padding: 24rpx 32rpx calc(24rpx + var(--app-safe-area-bottom));
   z-index: 100;
   box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.02);
 }

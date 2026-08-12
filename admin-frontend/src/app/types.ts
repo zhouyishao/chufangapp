@@ -95,6 +95,8 @@ export type Recipe = {
   isRecommend: boolean;
   auditStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
   rejectReason?: string | null;
+  sourceType?: 'ADMIN' | 'USER' | 'IMPORT' | 'SYSTEM';
+  authorId?: number | null;
   status: 'ACTIVE' | 'DISABLED';
   sort: number;
   viewCount: number;

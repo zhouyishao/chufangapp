@@ -17,6 +17,7 @@ const listQuerySchema = z.object({
   isPublish: z.coerce.boolean().optional(),
   isRecommend: z.coerce.boolean().optional(),
   auditStatus: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).optional(),
+  sourceType: z.enum(['ADMIN', 'USER', 'IMPORT', 'SYSTEM']).optional(),
   categoryId: z.string().trim().optional()
 });
 
@@ -149,7 +150,7 @@ const getExistingRecipe = async (value: unknown) => {
 adminRecipesRouter.get('/', requireAdminAuth, async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { page, pageSize, q, status, isPublish, isRecommend, auditStatus } = parsed.data;
+  const { page, pageSize, q, status, isPublish, isRecommend, auditStatus, sourceType } = parsed.data;
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const skip = (page - 1) * pageSize;
 
@@ -159,6 +160,7 @@ adminRecipesRouter.get('/', requireAdminAuth, async (req, res) => {
     ...(typeof isPublish === 'boolean' ? { isPublish } : {}),
     ...(typeof isRecommend === 'boolean' ? { isRecommend } : {}),
     ...(auditStatus ? { auditStatus } : {}),
+    ...(sourceType ? { sourceType } : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(q ? { title: { contains: q, mode: 'insensitive' as const } } : {})
   };

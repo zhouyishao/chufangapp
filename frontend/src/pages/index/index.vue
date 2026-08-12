@@ -52,8 +52,8 @@
       </nav>
 
       <view v-if="activeHeroBanner" class="home-hero-copy">
-        <text class="home-hero-title">{{ activeHeroBanner.title }}</text>
-        <text v-if="activeHeroBanner.subtitle" class="home-hero-meta">{{ activeHeroBanner.subtitle }}</text>
+        <text class="home-hero-title">{{ heroTitle }}</text>
+        <text v-if="heroSubtitle" class="home-hero-meta">{{ heroSubtitle }}</text>
       </view>
 
       <view v-if="homeHeroBanners.length > 1" class="home-hero-dots" aria-label="Banner 轮播位置">
@@ -104,7 +104,7 @@
         v-else
         kind="empty"
         title="暂时没有推荐内容"
-        description="后台发布内容后会自动展示在这里。"
+        description="新的时令灵感正在准备中，稍后再来看看。"
       />
     </main>
 
@@ -114,7 +114,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { onPageScroll } from '@dcloudio/uni-app';
+import { onLoad, onPageScroll } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import AppPageState from '../../components/app/app-page-state.vue';
 import PrototypeHomeModules from '../../components/home-modules/PrototypeHomeModules.vue';
@@ -123,6 +123,7 @@ import {
   getHomeHeroBanners,
   getHomeModules,
   getHomeTopNavs,
+  type ApiHomeTopNav,
   type ApiHomeHeroBanner,
   type HomeModule
 } from '../../services/public-api';
@@ -137,6 +138,12 @@ const homeHeroBanners = ref<ApiHomeHeroBanner[]>([]);
 const remoteTopNavs = ref<{ id: string; label: string }[]>([]);
 const navIdMap = ref<Record<string, string>>({});
 const currentNavModules = ref<HomeModule[]>([]);
+const getBrowserPreviewNavId = () => {
+  if (typeof window === 'undefined') return '';
+  const query = window.location.hash.split('?')[1] ?? '';
+  return new URLSearchParams(query).get('previewNav') ?? '';
+};
+const requestedPreviewNavId = ref(getBrowserPreviewNavId());
 let channelRequestSequence = 0;
 let scrollFrame: number | undefined;
 
@@ -151,6 +158,57 @@ const homeHeaderCategories = computed(() => remoteTopNavs.value.slice(0, 5));
 const activeHeroBanner = computed(
   () => homeHeroBanners.value[activeHeroIndex.value] ?? homeHeroBanners.value[0] ?? null
 );
+const invalidDisplayText = (value?: string | null) =>
+  !value || /^\s*\d+\s*$/.test(value) || value.trim().length < 2;
+const activeChannelLabel = computed(
+  () => homeHeaderCategories.value.find((item) => item.id === activeCategoryId.value)?.label ?? '推荐'
+);
+const heroTitle = computed(() =>
+  invalidDisplayText(activeHeroBanner.value?.title)
+    ? `${activeChannelLabel.value}精选`
+    : activeHeroBanner.value?.title
+);
+const heroSubtitle = computed(() =>
+  invalidDisplayText(activeHeroBanner.value?.subtitle) ? '' : activeHeroBanner.value?.subtitle
+);
+
+const lockedChannels = [
+  { id: 'recommend', label: '推荐', keywords: ['recommend', '推荐', '精选'] },
+  { id: 'recipe', label: '菜谱', keywords: ['recipe', '菜谱'] },
+  { id: 'ingredient', label: '食材', keywords: ['ingredient', '食材'] },
+  { id: 'fruit', label: '水果', keywords: ['fruit', '水果'] },
+  { id: 'beverage', label: '饮品', keywords: ['beverage', 'drink', '饮品', '酒水'] }
+] as const;
+
+const channelSearchText = (item: ApiHomeTopNav) =>
+  `${item.code ?? ''} ${item.name} ${item.navType} ${item.contentType ?? ''}`.toLowerCase();
+
+const findChannelSource = (
+  topNavs: ApiHomeTopNav[],
+  channel: (typeof lockedChannels)[number],
+  usedIds: Set<string>
+) => {
+  if (channel.id === 'recommend') {
+    const defaultNav = topNavs.find((item) => item.isDefault && !usedIds.has(item.id));
+    if (defaultNav) return defaultNav;
+  }
+  return topNavs.find((item) =>
+    !usedIds.has(item.id) &&
+    channel.keywords.some((keyword) => channelSearchText(item).includes(keyword))
+  );
+};
+
+const buildLockedChannels = (homeNavs: ApiHomeTopNav[], categoryNavs: ApiHomeTopNav[]) => {
+  const usedIds = new Set<string>();
+  return lockedChannels.flatMap((channel) => {
+    const source = channel.id === 'recommend' ? homeNavs : categoryNavs;
+    const matched = findChannelSource(source, channel, usedIds);
+    if (!matched) return [];
+    usedIds.add(matched.id);
+    navIdMap.value[channel.id] = matched.id;
+    return [{ id: channel.id, label: channel.label }];
+  });
+};
 
 const heroImagePosition = (focus: string) => {
   if (focus === 'left') return 'left center';
@@ -172,7 +230,10 @@ const openNotifications = () => {
 
 const goToHeroBannerTarget = (banner: ApiHomeHeroBanner) => {
   if (banner.link?.startsWith('/pages/')) {
-    uni.navigateTo({ url: banner.link });
+    const link = banner.link.includes('-detail/index')
+      ? `${banner.link}${banner.link.includes('?') ? '&' : '?'}from=home`
+      : banner.link;
+    uni.navigateTo({ url: link });
     return;
   }
 
@@ -185,7 +246,7 @@ const goToHeroBannerTarget = (banner: ApiHomeHeroBanner) => {
   };
   const route = routes[banner.targetType];
   if (route && banner.targetId) {
-    uni.navigateTo({ url: `${route}?id=${banner.targetId}` });
+    uni.navigateTo({ url: `${route}?id=${banner.targetId}&from=home` });
   }
 };
 
@@ -263,16 +324,13 @@ const loadHome = async () => {
   homeLoading.value = true;
   homeError.value = null;
   try {
-    const topNavs = await getHomeTopNavs();
+    const [topNavs, categoryNavs] = await Promise.all([
+      getHomeTopNavs(),
+      getHomeTopNavs({ page: 'category' })
+    ]);
     const defaultNav = topNavs.find((item) => item.isDefault) ?? topNavs[0];
-    remoteTopNavs.value = topNavs.map((item) => ({
-      id: item.isDefault ? 'recommend' : item.id,
-      label: item.name
-    }));
-    navIdMap.value = topNavs.reduce<Record<string, string>>((result, item) => {
-      result[item.isDefault ? 'recommend' : item.id] = item.id;
-      return result;
-    }, {});
+    navIdMap.value = {};
+    remoteTopNavs.value = buildLockedChannels(topNavs, categoryNavs);
 
     if (!defaultNav) {
       homeHeroBanners.value = [];
@@ -280,15 +338,27 @@ const loadHome = async () => {
       return;
     }
 
-    activeCategoryId.value = defaultNav.isDefault ? 'recommend' : defaultNav.id;
+    const requestedChannelEntry = Object.entries(navIdMap.value)
+      .find(([, navId]) => navId === requestedPreviewNavId.value);
+    const initialChannelId = requestedChannelEntry?.[0] ?? 'recommend';
+    const initialNavId = navIdMap.value[initialChannelId] ?? defaultNav.id;
+    activeCategoryId.value = initialChannelId;
     const requestSequence = ++channelRequestSequence;
-    await loadChannel(defaultNav.id, requestSequence, false);
+    await loadChannel(initialNavId, requestSequence, false);
   } catch (error) {
     homeError.value = error instanceof Error ? error.message : '首页加载失败';
   } finally {
     homeLoading.value = false;
   }
 };
+
+onLoad((options) => {
+  const nextPreviewNavId = typeof options?.previewNav === 'string' ? options.previewNav : '';
+  if (nextPreviewNavId && nextPreviewNavId !== requestedPreviewNavId.value) {
+    requestedPreviewNavId.value = nextPreviewNavId;
+    void loadHome();
+  }
+});
 
 void loadHome();
 </script>
@@ -340,7 +410,7 @@ void loadHome();
 
 .home-search-layer {
   position: absolute;
-  top: calc(var(--app-safe-area-top) + 12px);
+  top: max(38px, calc(var(--app-safe-area-top) + 12px));
   right: 20px;
   left: 20px;
   z-index: 4;
@@ -351,23 +421,23 @@ void loadHome();
 
 .home-search-box,
 .home-notification-button {
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  background: rgba(255, 253, 252, 0.42);
+  border: 0.5px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .home-search-box {
   display: flex;
   min-width: 0;
-  height: 46px;
+  height: 48px;
   margin: 0;
   padding: 0 16px;
   flex: 1;
   align-items: center;
   gap: 10px;
-  border-radius: 14px;
+  border-radius: 12px;
   color: rgba(255, 253, 252, 0.94);
 }
 
@@ -383,14 +453,14 @@ void loadHome();
 .home-notification-button {
   position: relative;
   display: flex;
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   margin: 0;
   padding: 0;
-  flex: 0 0 46px;
+  flex: 0 0 48px;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
+  border-radius: 12px;
   color: rgba(255, 253, 252, 0.96);
 }
 
@@ -413,7 +483,7 @@ void loadHome();
 
 .home-channel-bar {
   position: absolute;
-  top: calc(var(--app-safe-area-top) + 70px);
+  top: max(96px, calc(var(--app-safe-area-top) + 70px));
   right: 20px;
   left: 20px;
   z-index: 4;
@@ -447,7 +517,7 @@ void loadHome();
 
 .home-channel.is-active::before {
   position: absolute;
-  bottom: 2px;
+  bottom: 1px;
   left: 50%;
   width: 20px;
   height: 2px;
@@ -459,9 +529,9 @@ void loadHome();
 
 .home-hero-copy {
   position: absolute;
-  right: 28px;
-  bottom: 54px;
-  left: 28px;
+  right: 20px;
+  bottom: 38px;
+  left: 20px;
   z-index: 3;
   display: flex;
   flex-direction: column;
@@ -476,7 +546,7 @@ void loadHome();
 }
 
 .home-hero-meta {
-  margin-top: 4px;
+  margin-top: 7px;
   color: rgba(255, 253, 252, 0.86);
   font-size: var(--font-size-caption);
   font-weight: var(--font-regular);
@@ -485,35 +555,38 @@ void loadHome();
 
 .home-hero-dots {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
+  right: 14px;
+  bottom: 4px;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 0;
 }
 
 .home-hero-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 6px;
+  width: 22px;
+  height: 44px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.48);
-  transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
+  clip-path: inset(19.5px 4px round 3px);
+  transition: clip-path 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
 }
 
 .home-hero-dot.is-active {
-  width: 18px;
   background: var(--text-white);
+  clip-path: inset(19.5px 2px round 3px);
 }
 
 .home-sticky-channels {
   position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
+  top: var(--app-safe-area-top);
+  right: 12px;
+  left: 12px;
   z-index: var(--z-sticky);
-  padding: calc(var(--app-safe-area-top) + 4px) 16px 4px;
-  border-bottom: 1px solid rgba(122, 139, 111, 0.12);
+  height: 52px;
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  border-radius: 0 0 14px 14px;
 }
 
 .home-sticky-channel-row {

@@ -197,7 +197,7 @@ onReachBottom(loadNextPage);
 .notifications-page {
   min-height: 100dvh;
   padding-top: 0;
-  padding-bottom: calc(64rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(64rpx + var(--app-safe-area-bottom));
 }
 
 .safe-top-spacer {

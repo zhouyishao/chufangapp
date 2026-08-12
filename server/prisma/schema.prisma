@@ -1664,6 +1664,7 @@ model HomeTopNavStyle {
 model ContentModule {
   id            Int     @id @default(autoincrement())
   navId         Int     @map("nav_id")
+  moduleKey     String? @map("module_key") @db.VarChar(48)
   title         String  @db.VarChar(80)
   subtitle      String? @db.VarChar(160)
   displayStyle  String  @map("display_style") @db.VarChar(40)
@@ -1677,6 +1678,7 @@ model ContentModule {
   status        String  @default("ENABLED") @db.VarChar(20)
   items         Json?
   categoryId    Int?    @map("category_id")
+  sourceCategoryId Int? @map("source_category_id")
   tagId         Int?    @map("tag_id")
 
   nav HomeTopNav @relation(fields: [navId], references: [id], onDelete: Cascade)
@@ -1685,6 +1687,8 @@ model ContentModule {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([navId, status, sortOrder])
+  @@index([navId, moduleKey])
+  @@index([sourceCategoryId])
   @@map("content_modules")
 }
 

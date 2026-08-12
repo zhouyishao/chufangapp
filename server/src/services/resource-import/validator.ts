@@ -60,6 +60,31 @@ const splitLines = (value: unknown): string[] => {
     .filter(Boolean);
 };
 
+const splitSteps = (value: unknown): NonNullable<NormalizedResourcePayload['steps']> => {
+  if (!Array.isArray(value)) return splitLines(value);
+  const steps: NonNullable<NormalizedResourcePayload['steps']> = [];
+  value.forEach((item, index) => {
+    if (typeof item === 'string' || typeof item === 'number') {
+      const description = toText(item);
+      if (description) steps.push(description);
+      return;
+    }
+    const step = asRecord(item);
+    const description = getText(step, ['description', 'content', 'instruction', 'text', '步骤']);
+    if (!description) return;
+    steps.push({
+      sortIndex: toNumber(step.sortIndex ?? step.order ?? step.index) ?? index + 1,
+      title: getText(step, ['title', 'name', '标题']) || null,
+      description,
+      image: normalizeUrl(step.image ?? step.imageUrl ?? step.photo) || null,
+      video: normalizeUrl(step.video ?? step.videoUrl) || null,
+      timerSeconds: toNumber(step.timerSeconds ?? step.durationSeconds ?? step.timer) ?? null,
+      tip: getText(step, ['tip', 'tips', '小贴士']) || null
+    });
+  });
+  return steps;
+};
+
 const splitTags = (value: unknown): string[] => {
   const text = toText(value);
   if (!text) return [];
@@ -262,7 +287,7 @@ export function normalizeResourcePayload(resourceType: ResourceImportType, rawIn
     payload.tips = getText(raw, ['tips', '技巧', 'summary']) || null;
     payload.categoryName = getText(raw, ['categoryName', 'category', 'classify', 'strCategory', 'tags', 'classid', 'class', '分类', '分类名称']) || null;
     payload.cuisineName = getText(raw, ['cuisineName', 'strArea', '菜系', '来源菜系']) || null;
-    payload.steps = splitLines(raw.steps ?? raw.process ?? raw.content ?? raw.method ?? recipeInstructions ?? raw['步骤']);
+    payload.steps = splitSteps(raw.steps ?? raw.process ?? raw.content ?? raw.method ?? recipeInstructions ?? raw['步骤']);
     payload.ingredients = splitIngredients(raw.ingredients ?? raw.burden ?? raw.material ?? raw.yl ?? raw.food ?? raw['用料'] ?? raw['食材']);
     payload.seasonings = splitIngredients(raw.seasonings ?? raw.condiments ?? raw['调料'] ?? raw['佐料']);
     if (payload.ingredients.length === 0) payload.ingredients = numberedIngredients;

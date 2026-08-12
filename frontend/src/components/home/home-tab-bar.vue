@@ -8,7 +8,7 @@
       @tap="handleTabClick(tab.id)"
     >
       <view class="icon-wrapper">
-        <app-icon class="tab-icon" :name="getTabIcon(tab.id)" :filled="tab.active" size="24rpx" />
+        <app-icon class="tab-icon" :name="getTabIcon(tab.id)" :filled="tab.active" size="24px" />
       </view>
       <text class="home-tab-bar__label">{{ tab.label }}</text>
     </button>
@@ -54,30 +54,39 @@ const handleTabClick = (tabId: string) => {
 <style scoped lang="scss">
 .home-tab-bar {
   position: fixed;
-  right: 32rpx;
-  bottom: 18rpx;
-  left: 32rpx;
+  bottom: max(10px, var(--app-safe-area-bottom));
+  left: 50%;
   z-index: 30;
   display: grid;
+  width: calc(100% - 24px);
+  max-width: 369px;
+  height: 70px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8rpx;
-  padding: 18rpx 14rpx calc(18rpx + var(--app-safe-area-bottom));
-  border-radius: var(--radius-lg);
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 18px;
+  transform: translateX(-50%);
 }
 
 .home-tab-bar__item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6rpx;
-  min-height: var(--touch-target);
-  padding: 10rpx 0 6rpx;
+  justify-content: center;
+  gap: 2px;
+  min-width: 64px;
+  min-height: 58px;
+  padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 180ms ease;
+}
+
+.home-tab-bar__item::after {
+  border: 0;
 }
 
 .home-tab-bar__item:active {
@@ -90,9 +99,9 @@ const handleTabClick = (tabId: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 12rpx;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -100,8 +109,8 @@ const handleTabClick = (tabId: string) => {
 }
 
 .tab-icon {
-  width: 24rpx;
-  height: 24rpx;
+  width: 24px;
+  height: 24px;
   color: var(--app-text-secondary);
   transition: color 180ms ease;
 }

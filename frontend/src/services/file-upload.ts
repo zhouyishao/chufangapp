@@ -14,11 +14,13 @@ export type UploadedFile = {
   size: number;
 };
 
-export type UploadAvatarOptions = {
+export type UploadFileOptions = {
   onProgress?: (progress: number) => void;
 };
 
-export type UploadPurpose = 'avatar' | 'family-avatar';
+export type UploadAvatarOptions = UploadFileOptions;
+
+export type UploadPurpose = 'avatar' | 'family-avatar' | 'content';
 
 export type UploadController = {
   promise: Promise<UploadedFile>;
@@ -147,7 +149,7 @@ const parseUploadResponse = (raw: string): ApiUploadResponse => {
 
 export const uploadAvatarFile = (
   filePath: string,
-  options: UploadAvatarOptions = {},
+  options: UploadFileOptions = {},
   purpose: UploadPurpose = 'avatar'
 ): UploadController => {
   const token = getAuthToken();
@@ -168,7 +170,7 @@ export const uploadAvatarFile = (
       header: {
         Authorization: `Bearer ${token}`
       },
-      timeout: 20000,
+      timeout: purpose === 'content' ? 120000 : 20000,
       success: (response) => {
         try {
           const result = parseUploadResponse(response.data);
@@ -204,3 +206,8 @@ export const uploadAvatarFile = (
     abort: () => task?.abort()
   };
 };
+
+export const uploadContentFile = (
+  filePath: string,
+  options: UploadFileOptions = {}
+): UploadController => uploadAvatarFile(filePath, options, 'content');

@@ -16,8 +16,10 @@ test('all content detail pages use real detail services and shared actions', asy
   for (const [path, loader] of pages) {
     const source = await readSource(path);
     assert.match(source, loader, `${path} must load its detail from the API`);
-    assert.match(source, /加载失败|加载.*失败/, `${path} must expose an error state`);
-    assert.match(source, /重试|retry|handleRetry/, `${path} must expose a retry entry`);
+    assert.match(source, /ContentDetailState/, `${path} must use the shared detail state`);
+    assert.match(source, /getContentDetailErrorMessage/, `${path} must map API errors to reader-friendly copy`);
+    assert.match(source, /@action="[A-Za-z][A-Za-z]+"/, `${path} must expose a retry entry`);
+    assert.match(source, /ContentDetailBottomBar/, `${path} must use the shared safe-area action bar`);
   }
 });
 
@@ -28,8 +30,10 @@ test('fruit, seasoning and beverage detail pages expose shared favorite and bask
     '../src/pages/beverage-detail/index.vue'
   ]) {
     const source = await readSource(path);
-    assert.match(source, /ContentDetailActions/);
-    assert.match(source, /target-type="(?:FRUIT|SEASONING|BEVERAGE)"/);
+    assert.match(source, /useContentActions/);
+    assert.match(source, /targetType:\s*'(?:FRUIT|SEASONING|BEVERAGE)'/);
+    assert.match(source, /toggleFavorite/);
+    assert.match(source, /toggleBasket/);
   }
 });
 

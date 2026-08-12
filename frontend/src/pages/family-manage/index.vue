@@ -452,14 +452,14 @@ onShow(async () => {
 
 <style scoped lang="scss">
 .family-detail-page {
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: calc(-32rpx + env(safe-area-inset-top, 0));
+  margin-top: calc(-32rpx + var(--app-safe-area-top));
 }
 
 .nav-button {

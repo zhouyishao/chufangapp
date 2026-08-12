@@ -189,7 +189,7 @@ onMounted(() => {
 <style scoped lang="scss">
 .rec-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {

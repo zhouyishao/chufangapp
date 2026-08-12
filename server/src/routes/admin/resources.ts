@@ -1246,17 +1246,19 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
   const items = await prisma.resourceImportItem.findMany({
     where: {
       importId,
+      status: 'PENDING',
       ...(itemIds ? { id: { in: itemIds } } : {})
     }
   });
+
+  if (itemIds && items.length !== new Set(itemIds).size) {
+    throw new HttpError('只能确认校验通过且状态为待导入的资源', 409, 409);
+  }
 
   let newSuccessCount = 0;
   let newFailCount = 0;
 
   for (const item of items) {
-    if (item.status === 'IMPORTED' || item.status === 'IGNORED') {
-      continue;
-    }
     try {
       const mapped = item.mappedData as Record<string, any>;
       if (!String(mapped.name ?? '').trim()) {

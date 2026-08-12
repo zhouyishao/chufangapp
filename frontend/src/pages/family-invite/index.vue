@@ -1,5 +1,6 @@
 <template>
   <view class="app-page invite-page">
+    <view class="safe-top-spacer" aria-hidden="true" />
     <view class="topbar">
       <button class="nav-button" @tap="goBack">
         <app-icon name="arrow-left" size="26rpx" />
@@ -10,6 +11,17 @@
     <text class="page-title">{{ token ? '加入家庭' : '选择邀请方式' }}</text>
     <text class="page-subtitle">{{ token ? '确认后加入这个家庭' : '二维码扫码邀请' }}</text>
 
+    <view v-if="loading" class="state-card glass-card">
+      <text class="state-title">正在准备家庭码</text>
+    </view>
+
+    <view v-else-if="loadError" class="state-card glass-card">
+      <text class="state-title">家庭邀请暂时不可用</text>
+      <text class="state-desc">{{ loadError }}</text>
+      <button class="state-action" :disabled="loading" @tap="retryLoad">重新加载</button>
+    </view>
+
+    <template v-else>
     <view class="invite-card glass-card">
       <view class="qr-wrap">
         <image v-if="qrImageUrl" class="qr-image" :src="qrImageUrl" mode="aspectFit" />
@@ -23,9 +35,12 @@
     <view class="link-card glass-card">
       <text class="link-title">邀请链接</text>
       <text class="link-value">{{ inviteLink }}</text>
-      <nut-button v-if="token" type="primary" block @click="joinFamily">确认加入</nut-button>
+      <nut-button v-if="token" type="primary" block :disabled="joining" @click="joinFamily">
+        {{ joining ? '加入中…' : '确认加入' }}
+      </nut-button>
       <nut-button v-else type="primary" block @click="copyLink">复制链接</nut-button>
     </view>
+    </template>
   </view>
 </template>
 
@@ -42,6 +57,10 @@ const token = ref('');
 const inviteLinkValue = ref('');
 const family = ref<FamilyProfile | null>(null);
 const qrImageUrl = ref('');
+const loading = ref(false);
+const loadError = ref('');
+const joining = ref(false);
+const lastOptions = ref<Record<string, string | undefined>>({});
 
 const inviteLink = computed(() => {
   return inviteLinkValue.value || `/pages/family-invite/index?token=${encodeURIComponent(token.value)}`;
@@ -103,17 +122,24 @@ const copyLink = () => {
 };
 
 const joinFamily = async () => {
-  if (!token.value) return;
+  if (!token.value || joining.value) return;
+  joining.value = true;
   try {
     const joined = await joinFamilyInvite(token.value);
     uni.showToast({ title: '已加入家庭', icon: 'success' });
     uni.redirectTo({ url: `/pages/family-manage/index?id=${joined.id}` });
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '加入失败', icon: 'none' });
+  } finally {
+    joining.value = false;
   }
 };
 
 const loadInvitePage = async (options?: Record<string, string | undefined>) => {
+  if (loading.value) return;
+  loading.value = true;
+  loadError.value = '';
+  lastOptions.value = options ?? {};
   const params = readInviteParams(options);
   familyId.value = params.familyId;
   token.value = params.token;
@@ -140,8 +166,14 @@ const loadInvitePage = async (options?: Record<string, string | undefined>) => {
       inviteLinkValue.value = invite.url || `/pages/family-invite/index?token=${token.value}`;
     }
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '邀请加载失败', icon: 'none' });
+    loadError.value = error instanceof Error ? error.message : '邀请加载失败';
+  } finally {
+    loading.value = false;
   }
+};
+
+const retryLoad = () => {
+  void loadInvitePage(lastOptions.value);
 };
 
 onLoad((options) => {
@@ -160,7 +192,44 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .invite-page {
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
+}
+
+.safe-top-spacer {
+  height: calc(var(--app-safe-area-top) + 8rpx);
+}
+
+.state-card {
+  margin-top: 28rpx;
+  padding: 32rpx;
+  text-align: center;
+}
+
+.state-title,
+.state-desc {
+  display: block;
+}
+
+.state-title {
+  color: var(--app-text);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+}
+
+.state-desc {
+  margin-top: 10rpx;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.state-action {
+  min-height: 88rpx;
+  margin-top: 20rpx;
+  border: 0;
+  border-radius: var(--app-radius-button);
+  background: var(--app-primary);
+  color: var(--text-white);
 }
 
 .topbar {

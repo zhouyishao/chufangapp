@@ -21,7 +21,7 @@
           :aria-selected="isPrimaryActive(item)"
           @tap="handleTopNavTap(item)"
         >
-          {{ primaryLabel(item.name) }}
+          {{ primaryLabel(item) }}
         </button>
       </nav>
     </header>
@@ -100,7 +100,7 @@
                   :aria-pressed="basketAddedIds.has(itemKey(item))"
                   @tap.stop="addItemToBasket(item)"
                 >
-                  <app-icon name="basket" size="19px" :filled="basketAddedIds.has(itemKey(item))" />
+                  <app-icon name="basket-action" size="19px" :filled="basketAddedIds.has(itemKey(item))" />
                 </button>
               </view>
             </view>
@@ -111,7 +111,7 @@
           v-else
           kind="empty"
           title="暂无当前分类内容"
-          description="后台发布内容后会自动展示在这里。"
+          description="这个分类暂时还没有内容，试试其他分类。"
         />
       </section>
     </main>
@@ -189,10 +189,20 @@ const extractContentModules = (mods: PageModule[]) =>
   ((mods.find((item) => item.moduleType === 'content_module')?.data as unknown as ContentModuleData[]) ?? []);
 
 const primaryOrder = ['菜谱', '食材', '水果', '饮品', '调料'];
+const normalizedPrimaryType = (item: PageModuleTopNavItem) =>
+  String(item.contentType ?? item.code ?? item.name).toLowerCase();
+const primaryLabel = (item: PageModuleTopNavItem) => {
+  const type = normalizedPrimaryType(item);
+  if (type.includes('recipe') || item.name.includes('菜谱')) return '菜谱';
+  if (type.includes('fruit') || item.name.includes('水果')) return '水果';
+  if (type.includes('beverage') || type.includes('drink') || /饮品|酒水/.test(item.name)) return '饮品';
+  if (type.includes('season') || item.name.includes('调料')) return '调料';
+  return '食材';
+};
 const primaryNavItems = computed(() =>
   [...extractTopNavItems(modules.value)]
     .sort((left, right) =>
-      primaryOrder.indexOf(primaryLabel(left.name)) - primaryOrder.indexOf(primaryLabel(right.name))
+      primaryOrder.indexOf(primaryLabel(left)) - primaryOrder.indexOf(primaryLabel(right))
     )
     .slice(0, 5)
 );
@@ -208,18 +218,22 @@ const searchPlaceholder = computed(() => {
     : '搜索菜谱、食材、水果、饮品、调料';
 });
 const isRecipeType = computed(() => currentType.value.toLowerCase().includes('recipe'));
+const getItemLabel = (item: CategoryItem) => String(item.title ?? item.name ?? '').trim();
+const isRenderableContentItem = (item: CategoryItem) => {
+  const type = String(item.type ?? currentType.value).toLowerCase();
+  return Boolean(item.id && getItemLabel(item) && !/^\d+$/.test(getItemLabel(item)) && !['system', 'image'].includes(type));
+};
 const contentItems = computed(() =>
   extractContentModules(modules.value)
     .filter((module) => module.status !== 'DISABLED')
     .filter((module) => !currentCategoryId.value || module.categoryId === currentCategoryId.value)
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .flatMap((module) => module.items ?? [])
-    .filter((item) => item.type !== 'system')
+    .filter(isRenderableContentItem)
 );
 
-const primaryLabel = (label: string) => label === '酒水' ? '饮品' : label;
 const itemKey = (item: CategoryItem) => String(item.id ?? item.title ?? item.name ?? 'item');
-const itemTitle = (item: CategoryItem) => String(item.title ?? item.name ?? '未命名');
+const itemTitle = (item: CategoryItem) => getItemLabel(item);
 const itemCover = (item: CategoryItem) => typeof item.cover === 'string' ? item.cover : '';
 const itemDescription = (item: CategoryItem) => String(item.subtitle ?? item.description ?? '');
 const itemSeason = (item: CategoryItem) => String(item.seasonMonth ?? '');
@@ -239,7 +253,7 @@ const itemMeta = (item: CategoryItem) => {
 const canAddToBasket = (item: CategoryItem) =>
   item.type !== 'image' && Boolean(item.id);
 
-const topNavType = (item: PageModuleTopNavItem) => item.contentType ?? item.code ?? item.name;
+const topNavType = (item: PageModuleTopNavItem) => normalizedPrimaryType(item);
 const isPrimaryActive = (item: PageModuleTopNavItem) => topNavType(item) === currentType.value;
 
 const fetchModules = async () => {
@@ -285,10 +299,6 @@ const handleSearchTap = () => uni.navigateTo({ url: '/pages/search/index' });
 const openItem = (item: CategoryItem) => {
   const id = itemKey(item);
   const type = String(item.type ?? currentType.value).toLowerCase();
-  if (type === 'image') {
-    uni.showToast({ title: '该内容暂未配置跳转', icon: 'none' });
-    return;
-  }
   if (type.includes('recipe')) {
     uni.navigateTo({ url: `/pages/recipe-detail/index?id=${id}` });
   } else if (type.includes('beverage') || type.includes('drink')) {
@@ -357,7 +367,7 @@ onPullDownRefresh(() => {
 }
 
 .category-header {
-  padding: calc(var(--app-safe-area-top) + 14px) 20px 0;
+  padding: calc(var(--app-safe-area-top) + 10px) 20px 0;
   border-bottom: 1px solid var(--app-border);
   background: var(--app-bg);
 }
@@ -367,7 +377,7 @@ onPullDownRefresh(() => {
   width: 100%;
   height: 46px;
   margin: 0;
-  padding: 0 15px;
+  padding: 0 14px;
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(183, 174, 161, 0.22);
@@ -395,7 +405,8 @@ onPullDownRefresh(() => {
 
 .category-primary-nav {
   display: grid;
-  margin-top: 16px;
+  margin: 14px -20px 0;
+  padding: 0 20px;
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
@@ -403,9 +414,9 @@ onPullDownRefresh(() => {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 48px;
+  min-height: 52px;
   margin: 0;
-  padding: 0 0 9px;
+  padding: 0;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -426,34 +437,36 @@ onPullDownRefresh(() => {
   position: absolute;
   bottom: 0;
   left: 50%;
-  width: 28px;
+  right: 20px;
+  left: 20px;
+  width: auto;
   height: 3px;
   border-radius: 3px;
   background: var(--text-brand);
   content: '';
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .category-workspace {
   display: grid;
   min-height: calc(100vh - 190px);
-  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
 }
 
 .category-secondary-rail {
   display: flex;
-  padding: 8px 0 28px;
+  padding: 12px 0 112px;
   flex-direction: column;
   border-right: 1px solid var(--app-border);
-  background: rgba(239, 235, 227, 0.72);
+  background: rgba(239, 235, 227, 0.66);
 }
 
 .category-secondary-rail__item {
   display: flex;
   width: 100%;
-  min-height: 52px;
+  min-height: 48px;
   margin: 0;
-  padding: 7px 10px;
+  padding: 6px 8px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -467,20 +480,20 @@ onPullDownRefresh(() => {
 }
 
 .category-secondary-rail__item.is-active {
-  background: rgba(255, 253, 252, 0.72);
+  background: rgba(122, 139, 111, 0.075);
   color: var(--text-brand);
   font-weight: var(--font-semibold);
 }
 
 .category-content-pane {
   min-width: 0;
-  padding: 14px 12px 28px;
+  padding: 10px 12px 118px;
 }
 
 .category-content-pane__summary {
   display: flex;
-  min-height: 36px;
-  padding: 0 2px 10px;
+  min-height: 40px;
+  padding: 10px 0 5px;
   align-items: center;
   justify-content: space-between;
   color: var(--text-tertiary);
@@ -497,7 +510,7 @@ onPullDownRefresh(() => {
 
 .category-result-list.is-recipe {
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  gap: 0;
 }
 
 .category-content-card {
@@ -511,8 +524,12 @@ onPullDownRefresh(() => {
 
 .category-content-card--recipe {
   display: grid;
-  min-height: 104px;
-  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 108px;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .category-content-card__media {
@@ -527,8 +544,9 @@ onPullDownRefresh(() => {
 }
 
 .category-content-card--recipe .category-content-card__media {
-  width: 104px;
-  height: 104px;
+  width: 84px;
+  height: 84px;
+  border-radius: 12px;
 }
 
 .category-content-card__image {
@@ -552,8 +570,9 @@ onPullDownRefresh(() => {
 }
 
 .category-content-card--recipe .category-content-card__body {
-  min-height: 104px;
-  padding: 12px;
+  min-height: 108px;
+  padding: 12px 0 12px 11px;
+  justify-content: center;
 }
 
 .category-content-card__heading {
@@ -568,7 +587,7 @@ onPullDownRefresh(() => {
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-card-title);
   font-weight: var(--font-semibold);
   line-height: var(--line-body);
   text-overflow: ellipsis;
@@ -599,7 +618,7 @@ onPullDownRefresh(() => {
   display: flex;
   min-width: 0;
   margin-top: auto;
-  padding-top: 5px;
+  padding-top: 4px;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
@@ -618,12 +637,12 @@ onPullDownRefresh(() => {
 
 .category-basket-button {
   display: flex;
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
-  margin: -5px -4px -5px 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: -8px -4px -8px 0;
   padding: 0;
-  flex: 0 0 36px;
+  flex: 0 0 44px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -643,7 +662,7 @@ onPullDownRefresh(() => {
   }
 
   .category-workspace {
-    grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-columns: 72px minmax(0, 1fr);
   }
 
   .category-content-pane {
@@ -652,12 +671,12 @@ onPullDownRefresh(() => {
   }
 
   .category-content-card--recipe {
-    grid-template-columns: 94px minmax(0, 1fr);
+    grid-template-columns: 78px minmax(0, 1fr);
   }
 
   .category-content-card--recipe .category-content-card__media {
-    width: 94px;
-    height: 94px;
+    width: 78px;
+    height: 78px;
   }
 }
 

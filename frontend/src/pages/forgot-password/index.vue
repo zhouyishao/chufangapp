@@ -41,6 +41,11 @@
         </view>
         <button class="primary-button" @tap="resetPassword">保存新密码</button>
       </view>
+      <view class="agreement">
+        <button class="text-button" @tap="goLegal('terms')">服务协议</button>
+        <text>与</text>
+        <button class="text-button" @tap="goLegal('privacy')">隐私政策</button>
+      </view>
     </view>
   </view>
 </template>
@@ -142,12 +147,16 @@ const resetPassword = async () => {
     uni.reLaunch({ url: '/pages/phone-login/index' });
   }, 350);
 };
+
+const goLegal = (type: 'terms' | 'privacy') => {
+  uni.navigateTo({ url: `/pages/legal/index?type=${type}` });
+};
 </script>
 
 <style scoped lang="scss">
 .auth-page {
   min-height: 100vh;
-  padding: calc(var(--status-bar-height) + 22rpx) 30rpx 60rpx;
+  padding: calc(var(--app-safe-area-top) + 22rpx) 30rpx 60rpx;
   background: var(--app-bg);
 }
 
@@ -182,6 +191,27 @@ const resetPassword = async () => {
 
 .back-button::after,
 .primary-button::after {
+  border: 0;
+}
+
+.agreement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18rpx;
+  color: var(--app-text-tertiary);
+  font-size: var(--font-size-tag);
+}
+
+.text-button {
+  min-height: 72rpx;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-tag);
+}
+
+.text-button::after {
   border: 0;
 }
 

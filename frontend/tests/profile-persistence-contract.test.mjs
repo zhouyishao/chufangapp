@@ -10,7 +10,7 @@ test('avatar upload uses authenticated cancellable upload task with progress and
   assert.match(source, /uni\.uploadFile\(/);
   assert.match(source, /\/files\?purpose=\$\{purpose\}/);
   assert.match(source, /Authorization:\s*`Bearer \$\{token\}`/);
-  assert.match(source, /timeout:\s*(?:[2-9]\d{4}|1[5-9]\d{3})/);
+  assert.match(source, /timeout:\s*purpose === 'content' \? 120000 : 20000/);
   assert.match(source, /\.onProgressUpdate\(/);
   assert.match(source, /abort:\s*\(\)\s*=>\s*task\?\.abort\(\)/);
   assert.match(source, /handleAuthExpired\(\)/);
@@ -159,6 +159,21 @@ test('mine statistics ignore stale account requests using token and request sequ
   assert.match(source, /refreshUserStats\s*=\s*async\s*\(\s*expectedToken:\s*string,\s*sequence:\s*number/);
   assert.match(source, /loadAuthUser\(\)\?\.token\s*!==\s*expectedToken/);
   assert.match(source, /sequence\s*!==\s*mineRequestSequence\.value/);
+});
+
+test('mine page keeps successful personal assets when one summary request fails', async () => {
+  const source = await readSource('../src/pages/mine/index.vue');
+
+  assert.match(source, /Promise\.allSettled\(/);
+  assert.match(source, /recipesResult\.status\s*===\s*['"]fulfilled['"]/);
+  assert.match(source, /myRecipePreviews\.value\s*=\s*recipesResult\.value\.slice\(0,\s*6\)/);
+});
+
+test('mine page refreshes personal assets on direct entry and when returning to the page', async () => {
+  const source = await readSource('../src/pages/mine/index.vue');
+
+  assert.match(source, /onMounted\(\(\)\s*=>\s*\{\s*void refreshMinePage\(\);?\s*\}\)/);
+  assert.match(source, /onShow\(\(\)\s*=>\s*\{\s*void refreshMinePage\(\);?\s*\}\)/);
 });
 
 test('upload abort is safe when upload task creation throws synchronously', async () => {

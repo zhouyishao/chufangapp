@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 
 import { Layout } from './components/Layout';
 import { PagePlaceholder } from './components/PagePlaceholder';
@@ -26,6 +26,7 @@ import { ForbiddenPage } from './pages/ForbiddenPage';
 import { FruitCreatePage } from './pages/FruitCreatePage';
 import { FruitEditPage } from './pages/FruitEditPage';
 import { HomeOpsPage } from './pages/HomeOpsPage';
+import { HomeComposerPage } from './pages/HomeComposerPage';
 import { IngredientCreatePage } from './pages/IngredientCreatePage';
 import { IngredientDetailPage } from './pages/IngredientDetailPage';
 import { IngredientEditPage } from './pages/IngredientEditPage';
@@ -54,7 +55,6 @@ import { UnitCreatePage } from './pages/UnitCreatePage';
 import { UnitEditPage } from './pages/UnitEditPage';
 import { UnitDetailPage } from './pages/UnitDetailPage';
 import { TopNavCarouselFormPage } from './pages/TopNavCarouselFormPage';
-import { TopNavContentConfigPage } from './pages/TopNavContentConfigPage';
 import { TopNavDetailPage } from './pages/TopNavDetailPage';
 import { TopNavFormPage } from './pages/TopNavFormPage';
 import { TopNavModuleFormPage } from './pages/TopNavModuleFormPage';
@@ -72,6 +72,7 @@ import { ResourcePermissionsPage } from './pages/ResourcePermissionsPage';
 import { ResourceLogsPage } from './pages/ResourceLogsPage';
 import { PricesIngredientsPage } from './pages/PricesIngredientsPage';
 import { PricesTrendsPage } from './pages/PricesTrendsPage';
+
 import { PricesAlertsPage } from './pages/PricesAlertsPage';
 import { PricesSourcesPage } from './pages/PricesSourcesPage';
 import { PurchaseListsPage } from './pages/PurchaseListsPage';
@@ -96,6 +97,11 @@ import { SearchOpsPinsPage } from './pages/SearchOpsPinsPage';
 import { SettingsLogsPage } from './pages/SettingsLogsPage';
 import { SettingsBasePage } from './pages/SettingsBasePage';
 
+const LegacyTopNavContentRedirect = () => {
+  const { id } = useParams();
+  return <Navigate replace to={id ? `/home-ops?nav=${encodeURIComponent(id)}` : '/home-ops'} />;
+};
+
 const withPermission = (element: ReactElement, permission?: string) => (
   <RequirePermission permission={permission}>{element}</RequirePermission>
 );
@@ -118,11 +124,12 @@ export const App = () => (
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={withPermission(<DashboardPage />, 'dashboard:view')} />
 
-        <Route path="home-ops" element={withPermission(<TopNavPage />, 'home:view')} />
+        <Route path="home-ops" element={withPermission(<HomeComposerPage />, 'home:view')} />
+        <Route path="home-ops/navigation" element={withPermission(<TopNavPage />, 'home:view')} />
         <Route path="home-ops/top-nav/new" element={withPermission(<TopNavFormPage mode="create" />, 'home:update')} />
         <Route path="home-ops/top-nav/:id" element={withPermission(<TopNavDetailPage />, 'home:view')} />
         <Route path="home-ops/top-nav/:id/edit" element={withPermission(<TopNavFormPage mode="edit" />, 'home:update')} />
-        <Route path="home-ops/top-nav/:id/content" element={withPermission(<TopNavContentConfigPage />, 'home:update')} />
+        <Route path="home-ops/top-nav/:id/content" element={withPermission(<LegacyTopNavContentRedirect />, 'home:update')} />
         <Route path="home-ops/top-nav/:id/content/carousels/new" element={withPermission(<TopNavCarouselFormPage />, 'home:update')} />
         <Route path="home-ops/top-nav/:id/content/carousels/:carouselId/edit" element={withPermission(<TopNavCarouselFormPage />, 'home:update')} />
         <Route path="home-ops/top-nav/:id/content/modules/new" element={withPermission(<TopNavModuleFormPage />, 'home:update')} />

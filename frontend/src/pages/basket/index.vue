@@ -2,35 +2,21 @@
   <view class="app-page basket-page">
     <view class="basket-shell">
       <view class="basket-heading">
-        <button
-          class="family-selector"
-          :aria-expanded="isFamilySelectorVisible"
-          aria-label="切换家庭"
-          @tap="toggleFamilySelector"
-        >
-          <text class="family-selector__name">{{ basketScopeName }}</text>
-          <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
-        </button>
-        <button
-          v-if="canSendMealReady"
-          class="meal-ready-button"
-          :disabled="sendingMealReady"
-          :aria-busy="sendingMealReady"
-          @tap="confirmMealReady"
-        >
-          <app-icon name="bell" size="22rpx" />
-          <text>{{ sendingMealReady ? '发送中' : '开饭提醒' }}</text>
-        </button>
-        <text class="basket-summary">{{ pendingCount }} 项待采购 · 家庭共享清单</text>
-      </view>
-
-      <view v-if="activeFamilyId" class="basket-preferences" @tap="goToFamilyManage">
-        <text class="basket-preferences__title">家庭口味</text>
-        <view class="basket-preferences__tags">
-          <text class="basket-preference-tag">忌口 {{ activeFamily.preferences?.avoidItems.length ?? 0 }}</text>
-          <text class="basket-preference-tag">喜欢 {{ activeFamily.preferences?.preferences.length ?? 0 }}</text>
-          <text class="basket-preference-tag is-warning">过敏 {{ activeFamily.preferences?.allergies.length ?? 0 }}</text>
+        <view class="basket-heading__top">
+          <button
+            class="family-selector"
+            :aria-expanded="isFamilySelectorVisible"
+            aria-label="切换家庭"
+            @tap="toggleFamilySelector"
+          >
+            <text class="family-selector__name">{{ basketScopeName }}</text>
+            <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
+          </button>
+          <button class="scan-button" aria-label="扫一扫加入家庭" @tap="goToScan">
+            <app-icon name="scan" size="44rpx" />
+          </button>
         </view>
+        <text class="basket-summary">{{ basketSummaryText }}</text>
       </view>
 
       <view v-if="isFamilySelectorVisible" class="family-mask" @tap="closeFamilySelector">
@@ -41,7 +27,11 @@
             :class="['family-option', { 'is-active': family.id === activeFamilyId }]"
             @tap="selectFamilyScope(family.id)"
           >
-            <text class="family-option__name">{{ family.name }}</text>
+            <view class="family-option__avatar">{{ family.name.slice(0, 1) }}</view>
+            <view class="family-option__copy">
+              <text class="family-option__name">{{ family.name }}</text>
+              <text class="family-option__meta">{{ family.pendingItems }} 项待采购</text>
+            </view>
             <app-icon v-if="family.id === activeFamilyId" class="family-option__check" name="check" size="20rpx" />
           </button>
 
@@ -54,23 +44,60 @@
         </view>
       </view>
 
-      <view class="basket-board glass-card">
-        <view class="board-head">
-          <view class="board-copy">
-            <text class="board-title">本次采购</text>
-            <text class="board-desc">{{ boardDescription }}</text>
-          </view>
-          <view class="mode-switch">
-            <button :class="['mode-button', { 'is-active': viewMode === 'merged' }]" @tap="setViewMode('merged')">
-              食材
-            </button>
-            <button :class="['mode-button', { 'is-active': viewMode === 'recipe' }]" @tap="setViewMode('recipe')">
-              菜谱
-            </button>
-          </view>
-        </view>
+      <view class="mode-switch" aria-label="菜篮视图">
+        <button
+          :class="['mode-button', { 'is-active': viewMode === 'merged' }]"
+          :aria-selected="viewMode === 'merged'"
+          @tap="setViewMode('merged')"
+        >
+          食材
+        </button>
+        <button
+          :class="['mode-button', { 'is-active': viewMode === 'recipe' }]"
+          :aria-selected="viewMode === 'recipe'"
+          @tap="setViewMode('recipe')"
+        >
+          菜谱
+        </button>
+      </view>
 
-        <view v-if="items.length" class="content">
+      <button
+        v-if="activeFamilyId"
+        class="basket-preferences"
+        :aria-expanded="isPreferencePanelVisible"
+        @tap="openPreferencePanel"
+      >
+        <text class="basket-preferences__title">家庭口味</text>
+        <view class="basket-preferences__tags">
+          <text class="basket-preference-tag">忌口 {{ activeFamily.preferences?.avoidItems.length ?? 0 }}</text>
+          <text class="basket-preference-tag">喜欢 {{ activeFamily.preferences?.preferences.length ?? 0 }}</text>
+          <text class="basket-preference-tag is-warning">过敏 {{ activeFamily.preferences?.allergies.length ?? 0 }}</text>
+        </view>
+      </button>
+
+      <view v-if="isLoading" class="basket-state" aria-live="polite">
+        <view class="basket-state__spinner" />
+        <text class="basket-state__title">正在同步家庭菜篮</text>
+        <text class="basket-state__desc">家人刚刚添加的内容也会一起出现。</text>
+      </view>
+
+      <view v-else-if="loadError" class="basket-state basket-state--error" aria-live="assertive">
+        <text class="basket-state__title">菜篮暂时没有加载出来</text>
+        <text class="basket-state__desc">{{ loadError }}</text>
+        <button class="basket-state__retry" @tap="loadBasketPage">重新加载</button>
+      </view>
+
+      <view v-else class="basket-board">
+        <view v-if="items.length" class="purchase-panel">
+          <view class="board-head">
+            <view class="board-copy">
+              <text class="board-title">本次采购</text>
+              <text class="board-desc">{{ boardDescription }}</text>
+            </view>
+            <text class="board-progress">已买 {{ checkedCount }}/{{ items.length }}</text>
+          </view>
+
+          <view class="content">
           <view v-if="viewMode === 'recipe'" class="recipe-list">
             <view v-if="recipeGroups.length">
               <view v-for="group in recipeGroups" :key="group.recipeId" class="recipe-card">
@@ -114,6 +141,7 @@
                       </view>
                       <view class="ingredient-copy">
                         <button :class="['ingredient-name', { 'is-checked': item.checked }]" @tap.stop="openIngredientGuide(item)">{{ item.name }}</button>
+                        <text class="ingredient-source">{{ getItemSourceText(item) }}</text>
                       </view>
                       <view class="ingredient-side" @tap="toggleItem(item.id)">
                         <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ getBasketDisplayText(item) }}</text>
@@ -150,6 +178,7 @@
                 </view>
                 <view class="ingredient-copy">
                   <button :class="['ingredient-name', { 'is-checked': item.checked }]" @tap.stop="openMergedIngredientGuide(item)">{{ item.name }}</button>
+                  <text class="ingredient-source">{{ item.sourceText }}</text>
                 </view>
                 <view class="ingredient-side" @tap="toggleMergedItem(item.itemIds)">
                   <text :class="['ingredient-amount', { 'is-checked': item.checked }]">{{ item.amountText }}</text>
@@ -159,6 +188,7 @@
               <view class="swipe-remove" @tap="removeMergedItem(item.itemIds)">删除</view>
             </view>
           </view>
+        </view>
         </view>
 
         <view v-else class="empty-card">
@@ -178,19 +208,18 @@
             <button v-else class="empty-button is-primary" @click="goToFamilyManage">创建或加入家庭</button>
           </view>
         </view>
-      </view>
-    </view>
 
-    <view v-if="items.length" class="action-dock glass-card">
-      <button class="dock-button" @tap="selectAll">
-        <app-icon :name="allChecked ? 'check' : 'circle'" size="24rpx" />
-        <text>{{ allChecked ? '取消全选' : '全选' }}</text>
-      </button>
-      <button class="dock-button" @tap="clearChecked">
-        <app-icon name="trash" size="24rpx" />
-        <text>删除已购</text>
-      </button>
-      <button class="dock-button is-primary" @tap="completePurchase">完成采购</button>
+        <button
+          v-if="items.length"
+          class="basket-complete-action"
+          :disabled="!checkedCount || isMutating"
+          :aria-busy="isMutating"
+          @tap="completePurchase"
+        >
+          <text>{{ isMutating ? '正在保存' : checkedCount ? `完成本次采购 · ${checkedCount} 项` : '勾选已购食材' }}</text>
+          <app-icon name="arrow-right" size="22rpx" />
+        </button>
+      </view>
     </view>
 
     <home-tab-bar :tabs="tabs" />
@@ -210,33 +239,62 @@
             <text v-else class="guide-image__fallback">{{ activeGuideItem.name.slice(0, 1) }}</text>
           </view>
           <view class="guide-content">
-            <view class="guide-tabs">
-              <button
-                v-for="tab in guideTabs"
-                :key="tab.id"
-                :class="['guide-tab', { 'is-active': activeGuideTab === tab.id }]"
-                @tap="activeGuideTab = tab.id"
-              >
-                {{ tab.label }}
-              </button>
+            <text class="guide-eyebrow">挑选要点</text>
+            <view class="guide-tips">
+              <text v-for="tip in guideSelectionTips.slice(0, 3)" :key="tip" class="guide-tip">{{ tip }}</text>
+              <text v-if="!guideSelectionTips.length" class="guide-tip is-empty">暂无挑选要点，可进入详情了解更多。</text>
             </view>
-            <view v-if="activeGuideTab === 'select'" class="guide-tips">
-              <view v-for="(tip, index) in guideSelectionTips" :key="tip" class="guide-tip">
-                <text class="guide-tip__index">{{ index + 1 }}</text>
-                <text class="guide-tip__text">{{ tip }}</text>
-              </view>
-            </view>
-            <view v-else-if="activeGuideTab === 'storage'" class="guide-storage">
-              <app-icon name="lightbulb" size="24rpx" />
-              <text>{{ guideStorageText }}</text>
-            </view>
-            <view v-else class="guide-storage">
-              <text>{{ guidePriceText }}</text>
-            </view>
+            <text v-if="guidePriceText" class="guide-price">{{ guidePriceText }}</text>
           </view>
         </view>
-        <button class="guide-primary" :disabled="!activeGuideItem.ingredientId" @tap="goToGuideIngredientDetail">查看食材详情</button>
-        <button class="guide-secondary" @tap="closeIngredientGuide">关闭</button>
+        <view class="guide-actions">
+          <button
+            v-if="activeGuideItem.ingredientId"
+            class="guide-detail-link"
+            @tap="goToGuideIngredientDetail"
+          >查看详情</button>
+          <button class="guide-primary" @tap="closeIngredientGuide">我知道了</button>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="isPreferencePanelVisible" class="preference-mask" @tap="closePreferencePanel">
+      <view class="preference-panel" @tap.stop>
+        <view class="guide-handle" />
+        <view class="preference-panel__head">
+          <view>
+            <text class="preference-panel__title">谁有这些口味</text>
+            <text class="preference-panel__members">已共享：{{ preferenceMemberNames }}</text>
+          </view>
+          <button class="guide-close" aria-label="关闭家庭口味" @tap="closePreferencePanel">
+            <app-icon name="close" size="28rpx" />
+          </button>
+        </view>
+        <view class="preference-tabs" aria-label="口味类型">
+          <button
+            v-for="tab in preferenceTabs"
+            :key="tab.id"
+            :class="['preference-tab', { 'is-active': activePreferenceType === tab.id }]"
+            :aria-selected="activePreferenceType === tab.id"
+            @tap="setPreferenceType(tab.id)"
+          >
+            {{ tab.label }} {{ tab.count }}
+          </button>
+        </view>
+        <view class="preference-record">
+          <text class="preference-record__label">家庭记录</text>
+          <view v-if="activePreferenceItems.length" class="preference-record__tags">
+            <text
+              v-for="item in activePreferenceItems"
+              :key="item"
+              :class="['preference-record__tag', { 'is-warning': activePreferenceType === 'allergy' }]"
+            >
+              {{ item }}
+            </text>
+          </view>
+          <text v-else class="preference-record__empty">暂时没有记录</text>
+        </view>
+        <button class="preference-primary" @tap="closePreferencePanel">完成</button>
       </view>
     </view>
 
@@ -271,7 +329,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
@@ -280,13 +338,12 @@ import type { BasketItem } from '../../services/basket';
 import { loadActiveFamilyId, loadFamilies, saveActiveFamilyId } from '../../services/family';
 import type { FamilyProfile } from '../../types/family';
 import { addPriceRecords } from '../../services/price';
-import { loadAuthUser } from '../../services/auth';
-import { getIngredient, sendMobileMealReady } from '../../services/public-api';
+import { getIngredient } from '../../services/public-api';
 import type { ApiIngredientDetail } from '../../services/public-api';
 
 type BasketViewMode = 'recipe' | 'merged';
 type BasketScopeId = string | null;
-type GuideTabId = 'select' | 'storage' | 'price';
+type PreferenceType = 'avoid' | 'like' | 'allergy';
 
 interface BasketRecipeGroup {
   recipeId: string;
@@ -303,6 +360,7 @@ interface MergedBasketItem {
   imageUrl?: string | null;
   ingredientId?: string;
   priceText?: string;
+  sourceText: string;
 }
 
 interface PriceInputItem {
@@ -329,22 +387,35 @@ const openedItemId = ref('');
 const touchStartX = ref(0);
 const isPricePanelVisible = ref(false);
 const isFamilySelectorVisible = ref(false);
-const sendingMealReady = ref(false);
+const isPreferencePanelVisible = ref(false);
+const activePreferenceType = ref<PreferenceType>('avoid');
 const requestedFamilyId = ref('');
-const mealReadyIdempotencyKey = ref('');
 const expandedRecipeIds = ref<string[]>([]);
 const priceInputs = ref<PriceInputItem[]>([]);
 const activeGuideItem = ref<BasketItem | null>(null);
 const activeGuideDetail = ref<ApiIngredientDetail | null>(null);
-const activeGuideTab = ref<GuideTabId>('select');
-const guideTabs: { id: GuideTabId; label: string }[] = [
-  { id: 'select', label: '怎么挑' },
-  { id: 'storage', label: '怎么保存' },
-  { id: 'price', label: '参考价格' }
-];
+const isLoading = ref(true);
+const isMutating = ref(false);
+const loadError = ref('');
 
 const pendingCount = computed(() => items.value.filter((item) => !item.checked).length);
-const allChecked = computed(() => items.value.length > 0 && items.value.every((item) => item.checked));
+const checkedCount = computed(() => items.value.filter((item) => item.checked).length);
+const estimatedTotal = computed(() => {
+  const prices = new Map<string, number>();
+  items.value.forEach((item) => {
+    if (item.checked || typeof item.currentPrice !== 'number' || !Number.isFinite(item.currentPrice) || item.currentPrice <= 0) {
+      return;
+    }
+    if (!prices.has(item.name)) prices.set(item.name, item.currentPrice);
+  });
+  return Array.from(prices.values()).reduce((total, price) => total + price, 0);
+});
+const basketSummaryText = computed(() => {
+  const base = `待采购 ${pendingCount.value} 项`;
+  if (!estimatedTotal.value) return `${base} · 参考价待补充`;
+  const total = Number.isInteger(estimatedTotal.value) ? String(estimatedTotal.value) : estimatedTotal.value.toFixed(1);
+  return `${base} · 参考约 ¥${total}`;
+});
 const boardDescription = computed(() => {
   if (!items.value.length) {
     return '清单为空，去首页或食材页添加想买的食材';
@@ -382,14 +453,48 @@ const activeFamily = computed<FamilyProfile>(() => {
   };
 });
 const basketScopeName = computed(() => activeFamily.value.name);
-const canSendMealReady = computed(() => {
-  const userId = loadAuthUser()?.id;
-  if (!userId || !activeFamilyId.value) return false;
-  return activeFamily.value.members.some((member) => member.userId === userId && member.role === '管理员');
+const preferenceTabs = computed(() => [
+  { id: 'avoid' as const, label: '忌口', count: activeFamily.value.preferences?.avoidItems.length ?? 0 },
+  { id: 'like' as const, label: '喜欢', count: activeFamily.value.preferences?.preferences.length ?? 0 },
+  { id: 'allergy' as const, label: '过敏', count: activeFamily.value.preferences?.allergies.length ?? 0 }
+]);
+const activePreferenceItems = computed(() => {
+  if (activePreferenceType.value === 'avoid') return activeFamily.value.preferences?.avoidItems ?? [];
+  if (activePreferenceType.value === 'like') return activeFamily.value.preferences?.preferences ?? [];
+  return activeFamily.value.preferences?.allergies ?? [];
 });
-
-const createIdempotencyKey = () => `meal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const preferenceMemberNames = computed(() => {
+  const names = activeFamily.value.members.map((member) => member.name).filter(Boolean);
+  return names.length ? names.join('、') : basketScopeName.value;
+});
 let basketLoadRequestId = 0;
+
+const withBasketDeadline = <T>(operation: Promise<T>, timeoutMs = 12000) => {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('同步超时，请检查网络后重试'));
+    }, timeoutMs);
+
+    operation.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+};
+
+const getBasketLoadErrorMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message.trim() : '';
+  if (!message || /internal server error|network error|request:fail/i.test(message)) {
+    return '服务暂时不可用，请稍后重试';
+  }
+  return message;
+};
 
 const recipeGroups = computed<BasketRecipeGroup[]>(() => {
   const groupMap = new Map<string, BasketRecipeGroup>();
@@ -434,7 +539,8 @@ const mergedItems = computed<MergedBasketItem[]>(() => {
       itemIds: sameNameItems.map((item) => item.id),
       imageUrl: primaryItem?.imageUrl ?? null,
       ingredientId: primaryItem?.ingredientId,
-      priceText: primaryItem ? formatPriceText(primaryItem) : ''
+      priceText: primaryItem ? formatPriceText(primaryItem) : '',
+      sourceText: getMergedSourceText(sameNameItems)
     };
   });
 });
@@ -450,6 +556,17 @@ const mergeAmountText = (amounts: string[]) => {
 const getMergedKey = (name: string) => `merged-${name}`;
 const getRecipeKey = (recipeId: string) => `recipe-${recipeId}`;
 const getBasketDisplayText = (item: BasketItem) => item.purchaseText ?? item.amountText;
+const getItemSourceText = (item: BasketItem) => item.recipeId && item.recipeId !== 'ingredient'
+  ? '来自 1 道菜'
+  : '单独加入';
+const getMergedSourceText = (sameNameItems: BasketItem[]) => {
+  const recipeIds = new Set(
+    sameNameItems
+      .map((item) => item.recipeId)
+      .filter((recipeId) => recipeId && recipeId !== 'ingredient')
+  );
+  return recipeIds.size ? `来自 ${recipeIds.size} 道菜` : '单独加入';
+};
 const getItemImage = (item: BasketItem) => item.imageUrl || item.recipeCoverUrl || '';
 const getRecipeCover = (group: BasketRecipeGroup) => {
   const coverItem = group.items.find((item) => item.recipeCoverUrl || item.imageUrl);
@@ -460,15 +577,32 @@ const formatPriceText = (item: BasketItem) => {
     const price = Number.isInteger(item.currentPrice) ? String(item.currentPrice) : item.currentPrice.toFixed(1);
     return `约${price}元/${item.priceUnit || '斤'}`;
   }
-  if (item.purchaseText?.includes('元/')) {
-    return item.purchaseText;
-  }
   return '';
 };
 
 const setViewMode = (mode: BasketViewMode) => {
   viewMode.value = mode;
   openedItemId.value = '';
+};
+
+const runBasketMutation = async (
+  operation: () => Promise<unknown>,
+  rollback: () => void,
+  failureMessage = '操作没有保存，请重试'
+) => {
+  if (isMutating.value) return false;
+  isMutating.value = true;
+  try {
+    await operation();
+    return true;
+  } catch {
+    rollback();
+    uni.showToast({ title: failureMessage, icon: 'none' });
+    void loadBasketPage();
+    return false;
+  } finally {
+    isMutating.value = false;
+  }
 };
 
 const toggleFamilySelector = () => {
@@ -483,8 +617,10 @@ const selectFamilyScope = async (familyId: BasketScopeId) => {
   requestedFamilyId.value = '';
   const requestId = ++basketLoadRequestId;
   closeFamilySelector();
+  isLoading.value = true;
+  loadError.value = '';
   try {
-    const nextItems = familyId ? await loadBasketItems(familyId) : [];
+    const nextItems = familyId ? await withBasketDeadline(loadBasketItems(familyId)) : [];
     if (requestId !== basketLoadRequestId) return;
     activeFamilyId.value = familyId;
     if (familyId) saveActiveFamilyId(familyId);
@@ -493,7 +629,11 @@ const selectFamilyScope = async (familyId: BasketScopeId) => {
     expandedRecipeIds.value = [];
   } catch (error) {
     if (requestId !== basketLoadRequestId) return;
-    uni.showToast({ title: error instanceof Error ? error.message : '家庭菜篮加载失败', icon: 'none' });
+    loadError.value = getBasketLoadErrorMessage(error);
+  } finally {
+    if (requestId === basketLoadRequestId) {
+      isLoading.value = false;
+    }
   }
 };
 
@@ -502,31 +642,21 @@ const goToFamilyManage = () => {
   uni.navigateTo({ url: '/pages/family/index' });
 };
 
-const sendMealReady = async () => {
-  if (!activeFamilyId.value || sendingMealReady.value) return;
-  sendingMealReady.value = true;
-  try {
-    mealReadyIdempotencyKey.value ||= createIdempotencyKey();
-    await sendMobileMealReady(Number(activeFamilyId.value), { idempotencyKey: mealReadyIdempotencyKey.value });
-    mealReadyIdempotencyKey.value = '';
-    uni.showToast({ title: '已提醒家人开饭', icon: 'success' });
-  } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '提醒发送失败', icon: 'none' });
-  } finally {
-    sendingMealReady.value = false;
+const openPreferencePanel = () => {
+  if (!activeFamilyId.value) {
+    goToFamilyManage();
+    return;
   }
+  activePreferenceType.value = 'avoid';
+  isPreferencePanelVisible.value = true;
 };
 
-const confirmMealReady = () => {
-  if (!activeFamilyId.value || sendingMealReady.value) return;
-  uni.showModal({
-    title: '发送开饭提醒',
-    content: `将通知${basketScopeName.value}的所有成员现在可以开饭了。`,
-    confirmText: '发送提醒',
-    success: ({ confirm }) => {
-      if (confirm) void sendMealReady();
-    }
-  });
+const closePreferencePanel = () => {
+  isPreferencePanelVisible.value = false;
+};
+
+const setPreferenceType = (type: PreferenceType) => {
+  activePreferenceType.value = type;
 };
 
 const isRecipeExpanded = (recipeId: string) => expandedRecipeIds.value.includes(recipeId);
@@ -542,8 +672,10 @@ const toggleRecipeExpanded = (recipeId: string) => {
 };
 
 const toggleItem = async (id: string) => {
+  if (isMutating.value) return;
   const target = items.value.find((item) => item.id === id);
   if (!target) return;
+  const previousItems = items.value;
   items.value = items.value.map((item) => {
     if (item.id !== id) {
       return item;
@@ -551,12 +683,19 @@ const toggleItem = async (id: string) => {
 
     return { ...item, checked: !item.checked };
   });
-  await updateBasketItemChecked(id, !target.checked);
+  await runBasketMutation(
+    () => updateBasketItemChecked(id, !target.checked),
+    () => {
+      items.value = previousItems;
+    }
+  );
 };
 
 const toggleMergedItem = async (itemIds: string[]) => {
+  if (isMutating.value) return;
   const targetItems = items.value.filter((item) => itemIds.includes(item.id));
   const nextChecked = !targetItems.every((item) => item.checked);
+  const previousItems = items.value;
 
   items.value = items.value.map((item) => {
     if (!itemIds.includes(item.id)) {
@@ -564,44 +703,62 @@ const toggleMergedItem = async (itemIds: string[]) => {
     }
     return { ...item, checked: nextChecked };
   });
-  await Promise.all(itemIds.map((id) => updateBasketItemChecked(id, nextChecked)));
+  await runBasketMutation(
+    () => Promise.all(itemIds.map((id) => updateBasketItemChecked(id, nextChecked))),
+    () => {
+      items.value = previousItems;
+    }
+  );
 };
 
 const removeItem = async (id: string) => {
+  if (isMutating.value) return;
+  const previousItems = items.value;
   items.value = items.value.filter((item) => item.id !== id);
   if (openedItemId.value === id) {
     openedItemId.value = '';
   }
-  await removeBasketItem(id);
+  await runBasketMutation(
+    () => removeBasketItem(id),
+    () => {
+      items.value = previousItems;
+    },
+    '删除失败，请重试'
+  );
 };
 
 const removeMergedItem = async (itemIds: string[]) => {
+  if (isMutating.value) return;
+  const previousItems = items.value;
   items.value = items.value.filter((item) => !itemIds.includes(item.id));
   openedItemId.value = '';
-  await Promise.all(itemIds.map(removeBasketItem));
+  await runBasketMutation(
+    () => Promise.all(itemIds.map(removeBasketItem)),
+    () => {
+      items.value = previousItems;
+    },
+    '删除失败，请重试'
+  );
 };
 
 const removeRecipeGroup = async (recipeId: string) => {
+  if (isMutating.value) return;
+  const previousItems = items.value;
   const removedIds = items.value.filter((item) => item.recipeId === recipeId).map((item) => item.id);
   items.value = items.value.filter((item) => item.recipeId !== recipeId);
   expandedRecipeIds.value = expandedRecipeIds.value.filter((id) => id !== recipeId);
   openedItemId.value = '';
-  await Promise.all(removedIds.map(removeBasketItem));
-};
-
-const clearChecked = async () => {
-  const checkedIds = items.value.filter((item) => item.checked).map((item) => item.id);
-  items.value = items.value.filter((item) => !item.checked);
-  await Promise.all(checkedIds.map(removeBasketItem));
-};
-
-const selectAll = async () => {
-  const nextChecked = !allChecked.value;
-  items.value = items.value.map((item) => ({ ...item, checked: nextChecked }));
-  await Promise.all(items.value.map((item) => updateBasketItemChecked(item.id, nextChecked)));
+  await runBasketMutation(
+    () => Promise.all(removedIds.map(removeBasketItem)),
+    () => {
+      items.value = previousItems;
+    },
+    '删除失败，请重试'
+  );
 };
 
 const completePurchase = async () => {
+  if (!checkedCount.value) return;
   const purchasableItems = getUniquePurchasableItems();
   if (purchasableItems.length) {
     priceInputs.value = purchasableItems.map((item) => ({
@@ -631,24 +788,12 @@ const splitGuideText = (value?: string | null) => {
 
 const guideSelectionTips = computed(() => {
   const detailTips = splitGuideText(activeGuideDetail.value?.selectionTips);
-  if (detailTips.length) return detailTips;
-  const name = activeGuideItem.value?.name || '食材';
-  return [
-    `看外观：${name}色泽自然、表面完整更稳妥`,
-    '看触感：手感紧实，避免明显发软或出水',
-    '闻气味：选择自然清香，没有酸败异味',
-    '看边角：切口或根部不过度干缩',
-    '避坑：过硬可能未熟，过软可能不够新鲜'
-  ];
-});
-
-const guideStorageText = computed(() => {
-  return activeGuideDetail.value?.storageMethod || '买回后按食材属性冷藏或阴凉保存，尽量 2-3 天内食用。';
+  return detailTips;
 });
 
 const guidePriceText = computed(() => {
   if (!activeGuideItem.value) return '暂无价格参考。';
-  return formatPriceText(activeGuideItem.value) || '后台暂未配置参考价格，可在采购完成时记录本次价格。';
+  return formatPriceText(activeGuideItem.value) || '暂无价格参考，可在采购完成时记录本次价格。';
 });
 
 const guideImage = computed(() => {
@@ -658,10 +803,9 @@ const guideImage = computed(() => {
 const openIngredientGuide = async (item: BasketItem) => {
   activeGuideItem.value = item;
   activeGuideDetail.value = null;
-  activeGuideTab.value = 'select';
   if (!item.ingredientId) return;
   try {
-    activeGuideDetail.value = await getIngredient(Number(item.ingredientId));
+    activeGuideDetail.value = await getIngredient(item.ingredientId);
   } catch {
     activeGuideDetail.value = null;
   }
@@ -690,7 +834,7 @@ const goToGuideIngredientDetail = () => {
 const getUniquePurchasableItems = () => {
   const itemMap = new Map<string, BasketItem>();
   items.value.forEach((item) => {
-    if (!item.checked && !itemMap.has(item.name)) {
+    if (item.checked && !itemMap.has(item.name)) {
       itemMap.set(item.name, item);
     }
   });
@@ -708,6 +852,7 @@ const closePricePanel = () => {
 };
 
 const savePurchasePrices = async () => {
+  if (isMutating.value) return;
   const today = new Date().toISOString().slice(0, 10);
   const records = priceInputs.value
     .map((item) => ({
@@ -720,12 +865,18 @@ const savePurchasePrices = async () => {
     }))
     .filter((record) => Number.isFinite(record.price) && record.price > 0);
 
-  if (records.length) {
-    await addPriceRecords(records);
-  }
+  const saved = await runBasketMutation(
+    async () => {
+      if (records.length) {
+        await addPriceRecords(records);
+      }
+      await awaitPersistItems();
+    },
+    () => undefined,
+    '采购记录保存失败，请重试'
+  );
+  if (!saved) return;
 
-  items.value = items.value.map((item) => ({ ...item, checked: true }));
-  await awaitPersistItems();
   closePricePanel();
   uni.showToast({ title: records.length ? '价格已记录' : '已完成采购', icon: 'success' });
 };
@@ -736,6 +887,10 @@ const goHome = () => {
 
 const goToRecipes = () => {
   uni.navigateTo({ url: '/pages/ingredients/index?tab=recipes' });
+};
+
+const goToScan = () => {
+  uni.navigateTo({ url: '/pages/scan/index' });
 };
 
 const handleTouchStart = (event: TouchEvent, id: string) => {
@@ -763,10 +918,14 @@ const awaitPersistItems = async () => {
   await Promise.all(items.value.map((item) => updateBasketItemChecked(item.id, item.checked)));
 };
 
-const loadBasketPage = async () => {
+let activeBasketLoad: Promise<void> | null = null;
+
+const performBasketLoad = async () => {
   const requestId = ++basketLoadRequestId;
+  isLoading.value = true;
+  loadError.value = '';
   try {
-    const nextFamilies = await loadFamilies();
+    const nextFamilies = await withBasketDeadline(loadFamilies());
     if (requestId !== basketLoadRequestId) return;
     families.value = nextFamilies;
     const preferredFamilyId = requestedFamilyId.value || activeFamilyId.value || loadActiveFamilyId();
@@ -787,18 +946,42 @@ const loadBasketPage = async () => {
       items.value = [];
       return;
     }
-    const nextItems = await loadBasketItems(targetFamilyId);
+    const nextItems = await withBasketDeadline(loadBasketItems(targetFamilyId));
     if (requestId !== basketLoadRequestId) return;
     activeFamilyId.value = targetFamilyId;
     saveActiveFamilyId(targetFamilyId);
     items.value = nextItems;
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '菜篮子加载失败', icon: 'none' });
+    if (requestId !== basketLoadRequestId) return;
+    loadError.value = getBasketLoadErrorMessage(error);
+    items.value = [];
+  } finally {
+    if (requestId === basketLoadRequestId) {
+      isLoading.value = false;
+    }
   }
+};
+
+const loadBasketPage = () => {
+  if (activeBasketLoad) return activeBasketLoad;
+
+  activeBasketLoad = (async () => {
+    try {
+      await performBasketLoad();
+    } finally {
+      activeBasketLoad = null;
+    }
+  })();
+
+  return activeBasketLoad;
 };
 
 onLoad((options) => {
   requestedFamilyId.value = typeof options?.familyId === 'string' ? options.familyId.trim() : '';
+});
+
+onMounted(() => {
+  void loadBasketPage();
 });
 
 onShow(() => {
@@ -809,11 +992,8 @@ onShow(() => {
 <style scoped lang="scss">
 .basket-page {
   min-height: 100vh;
-  padding: 0 26rpx calc(318rpx + env(safe-area-inset-bottom, 0));
-  background:
-    radial-gradient(circle at 12% 0, rgba(255, 253, 252, 0.96), transparent 36%),
-    radial-gradient(circle at 86% 8%, rgba(233, 226, 214, 0.72), transparent 30%),
-    #f5f1ea;
+  padding: 0 40rpx calc(184rpx + var(--app-safe-area-bottom));
+  background: var(--app-bg);
 }
 
 .basket-shell {
@@ -823,15 +1003,17 @@ onShow(() => {
 }
 
 .mode-button::after,
-.dock-button::after,
+.basket-complete-action::after,
+.basket-preferences::after,
 .family-selector::after,
 .family-option::after,
 .family-manage-row::after,
-.meal-ready-button::after,
+.scan-button::after,
 .guide-close::after,
-.guide-tab::after,
+.guide-detail-link::after,
 .guide-primary::after,
-.guide-secondary::after,
+.preference-tab::after,
+.preference-primary::after,
 .empty-button::after,
 .save-price-button::after {
   border: 0;
@@ -840,25 +1022,16 @@ onShow(() => {
 .basket-heading {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 24rpx;
-  margin: 4rpx 0 24rpx;
+  gap: 8rpx;
+  margin: 2rpx 0 16rpx;
 }
 
-.basket-title-row {
+.basket-heading__top {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   gap: 20rpx;
-  margin: 0 0 4rpx;
-}
-
-.basket-title {
-  color: var(--app-text);
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-page-title);
 }
 
 .basket-summary {
@@ -877,34 +1050,39 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20rpx;
-  margin: 20rpx 0 6rpx;
-  padding: 20rpx 22rpx;
-  border: 1rpx solid rgba(233, 226, 214, 0.84);
-  border-radius: 24rpx;
-  background: rgba(255, 253, 252, 0.68);
+  gap: 16rpx;
+  width: 100%;
+  min-height: 104rpx;
+  margin: 0 0 16rpx;
+  padding: 12rpx 0;
+  border: 0;
+  border-bottom: 1rpx solid rgba(47, 47, 47, 0.08);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .basket-preferences__title {
   flex: 0 0 auto;
   color: var(--app-text);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-card-title);
   font-weight: var(--font-semibold);
-  line-height: var(--line-body-sm);
+  line-height: var(--line-card-title);
 }
 
 .basket-preferences__tags {
   display: flex;
   flex: 1;
   justify-content: flex-end;
-  gap: 10rpx;
+  gap: 8rpx;
   min-width: 0;
 }
 
 .basket-preference-tag {
-  padding: 8rpx 12rpx;
-  border-radius: 14rpx;
-  background: rgba(122, 139, 111, 0.1);
+  padding: 6rpx 10rpx;
+  border: 1rpx solid rgba(122, 139, 111, 0.28);
+  border-radius: 16rpx;
+  background: rgba(255, 253, 252, 0.48);
   color: var(--text-brand);
   font-size: var(--font-size-tag);
   line-height: var(--line-tag);
@@ -912,7 +1090,8 @@ onShow(() => {
 }
 
 .basket-preference-tag.is-warning {
-  background: rgba(212, 126, 83, 0.1);
+  border-color: rgba(212, 126, 83, 0.46);
+  background: rgba(255, 253, 252, 0.48);
   color: #b86e4a;
 }
 
@@ -942,36 +1121,29 @@ onShow(() => {
   white-space: nowrap;
 }
 
-.meal-ready-button {
+.scan-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
-  min-width: 164rpx;
-  min-height: 68rpx;
+  flex: 0 0 auto;
+  width: 88rpx;
+  height: 88rpx;
   margin: 0;
-  padding: 0 20rpx;
-  border: 1rpx solid var(--app-border-strong);
-  border-radius: 999rpx;
-  background: rgba(255, 253, 252, 0.78);
+  padding: 0;
+  border: 0;
+  border-radius: 20rpx;
+  background: transparent;
   color: var(--app-primary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-medium);
-  line-height: var(--line-tag);
 }
 
-.meal-ready-button:active {
+.scan-button:active {
   transform: scale(0.97);
-}
-
-.meal-ready-button[disabled] {
-  opacity: 0.58;
 }
 
 .family-selector:focus-visible,
 .family-option:focus-visible,
 .family-manage-row:focus-visible,
-.meal-ready-button:focus-visible {
+.scan-button:focus-visible {
   outline: 2px solid var(--app-primary);
   outline-offset: 2px;
 }
@@ -989,23 +1161,25 @@ onShow(() => {
   position: fixed;
   inset: 0;
   z-index: 36;
-  padding: 128rpx 26rpx 26rpx;
-  background: rgba(47, 47, 47, 0.18);
+  padding: calc(var(--app-safe-area-top) + 78px) 26rpx 26rpx;
+  background: transparent;
 }
 
 .family-sheet {
+  width: 470rpx;
+  max-width: calc(100vw - 52rpx);
   overflow: hidden;
   border: 1rpx solid rgba(233, 226, 214, 0.72);
-  border-radius: 32rpx;
+  border-radius: 24rpx;
   background: #fffdfc;
-  box-shadow: 0 26rpx 70rpx rgba(47, 47, 47, 0.08);
+  box-shadow: 0 18rpx 52rpx rgba(47, 47, 47, 0.12);
 }
 
 .family-option,
 .family-manage-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 18rpx;
   min-height: 96rpx;
   width: 100%;
@@ -1021,13 +1195,48 @@ onShow(() => {
   background: rgba(122, 139, 111, 0.11);
 }
 
+.family-option__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 64rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border: 1rpx solid rgba(122, 139, 111, 0.3);
+  border-radius: 18rpx;
+  background: #fffdfc;
+  color: var(--text-brand);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
+}
+
+.family-option.is-active .family-option__avatar {
+  background: var(--app-accent);
+  color: var(--text-white);
+}
+
+.family-option__copy {
+  min-width: 0;
+}
+
 .family-option__name,
+.family-option__meta,
 .family-manage-row__name {
   display: block;
+}
+
+.family-option__name,
+.family-manage-row__name {
   color: var(--app-text);
   font-size: var(--font-size-list-title);
   font-weight: var(--font-semibold);
   line-height: var(--line-list-title);
+}
+
+.family-option__meta {
+  margin-top: 2rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
 }
 
 .family-option.is-active .family-option__name,
@@ -1035,8 +1244,17 @@ onShow(() => {
   color: var(--text-brand);
 }
 
+.family-option__check {
+  margin-left: auto;
+}
+
+.family-manage-row {
+  justify-content: center;
+  min-height: 82rpx;
+}
+
 .family-manage-row__icon {
-  color: var(--app-text-secondary);
+  display: none;
 }
 
 .family-sheet__divider {
@@ -1046,20 +1264,20 @@ onShow(() => {
 }
 
 .basket-board {
-  margin-top: 22rpx;
-  padding: 26rpx 24rpx 20rpx;
-  border: 1rpx solid rgba(255, 253, 252, 0.8);
-  border-radius: 34rpx;
-  background: rgba(255, 253, 252, 0.9);
-  box-shadow: 0 24rpx 66rpx rgba(47, 47, 47, 0.05);
+  margin-top: 16rpx;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .board-head {
-  display: grid;
-  grid-template-columns: 1fr 196rpx;
-  align-items: start;
-  gap: 20rpx;
-  margin-bottom: 22rpx;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 30rpx 30rpx 20rpx;
 }
 
 .board-copy {
@@ -1079,30 +1297,49 @@ onShow(() => {
 }
 
 .board-desc {
-  margin-top: 8rpx;
+  margin-top: 2rpx;
   color: var(--text-tertiary);
   font-size: var(--font-size-caption);
   line-height: var(--line-caption);
 }
 
+.board-progress {
+  flex: 0 0 auto;
+  color: var(--text-brand);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tag);
+  white-space: nowrap;
+}
+
+.purchase-panel {
+  overflow: hidden;
+  border: 1rpx solid rgba(233, 226, 214, 0.72);
+  border-radius: 32rpx;
+  background: #fffdfc;
+  box-shadow: 0 14rpx 36rpx rgba(67, 58, 45, 0.045);
+}
+
 .mode-switch {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 6rpx;
-  padding: 6rpx;
-  border: 1rpx solid rgba(233, 226, 214, 0.82);
-  border-radius: 34rpx;
-  background: #eee8df;
+  gap: 0;
+  margin-bottom: 4rpx;
+  padding: 0;
+  border: 1rpx solid rgba(122, 139, 111, 0.34);
+  border-radius: 22rpx;
+  background: rgba(255, 253, 252, 0.72);
+  overflow: hidden;
 }
 
 .mode-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 58rpx;
+  min-height: 88rpx;
   padding: 0;
   border: 0;
-  border-radius: 28rpx;
+  border-radius: 20rpx;
   background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-caption);
@@ -1112,10 +1349,72 @@ onShow(() => {
   transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.basket-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  min-height: 480rpx;
+  padding: 48rpx 32rpx;
+  text-align: center;
+}
+
+.basket-state__spinner {
+  width: 42rpx;
+  height: 42rpx;
+  margin-bottom: 8rpx;
+  border: 4rpx solid rgba(122, 139, 111, 0.16);
+  border-top-color: var(--app-primary);
+  border-radius: 50%;
+  animation: basket-spin 900ms linear infinite;
+}
+
+.basket-state__title,
+.basket-state__desc {
+  display: block;
+}
+
+.basket-state__title {
+  color: var(--app-text);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
+}
+
+.basket-state__desc {
+  max-width: 500rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.basket-state__retry {
+  min-width: 190rpx;
+  min-height: 88rpx;
+  margin-top: 14rpx;
+  border: 0;
+  border-radius: 28rpx;
+  background: var(--app-accent);
+  color: var(--text-white);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-semibold);
+}
+
+.basket-state__retry::after {
+  border: 0;
+}
+
+@keyframes basket-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .mode-button.is-active {
   background: var(--app-accent);
   color: var(--text-white);
-  box-shadow: 0 12rpx 26rpx rgba(122, 139, 111, 0.18);
+  box-shadow: none;
 }
 
 .content,
@@ -1128,7 +1427,7 @@ onShow(() => {
 .merged-card,
 .recipe-list {
   overflow: hidden;
-  border-radius: 28rpx;
+  border-radius: 0;
 }
 
 .swipe-row {
@@ -1145,11 +1444,11 @@ onShow(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 48rpx 96rpx minmax(0, 1fr) 150rpx;
+  grid-template-columns: 56rpx 112rpx minmax(0, 1fr) 142rpx;
   align-items: center;
   gap: 16rpx;
-  min-height: 122rpx;
-  padding: 12rpx 4rpx;
+  min-height: 156rpx;
+  padding: 14rpx 24rpx 14rpx 18rpx;
   background: rgba(255, 253, 252, 0.96);
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), background 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1191,10 +1490,10 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 92rpx;
-  height: 82rpx;
+  width: 112rpx;
+  height: 112rpx;
   overflow: hidden;
-  border-radius: 18rpx;
+  border-radius: 16rpx;
   background: #efe8dd;
 }
 
@@ -1215,6 +1514,10 @@ onShow(() => {
 }
 
 .ingredient-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4rpx;
   min-width: 0;
 }
 
@@ -1243,6 +1546,16 @@ onShow(() => {
 .ingredient-amount.is-checked {
   color: var(--app-text-tertiary);
   text-decoration: line-through;
+}
+
+.ingredient-source {
+  display: block;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ingredient-side {
@@ -1294,9 +1607,9 @@ onShow(() => {
 
 .recipe-card {
   overflow: hidden;
-  margin-bottom: 18rpx;
-  border: 1rpx solid rgba(233, 226, 214, 0.82);
-  border-radius: 28rpx;
+  margin: 0 18rpx 12rpx;
+  border: 1rpx solid rgba(233, 226, 214, 0.74);
+  border-radius: 24rpx;
   background: rgba(255, 253, 252, 0.94);
 }
 
@@ -1313,11 +1626,11 @@ onShow(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 116rpx minmax(0, 1fr) 44rpx;
+  grid-template-columns: 96rpx minmax(0, 1fr) 40rpx;
   align-items: center;
   gap: 18rpx;
-  min-height: 138rpx;
-  padding: 18rpx;
+  min-height: 116rpx;
+  padding: 14rpx;
   background: #fffdfc;
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1330,8 +1643,8 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 112rpx;
-  height: 100rpx;
+  width: 88rpx;
+  height: 88rpx;
   overflow: hidden;
   border-radius: 18rpx;
   background: #efe8dd;
@@ -1404,44 +1717,26 @@ onShow(() => {
   line-height: var(--line-caption);
 }
 
-.action-dock {
-  position: fixed;
-  right: 28rpx;
-  bottom: calc(164rpx + env(safe-area-inset-bottom, 0));
-  left: 28rpx;
-  z-index: 29;
-  display: grid;
-  grid-template-columns: 1fr 1.15fr 1.35fr;
-  gap: 12rpx;
-  max-width: 694rpx;
-  margin: 0 auto;
-  padding: 14rpx;
-  border: 1rpx solid rgba(233, 226, 214, 0.82);
-  border-radius: 34rpx;
-  background: rgba(255, 253, 252, 0.96);
-  box-shadow: 0 18rpx 54rpx rgba(47, 47, 47, 0.07);
-}
-
-.dock-button {
+.basket-complete-action {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  height: 66rpx;
-  min-width: 0;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 96rpx;
+  margin-top: 24rpx;
+  padding: 0 30rpx;
   border: 0;
-  border-radius: 28rpx;
-  background: #eee8df;
-  color: var(--app-text);
+  border-radius: 26rpx;
+  background: var(--app-accent);
+  color: var(--text-white);
   font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
   line-height: var(--line-caption);
 }
 
-.dock-button.is-primary {
-  background: var(--app-accent);
-  color: var(--text-white);
-  box-shadow: 0 12rpx 28rpx rgba(122, 139, 111, 0.2);
+.basket-complete-action:disabled {
+  background: rgba(122, 139, 111, 0.14);
+  color: var(--text-tertiary);
 }
 
 .empty-card {
@@ -1522,6 +1817,7 @@ onShow(() => {
 }
 
 .guide-mask,
+.preference-mask,
 .sheet-mask {
   position: fixed;
   inset: 0;
@@ -1533,15 +1829,134 @@ onShow(() => {
 }
 
 .guide-panel,
+.preference-panel,
 .price-panel {
   width: 100%;
   max-width: 750rpx;
   max-height: 84vh;
-  padding: 18rpx 26rpx calc(28rpx + env(safe-area-inset-bottom, 0));
+  padding: 18rpx 26rpx calc(28rpx + var(--app-safe-area-bottom));
   overflow-y: auto;
   border-radius: 38rpx 38rpx 0 0;
   background: rgba(255, 253, 252, 0.98);
   box-shadow: 0 -20rpx 70rpx rgba(47, 47, 47, 0.14);
+}
+
+.preference-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.preference-panel__title,
+.preference-panel__members {
+  display: block;
+}
+
+.preference-panel__title {
+  color: var(--app-text);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+}
+
+.preference-panel__members {
+  margin-top: 6rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.preference-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10rpx;
+  margin-top: 24rpx;
+  padding: 6rpx;
+  border-radius: 24rpx;
+  background: rgba(233, 226, 214, 0.5);
+}
+
+.preference-tab {
+  min-height: 76rpx;
+  margin: 0;
+  padding: 0 12rpx;
+  border: 0;
+  border-radius: 20rpx;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
+  line-height: var(--line-caption);
+}
+
+.preference-tab.is-active {
+  background: #fffdfc;
+  color: var(--text-brand);
+  box-shadow: 0 4rpx 16rpx rgba(67, 58, 45, 0.06);
+}
+
+.preference-record {
+  min-height: 190rpx;
+  margin-top: 20rpx;
+  padding: 24rpx;
+  border-radius: 28rpx;
+  background: rgba(245, 241, 234, 0.78);
+}
+
+.preference-record__label,
+.preference-record__empty {
+  display: block;
+}
+
+.preference-record__label {
+  color: var(--app-text);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
+}
+
+.preference-record__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.preference-record__tag {
+  padding: 9rpx 16rpx;
+  border: 1rpx solid rgba(122, 139, 111, 0.28);
+  border-radius: 18rpx;
+  background: #fffdfc;
+  color: var(--text-brand);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-medium);
+  line-height: var(--line-tag);
+}
+
+.preference-record__tag.is-warning {
+  border-color: rgba(212, 126, 83, 0.4);
+  color: #b86e4a;
+}
+
+.preference-record__empty {
+  margin-top: 22rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.preference-primary {
+  width: 100%;
+  min-height: 88rpx;
+  margin-top: 22rpx;
+  border: 0;
+  border-radius: 28rpx;
+  background: var(--app-accent);
+  color: var(--text-white);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body-sm);
 }
 
 .guide-handle {
@@ -1573,8 +1988,8 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 54rpx;
-  height: 54rpx;
+  width: 88rpx;
+  height: 88rpx;
   border: 0;
   border-radius: 18rpx;
   background: transparent;
@@ -1583,17 +1998,17 @@ onShow(() => {
 
 .guide-body {
   display: grid;
-  grid-template-columns: 168rpx minmax(0, 1fr);
-  gap: 24rpx;
-  margin-top: 22rpx;
+  grid-template-columns: 152rpx minmax(0, 1fr);
+  gap: 20rpx;
+  margin-top: 18rpx;
 }
 
 .guide-image-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 168rpx;
-  height: 160rpx;
+  width: 152rpx;
+  height: 152rpx;
   overflow: hidden;
   border-radius: 24rpx;
   background: #efe8dd;
@@ -1603,76 +2018,44 @@ onShow(() => {
   min-width: 0;
 }
 
-.guide-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: hidden;
-  border-radius: 18rpx;
-  background: #eee8df;
+.guide-eyebrow,
+.guide-price {
+  display: block;
 }
 
-.guide-tab {
-  height: 52rpx;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-tertiary);
+.guide-eyebrow {
+  color: var(--text-brand);
   font-size: var(--font-size-tag);
   font-weight: var(--font-semibold);
-}
-
-.guide-tab.is-active {
-  color: var(--text-brand);
-  box-shadow: inset 0 -4rpx 0 var(--text-brand);
+  line-height: var(--line-tag);
 }
 
 .guide-tips {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
-  margin-top: 20rpx;
+  gap: 7rpx;
+  margin-top: 10rpx;
 }
 
 .guide-tip {
-  display: grid;
-  grid-template-columns: 34rpx minmax(0, 1fr);
-  align-items: start;
-  gap: 10rpx;
-}
-
-.guide-tip__index {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30rpx;
-  height: 30rpx;
-  border-radius: 50%;
-  background: var(--app-accent);
-  color: var(--text-white);
-  font-size: var(--font-size-tabbar);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-tabbar);
-}
-
-.guide-tip__text,
-.guide-storage {
+  display: block;
   color: var(--app-text);
   font-size: var(--font-size-caption);
   line-height: var(--line-caption);
 }
 
-.guide-storage {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-  margin-top: 22rpx;
-  padding: 18rpx 20rpx;
-  border-radius: 24rpx;
-  background: #f2ece3;
+.guide-tip.is-empty {
+  color: var(--text-tertiary);
+}
+
+.guide-price {
+  margin-top: 10rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
 }
 
 .guide-primary,
-.guide-secondary,
 .save-price-button {
   width: 100%;
   height: 76rpx;
@@ -1684,15 +2067,33 @@ onShow(() => {
 }
 
 .guide-primary {
-  margin-top: 28rpx;
+  flex: 1;
+  margin: 0;
   background: var(--app-accent);
   color: var(--text-white);
 }
 
-.guide-secondary {
-  margin-top: 14rpx;
+.guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-top: 24rpx;
+}
+
+.guide-detail-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132rpx;
+  height: 76rpx;
+  padding: 0 18rpx;
+  border: 0;
+  border-radius: 24rpx;
   background: #eee8df;
-  color: var(--app-text);
+  color: var(--text-brand);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body-sm);
 }
 
 .price-panel__desc,
@@ -1765,5 +2166,33 @@ onShow(() => {
   margin-top: 24rpx;
   background: var(--app-accent);
   color: var(--text-white);
+}
+
+@media (max-width: 375px) {
+  .basket-page {
+    padding-right: 24rpx;
+    padding-left: 24rpx;
+  }
+
+  .ingredient-row {
+    grid-template-columns: 52rpx 104rpx minmax(0, 1fr) 126rpx;
+    gap: 12rpx;
+    padding-right: 18rpx;
+    padding-left: 12rpx;
+  }
+
+  .ingredient-thumb {
+    width: 104rpx;
+    height: 104rpx;
+  }
+
+  .basket-preferences__tags {
+    gap: 5rpx;
+  }
+
+  .basket-preference-tag {
+    padding-right: 7rpx;
+    padding-left: 7rpx;
+  }
 }
 </style>

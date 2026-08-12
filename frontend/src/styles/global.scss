@@ -61,6 +61,8 @@ page {
   --app-radius-card: 40rpx;
   --app-radius-button: 28rpx;
   --app-radius-input: 32rpx;
+  --app-page-padding: 32rpx;
+  --app-canvas-width: 393px;
   --app-safe-area-top: env(safe-area-inset-top, 0px);
   --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
@@ -101,6 +103,24 @@ page {
   line-height: var(--line-body);
 }
 
+/* H5 联调保持与冻结原型一致的 393pt 手机画布；真机窄屏仍使用实际宽度。 */
+@media screen and (min-width: 480px) {
+  html,
+  body {
+    min-height: 100%;
+    background: #eef0ed;
+  }
+
+  uni-page-body {
+    width: 100%;
+    max-width: 393px;
+    min-height: 100vh;
+    margin: 0 auto;
+    overflow-x: hidden;
+    background: var(--app-bg);
+  }
+}
+
 view,
 text,
 button,
@@ -108,7 +128,12 @@ input,
 image,
 scroll-view,
 swiper,
-swiper-item {
+swiper-item,
+header,
+nav,
+main,
+section,
+footer {
   box-sizing: border-box;
 }
 
@@ -119,8 +144,30 @@ textarea {
 }
 
 button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  line-height: normal;
+  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+button::after {
+  border: 0;
+}
+
+.app-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  min-width: var(--touch-target);
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+  line-height: normal;
 }
 
 button:focus-visible,
@@ -268,10 +315,12 @@ textarea::placeholder {
 
 .app-fixed-action-bar {
   position: fixed;
-  right: var(--space-6);
+  right: 50%;
   bottom: calc(var(--space-4) + var(--app-safe-area-bottom));
-  left: var(--space-6);
+  left: auto;
   z-index: var(--z-tabbar);
+  width: min(calc(100% - var(--space-6) * 2), calc(var(--app-canvas-width) - var(--space-6) * 2));
+  transform: translateX(50%);
 }
 
 .app-pressable {

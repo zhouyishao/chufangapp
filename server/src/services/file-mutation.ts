@@ -36,6 +36,15 @@ type ActiveMediaFileDatabase = FileLockDatabase & {
   };
 };
 
+type OwnedActiveMediaFileDatabase = FileLockDatabase & {
+  file: {
+    findFirst(args: {
+      where: { id: number; deletedAt: null; status: 'ACTIVE'; uploaderId: number };
+      select: { id: true };
+    }): Promise<{ id: number } | null>;
+  };
+};
+
 export const lockActiveMediaFiles = async (
   database: ActiveMediaFileDatabase,
   fileIds: Array<number | null | undefined>
@@ -48,6 +57,22 @@ export const lockActiveMediaFiles = async (
       select: { id: true }
     });
     if (!file) throw new HttpError('步骤媒体文件无效', 422, 422);
+  }
+};
+
+export const lockOwnedActiveMediaFiles = async (
+  database: OwnedActiveMediaFileDatabase,
+  fileIds: Array<number | null | undefined>,
+  uploaderId: number
+) => {
+  const uniqueIds = [...new Set(fileIds.filter((id): id is number => typeof id === 'number'))].sort((a, b) => a - b);
+  for (const fileId of uniqueIds) {
+    await lockFileForMutation(database, fileId);
+    const file = await database.file.findFirst({
+      where: { id: fileId, deletedAt: null, status: 'ACTIVE', uploaderId },
+      select: { id: true }
+    });
+    if (!file) throw new HttpError('媒体文件无效或无权使用', 422, 422);
   }
 };
 

@@ -369,7 +369,7 @@ export const TopNavPage = () => {
                       <div className="flex flex-wrap justify-end gap-3 whitespace-nowrap">
                         <button className={actionTextClass} onClick={() => navigate(`/home-ops/top-nav/${item.id}/edit`)}>编辑</button>
                         <span className="text-[#e1d8ca]">|</span>
-                        <button className={actionTextClass} onClick={() => navigate(`/home-ops/top-nav/${item.id}/content`)}>配置内容</button>
+                        <button className={actionTextClass} onClick={() => navigate(`/home-ops?nav=${encodeURIComponent(item.id)}`)}>配置内容</button>
                         <span className="text-[#e1d8ca]">|</span>
                         <button className={actionTextClass} onClick={() => void toggleStatus(item)}>{item.status === 'online' ? '停用' : '启用'}</button>
                         {item.status !== 'online' ? (

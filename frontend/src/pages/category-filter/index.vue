@@ -210,7 +210,7 @@ onPullDownRefresh(() => { void fetchModules(); });
   min-height: 100vh;
   background: var(--app-bg);
   padding-top: 0;
-  padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(180rpx + var(--app-safe-area-bottom));
 }
 
 .category-search {

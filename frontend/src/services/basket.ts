@@ -53,11 +53,20 @@ const resolveBasketFamilyId = async (familyId?: string | null) => {
   return families[0]?.id ?? null;
 };
 
+const resolveBasketItemName = (item: ApiBasketItem) => {
+  const legacyName = item.name?.trim();
+  const linkedName = item.ingredient?.name?.trim();
+  if (linkedName && (!legacyName || /^(食材详情|食材|未命名)$/.test(legacyName))) {
+    return linkedName;
+  }
+  return legacyName || linkedName || '待确认食材';
+};
+
 const mapBasketItem = (item: ApiBasketItem): BasketItem => ({
   id: String(item.id),
   recipeId: item.recipeId ? String(item.recipeId) : 'ingredient',
   recipeName: item.recipeName || item.recipe?.title || '单独添加',
-  name: item.name,
+  name: resolveBasketItemName(item),
   amountText: item.amountText || (item.quantity ? String(item.quantity) : ''),
   purchaseText: item.purchaseText || undefined,
   checked: item.checked,

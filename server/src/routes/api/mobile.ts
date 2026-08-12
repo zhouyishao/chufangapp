@@ -12,6 +12,7 @@ import { buildAppAuthSession } from '../../services/app-token';
 import { buildBasketListWhere, canAccessBasketItem } from '../../services/basket-access';
 import { canChangeFamilyRole, canInviteFamilyMember, canRemoveFamilyMember } from '../../services/family-permissions';
 import { resolveContentTarget } from '../../services/content-target';
+import { lockOwnedActiveMediaFiles } from '../../services/file-mutation';
 import { getMobileProfile, updateMobileProfile } from '../../services/mobile-profile';
 
 const pageQuerySchema = z.object({
@@ -88,7 +89,9 @@ const myRecipeStepSchema = z.object({
   title: z.string().trim().max(120).nullable().optional(),
   description: z.string().trim().min(1).max(500),
   image: z.string().trim().max(255).nullable().optional(),
-  video: z.string().trim().max(255).nullable().optional()
+  video: z.string().trim().max(255).nullable().optional(),
+  mediaFileId: z.coerce.number().int().positive().nullable().optional(),
+  mediaKind: z.enum(['IMAGE', 'VIDEO']).nullable().optional()
 });
 
 const myRecipeUpsertSchema = z.object({
@@ -96,6 +99,9 @@ const myRecipeUpsertSchema = z.object({
   title: z.string().trim().min(1).max(120),
   subtitle: z.string().trim().max(255).nullable().optional(),
   cover: z.string().trim().max(255).nullable().optional(),
+  coverFileId: z.coerce.number().int().positive().nullable().optional(),
+  video: z.string().trim().max(255).nullable().optional(),
+  videoFileId: z.coerce.number().int().positive().nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   duration: z.string().trim().max(40).nullable().optional(),
   difficulty: z.string().trim().max(20).nullable().optional(),
@@ -239,6 +245,9 @@ const toMyRecipe = (recipe: {
   title: string;
   subtitle: string | null;
   cover: string | null;
+  coverFileId: number | null;
+  video: string | null;
+  videoFileId: number | null;
   description: string | null;
   cookTime: number | null;
   difficulty: string | null;
@@ -255,6 +264,8 @@ const toMyRecipe = (recipe: {
     description: string;
     image: string | null;
     video: string | null;
+    mediaFileId: number | null;
+    mediaKind: 'IMAGE' | 'VIDEO' | null;
   }>;
   ingredients?: Array<{
     id: number;
@@ -270,6 +281,9 @@ const toMyRecipe = (recipe: {
   name: recipe.title,
   description: recipe.description ?? recipe.subtitle ?? '',
   image: recipe.cover,
+  coverFileId: recipe.coverFileId,
+  video: recipe.video,
+  videoFileId: recipe.videoFileId,
   duration: recipe.cookTime ? `${recipe.cookTime} 分钟` : '',
   flavor: recipe.taste ?? '',
   updatedAt: recipe.updatedAt.toISOString().slice(0, 10),
@@ -286,7 +300,11 @@ const toMyRecipe = (recipe: {
   steps: (recipe.steps ?? []).map((step) => ({
     id: step.id,
     title: step.title ?? `步骤 ${step.sortIndex}`,
-    description: step.description
+    description: step.description,
+    image: step.image,
+    video: step.video,
+    mediaFileId: step.mediaFileId,
+    mediaKind: step.mediaKind
   }))
 });
 
@@ -445,50 +463,165 @@ apiMobileRouter.post('/my-recipes', requireAppAuth, async (req, res) => {
   const codes = await prisma.recipe.findMany({ select: { code: true } });
   const cookTimeText = parsed.data.duration ?? '';
   const cookTime = Number.parseInt(cookTimeText.match(/\d+/)?.[0] ?? '', 10);
-  const created = await prisma.recipe.create({
-    data: {
-      bizId: createBusinessId('recipe'),
-      code: nextCodeFromItems('recipe', codes),
-      title: parsed.data.title,
-      subtitle: parsed.data.subtitle ?? null,
-      cover: parsed.data.cover ?? null,
-      description: parsed.data.description ?? null,
-      cookTime: Number.isFinite(cookTime) ? cookTime : null,
-      difficulty: parsed.data.difficulty ?? null,
-      taste: parsed.data.flavor ?? null,
-      scene: parsed.data.category ?? null,
-      tips: parsed.data.notes ?? null,
-      sourceName: parsed.data.visibility ?? null,
-      authorId: userId,
-      isDraft: parsed.data.isDraft,
-      isPublish: false,
-      status: 'ACTIVE',
-      auditStatus: 'DRAFT',
-      sourceType: 'USER',
-      steps: {
-        create: parsed.data.steps.map((step) => ({
-          sortIndex: step.sortIndex,
-          title: step.title ?? null,
-          description: step.description,
-          image: step.image ?? null,
-          video: step.video ?? null,
-          duration: null
-        }))
+  const mediaFileIds = [
+    parsed.data.coverFileId,
+    parsed.data.videoFileId,
+    ...parsed.data.steps.map((step) => step.mediaFileId)
+  ];
+  const created = await prisma.$transaction(async (transaction) => {
+    await lockOwnedActiveMediaFiles(transaction, mediaFileIds, userId);
+    return transaction.recipe.create({
+      data: {
+        bizId: createBusinessId('recipe'),
+        code: nextCodeFromItems('recipe', codes),
+        title: parsed.data.title,
+        subtitle: parsed.data.subtitle ?? null,
+        cover: parsed.data.cover ?? null,
+        coverFileId: parsed.data.coverFileId ?? null,
+        video: parsed.data.video ?? null,
+        videoFileId: parsed.data.videoFileId ?? null,
+        description: parsed.data.description ?? null,
+        cookTime: Number.isFinite(cookTime) ? cookTime : null,
+        difficulty: parsed.data.difficulty ?? null,
+        taste: parsed.data.flavor ?? null,
+        scene: parsed.data.category ?? null,
+        tips: parsed.data.notes ?? null,
+        sourceName: parsed.data.visibility ?? null,
+        authorId: userId,
+        isDraft: parsed.data.isDraft,
+        isPublish: false,
+        status: 'ACTIVE',
+        auditStatus: 'DRAFT',
+        sourceType: 'USER',
+        steps: {
+          create: parsed.data.steps.map((step) => ({
+            sortIndex: step.sortIndex,
+            title: step.title ?? null,
+            description: step.description,
+            image: step.image ?? null,
+            video: step.video ?? null,
+            mediaFileId: step.mediaFileId ?? null,
+            mediaKind: step.mediaKind ?? null,
+            duration: null
+          }))
+        },
+        ingredients: {
+          create: parsed.data.ingredients.map((item) => ({
+            sortIndex: item.sortIndex,
+            name: item.name,
+            amount: item.amount ?? null
+          }))
+        }
       },
-      ingredients: {
-        create: parsed.data.ingredients.map((item) => ({
-          sortIndex: item.sortIndex,
-          name: item.name,
-          amount: item.amount ?? null
-        }))
+      include: {
+        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
       }
-    },
-    include: {
-      steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-      ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
-    }
+    });
   });
   res.json(ok(toMyRecipe(created)));
+});
+
+apiMobileRouter.patch('/my-recipes/:id', requireAppAuth, async (req, res) => {
+  const parsed = myRecipeUpsertSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const cookTimeText = parsed.data.duration ?? '';
+  const cookTime = Number.parseInt(cookTimeText.match(/\d+/)?.[0] ?? '', 10);
+  const mediaFileIds = [
+    parsed.data.coverFileId,
+    parsed.data.videoFileId,
+    ...parsed.data.steps.map((step) => step.mediaFileId)
+  ];
+
+  const updated = await prisma.$transaction(async (transaction) => {
+    const existing = await transaction.recipe.findFirst({
+      where: {
+        ...buildPublicIdWhere(req.params.id),
+        deletedAt: null,
+        authorId: userId
+      },
+      select: { id: true }
+    });
+    if (!existing) throw new HttpError('食谱不存在', 404, 404);
+
+    await lockOwnedActiveMediaFiles(transaction, mediaFileIds, userId);
+    await transaction.recipeIngredient.deleteMany({ where: { recipeId: existing.id } });
+    await transaction.recipeStep.deleteMany({ where: { recipeId: existing.id } });
+
+    return transaction.recipe.update({
+      where: { id: existing.id },
+      data: {
+        title: parsed.data.title,
+        subtitle: parsed.data.subtitle ?? null,
+        cover: parsed.data.cover ?? null,
+        coverFileId: parsed.data.coverFileId ?? null,
+        video: parsed.data.video ?? null,
+        videoFileId: parsed.data.videoFileId ?? null,
+        description: parsed.data.description ?? null,
+        cookTime: Number.isFinite(cookTime) ? cookTime : null,
+        difficulty: parsed.data.difficulty ?? null,
+        taste: parsed.data.flavor ?? null,
+        scene: parsed.data.category ?? null,
+        tips: parsed.data.notes ?? null,
+        sourceName: parsed.data.visibility ?? null,
+        isDraft: parsed.data.isDraft,
+        isPublish: false,
+        auditStatus: 'DRAFT',
+        updatedBy: userId,
+        steps: {
+          create: parsed.data.steps.map((step) => ({
+            sortIndex: step.sortIndex,
+            title: step.title ?? null,
+            description: step.description,
+            image: step.image ?? null,
+            video: step.video ?? null,
+            mediaFileId: step.mediaFileId ?? null,
+            mediaKind: step.mediaKind ?? null,
+            duration: null
+          }))
+        },
+        ingredients: {
+          create: parsed.data.ingredients.map((item) => ({
+            sortIndex: item.sortIndex,
+            name: item.name,
+            amount: item.amount ?? null
+          }))
+        }
+      },
+      include: {
+        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
+      }
+    });
+  });
+
+  res.json(ok(toMyRecipe(updated)));
+});
+
+apiMobileRouter.delete('/my-recipes/:id', requireAppAuth, async (req, res) => {
+  const userId = req.appUser!.id;
+  const recipe = await prisma.recipe.findFirst({
+    where: {
+      ...buildPublicIdWhere(req.params.id),
+      deletedAt: null,
+      authorId: userId
+    },
+    select: { id: true, bizId: true }
+  });
+  if (!recipe) throw new HttpError('食谱不存在', 404, 404);
+
+  await prisma.recipe.update({
+    where: { id: recipe.id },
+    data: {
+      deletedAt: new Date(),
+      isDeleted: true,
+      isPublish: false,
+      updatedBy: userId
+    }
+  });
+
+  res.json(ok({ id: recipe.bizId ?? String(recipe.id) }));
 });
 
 apiMobileRouter.get('/recommendations', async (req, res) => {
@@ -671,7 +804,7 @@ apiMobileRouter.get('/favorites', requireAppAuth, async (req, res) => {
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
         ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -696,7 +829,7 @@ apiMobileRouter.get('/view-histories', requireAppAuth, async (req, res) => {
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
         ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -1290,7 +1423,7 @@ apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
       ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
 
@@ -1301,7 +1434,7 @@ apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
         ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       }
     });
     if (recipeId && existing.deletedAt) {
@@ -1316,7 +1449,7 @@ apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
       ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
   if (recipeId) await prisma.recipe.update({ where: { id: recipeId }, data: { favoriteCount: { increment: 1 } } });
@@ -1351,7 +1484,7 @@ apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
       ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
 
@@ -1366,7 +1499,7 @@ apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
         ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-        beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       }
     });
     res.json(ok(updated));
@@ -1378,7 +1511,7 @@ apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
       ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
-      beverage: { select: { id: true, name: true, cover: true, beverageType: true, alcoholDegree: true } }
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
   res.json(ok(created));

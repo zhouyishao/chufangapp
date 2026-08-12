@@ -521,6 +521,7 @@ export const listRecipes = async (params: {
   isPublish?: boolean;
   isRecommend?: boolean;
   auditStatus?: Recipe['auditStatus'];
+  sourceType?: NonNullable<Recipe['sourceType']>;
   categoryId?: string;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
@@ -529,6 +530,7 @@ export const listRecipes = async (params: {
   if (typeof params.isPublish === 'boolean') qs.set('isPublish', String(params.isPublish));
   if (typeof params.isRecommend === 'boolean') qs.set('isRecommend', String(params.isRecommend));
   setParam(qs, 'auditStatus', params.auditStatus);
+  setParam(qs, 'sourceType', params.sourceType);
   setParam(qs, 'categoryId', params.categoryId);
   return request<PageResult<Recipe>>(`/recipes?${qs.toString()}`);
 };
@@ -999,6 +1001,7 @@ export type ContentSelectorItem = {
   name: string;
   type: string;
   status: string;
+  cover?: string | null;
 };
 
 export const getHomeTopNavSummary = async () => request<HomeTopNavSummary>('/home/top-navs/summary');
@@ -1038,6 +1041,13 @@ export type ContentModuleDisplayStyle = 'HORIZONTAL_RECIPE_CARD' | 'SEASONAL_ING
 export type ContentModuleContentType = 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE';
 export type ContentModuleContentSource = 'MANUAL' | 'CATEGORY' | 'CATEGORY_CONTENT' | 'CATEGORY_GROUP' | 'TAG';
 export type ContentModuleStatus = 'ENABLED' | 'DISABLED';
+export type HomeModuleKey =
+  | 'SEASONAL_PRODUCE' | 'HOME_RECIPES' | 'SELECTION_GUIDE' | 'LIGHT_MEAL'
+  | 'INGREDIENT_INSPIRATION' | 'DRINK_PAIRING' | 'WEEKLY_HOT'
+  | 'TODAY_RECIPES' | 'MEAL_OCCASIONS' | 'MORE_HOME_RECIPES'
+  | 'SEASONAL_INGREDIENTS' | 'INGREDIENT_SELECTION_GUIDE' | 'ONE_INGREDIENT_MANY_DISHES'
+  | 'SEASONAL_FRUITS' | 'FRUIT_STORAGE_GUIDE' | 'FRUIT_IN_RECIPES'
+  | 'REFRESHING_DRINKS' | 'MEAL_DRINK_PAIRING' | 'WINE_BASICS' | 'MIXOLOGY_ENTRY';
 
 export type ContentModuleItem = {
   id: string;
@@ -1048,6 +1058,7 @@ export type ContentModuleItem = {
 export type ContentModule = {
   id: number;
   navId: number;
+  moduleKey: HomeModuleKey | null;
   title: string;
   subtitle: string | null;
   displayStyle: ContentModuleDisplayStyle;
@@ -1064,12 +1075,14 @@ export type ContentModule = {
   status: ContentModuleStatus;
   items: ContentModuleItem[];
   categoryId: number | null;
+  sourceCategoryId: number | null;
   tagId: number | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type ContentModulePayload = {
+  moduleKey?: HomeModuleKey | null;
   title: string;
   subtitle?: string | null;
   displayStyle: ContentModuleDisplayStyle;
@@ -1083,6 +1096,7 @@ export type ContentModulePayload = {
   status: ContentModuleStatus;
   items?: ContentModuleItem[];
   categoryId?: number | null;
+  sourceCategoryId?: number | null;
   tagId?: number | null;
 };
 

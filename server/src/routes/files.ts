@@ -138,7 +138,22 @@ const removeFile = async (req: Request, res: Response) => {
     load: async (transaction) => {
       const lockedFile = await transaction.file.findFirst({
         where: { id },
-        include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true, familyAvatars: true } } }
+        include: {
+          _count: {
+            select: {
+              references: true,
+              recipeSteps: true,
+              beverageSteps: true,
+              familyAvatars: true,
+              ingredientCovers: true,
+              ingredientSelectionMedia: true,
+              recipeCovers: true,
+              recipeVideos: true,
+              beverageCovers: true,
+              beverageVideos: true
+            }
+          }
+        }
       });
       if (!lockedFile) return null;
       return {
@@ -147,6 +162,12 @@ const removeFile = async (req: Request, res: Response) => {
           + lockedFile._count.recipeSteps
           + lockedFile._count.beverageSteps
           + lockedFile._count.familyAvatars
+          + lockedFile._count.ingredientCovers
+          + lockedFile._count.ingredientSelectionMedia
+          + lockedFile._count.recipeCovers
+          + lockedFile._count.recipeVideos
+          + lockedFile._count.beverageCovers
+          + lockedFile._count.beverageVideos
       };
     },
     softDelete: async (transaction) => {
@@ -184,7 +205,22 @@ const listFiles = async (req: Request, res: Response) => {
   const [rows, total] = await Promise.all([
     prisma.file.findMany({
       where,
-      include: { _count: { select: { references: true, recipeSteps: true, beverageSteps: true } } },
+      include: {
+        _count: {
+          select: {
+            references: true,
+            recipeSteps: true,
+            beverageSteps: true,
+            familyAvatars: true,
+            ingredientCovers: true,
+            ingredientSelectionMedia: true,
+            recipeCovers: true,
+            recipeVideos: true,
+            beverageCovers: true,
+            beverageVideos: true
+          }
+        }
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize
@@ -200,7 +236,16 @@ const listFiles = async (req: Request, res: Response) => {
       size: file.size,
       storageKind: file.storageKind,
       uploaderId: file.uploaderId,
-      referenceCount: file._count.references + file._count.recipeSteps + file._count.beverageSteps,
+      referenceCount: file._count.references
+        + file._count.recipeSteps
+        + file._count.beverageSteps
+        + file._count.familyAvatars
+        + file._count.ingredientCovers
+        + file._count.ingredientSelectionMedia
+        + file._count.recipeCovers
+        + file._count.recipeVideos
+        + file._count.beverageCovers
+        + file._count.beverageVideos,
       createdAt: file.createdAt
     })),
     total,

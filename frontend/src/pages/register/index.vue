@@ -59,6 +59,12 @@
       </view>
 
       <button class="text-button" @tap="goToPhoneLogin">已有账号，去登录</button>
+      <view class="agreement">
+        <text>注册即代表同意</text>
+        <button class="text-button" @tap="goLegal('terms')">服务协议</button>
+        <text>和</text>
+        <button class="text-button" @tap="goLegal('privacy')">隐私政策</button>
+      </view>
     </view>
   </view>
 </template>
@@ -186,12 +192,16 @@ const finishRegister = async () => {
 const goToPhoneLogin = () => {
   uni.navigateTo({ url: '/pages/phone-login/index' });
 };
+
+const goLegal = (type: 'terms' | 'privacy') => {
+  uni.navigateTo({ url: `/pages/legal/index?type=${type}` });
+};
 </script>
 
 <style scoped lang="scss">
 .auth-page {
   min-height: 100vh;
-  padding: calc(var(--status-bar-height) + 22rpx) 30rpx 72rpx;
+  padding: calc(var(--app-safe-area-top) + 22rpx) 30rpx 72rpx;
   background:
     radial-gradient(circle at 78% 4%, rgba(255, 253, 252, 0.95), transparent 34%),
     linear-gradient(180deg, #fffdfc 0%, #e9e2d6 100%);
@@ -312,7 +322,7 @@ const goToPhoneLogin = () => {
   height: 8rpx;
   border-radius: var(--app-radius-button);
   background: #b7aea1;
-  transition: width 0.2s ease, background 0.2s ease;
+  transition: background 0.2s ease;
 }
 
 .step-dot--active {
@@ -409,5 +419,13 @@ const goToPhoneLogin = () => {
   color: var(--app-text-secondary);
   font-size: var(--font-size-tag);
   font-weight: var(--font-medium);
+}
+
+.agreement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-tertiary);
+  font-size: var(--font-size-tag);
 }
 </style>

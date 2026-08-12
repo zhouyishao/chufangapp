@@ -1,5 +1,6 @@
 <template>
   <view class="app-page scan-page">
+    <view class="safe-top-spacer" aria-hidden="true" />
     <view class="topbar">
       <button class="nav-button" @tap="goBack">
         <app-icon name="arrow-left" size="26rpx" />
@@ -27,11 +28,19 @@
       <button class="secondary-button" :disabled="submitting" @tap="previewInvite">查看邀请</button>
     </view>
 
-    <view v-if="inviteFamilyName" class="confirm-card glass-card">
+    <view v-if="loadError" class="error-card glass-card">
+      <text class="error-title">邀请信息暂时无法读取</text>
+      <text class="error-desc">{{ loadError }}</text>
+      <button class="secondary-button" :disabled="submitting" @tap="previewInvite">重新查询</button>
+    </view>
+
+    <view v-if="inviteFamilyName && !loadError" class="confirm-card glass-card">
       <text class="confirm-label">待加入家庭</text>
       <text class="confirm-title">{{ inviteFamilyName }}</text>
       <text class="confirm-desc">{{ inviteMemberCount }} 位成员 · 邀请有效</text>
-      <button class="primary-button" :disabled="submitting" @tap="joinFamily">确认加入</button>
+      <button class="primary-button" :disabled="submitting || joining" @tap="joinFamily">
+        {{ joining ? '加入中…' : '确认加入' }}
+      </button>
     </view>
   </view>
 </template>
@@ -45,6 +54,8 @@ const token = ref('');
 const inviteFamilyName = ref('');
 const inviteMemberCount = ref(0);
 const submitting = ref(false);
+const joining = ref(false);
+const loadError = ref('');
 
 const extractToken = (value: string) => {
   const trimmed = value.trim();
@@ -79,6 +90,7 @@ const previewInvite = async () => {
     return;
   }
   submitting.value = true;
+  loadError.value = '';
   try {
     const invite = await getFamilyInvite(nextToken);
     token.value = nextToken;
@@ -86,7 +98,7 @@ const previewInvite = async () => {
     inviteMemberCount.value = invite.family.memberCount;
   } catch (error) {
     inviteFamilyName.value = '';
-    uni.showToast({ title: error instanceof Error ? error.message : '邀请无效', icon: 'none' });
+    loadError.value = error instanceof Error ? error.message : '邀请无效';
   } finally {
     submitting.value = false;
   }
@@ -94,8 +106,8 @@ const previewInvite = async () => {
 
 const joinFamily = async () => {
   const nextToken = extractToken(token.value);
-  if (!nextToken) return;
-  submitting.value = true;
+  if (!nextToken || joining.value) return;
+  joining.value = true;
   try {
     const family = await joinFamilyInvite(nextToken);
     uni.showToast({ title: '已加入家庭', icon: 'success' });
@@ -103,14 +115,18 @@ const joinFamily = async () => {
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '加入失败', icon: 'none' });
   } finally {
-    submitting.value = false;
+    joining.value = false;
   }
 };
 </script>
 
 <style scoped lang="scss">
 .scan-page {
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
+}
+
+.safe-top-spacer {
+  height: calc(var(--app-safe-area-top) + 8rpx);
 }
 
 .topbar {
@@ -143,7 +159,8 @@ const joinFamily = async () => {
 
 .scan-card,
 .manual-card,
-.confirm-card {
+.confirm-card,
+.error-card {
   margin-top: 24rpx;
   padding: 30rpx;
 }
@@ -236,5 +253,23 @@ const joinFamily = async () => {
 .confirm-label {
   color: var(--app-text-tertiary);
   font-size: var(--font-size-tag);
+}
+
+.error-title,
+.error-desc {
+  display: block;
+}
+
+.error-title {
+  color: var(--app-text);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+}
+
+.error-desc {
+  margin-top: 10rpx;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
 }
 </style>

@@ -1,10 +1,17 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 const fixes = readFileSync(new URL('./fixes.css', import.meta.url), 'utf8');
 const js = readFileSync(new URL('./app.js', import.meta.url), 'utf8');
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+assert(existsSync(new URL('./assets/recipe-ingredients-sprite.png', import.meta.url)), '菜谱食材透明底素材缺失');
+assert(existsSync(new URL('./assets/recipe-ingredients-extra-sprite.png', import.meta.url)), '菜谱扩展食材透明底素材缺失');
+assert(js.includes('detail-ingredient-photo') && js.includes('ingredient-photo-${index + 1}') && js.includes('index < 12'), '全部菜谱食材必须使用统一透明底素材');
+assert(fixes.includes('recipe-ingredients-sprite.png') && fixes.includes('recipe-ingredients-extra-sprite.png') && fixes.includes('background-size:400% 400%'), '菜谱食材透明底精灵图样式缺失');
+assert(!js.includes('data-detail-more') && !js.includes('detail-extra-ingredient') && !js.includes('收起食材'), '食材必须默认全部展示，不能保留展开收起交互');
+assert(/\.detail-view\.is-recipe-detail \.detail-ingredient-photo\s*\{[^}]*width:82%/s.test(fixes), '单个食材图需要缩小并保留呼吸空间');
 
 assert(html.includes('class="hero"') && css.includes('--hero-height:420px'), 'Banner structure or 420px height changed');
 const heroSlides = [...html.matchAll(/<img\b[^>]*class="[^"]*\bhero-media\b[^"]*"[^>]*>/g)].map((match) => match[0]);
@@ -145,6 +152,16 @@ assert(js.includes("role', 'tabpanel'") && js.includes("aria-controls"), '分类
 assert(fixes.includes('env(safe-area-inset-top') && fixes.includes('.category-result-summary') && fixes.includes('.basket-view'), '分类安全区或新增视图样式缺失');
 assert(/\.home-picks[^}]*background:\s*transparent/s.test(fixes), '首页模块外层必须融入页面底色，不能使用整块白色容器');
 assert(/\.recipe-card\s*\{[^}]*background:\s*var\(--surface-primary\)/s.test(fixes), '首页菜谱内容必须使用独立白色卡片承载');
+assert(/\.detail-view\.is-recipe-detail \.detail-content\s*\{[^}]*margin-top:\s*-22px[^}]*border-radius:\s*22px 22px 0 0/s.test(fixes), '菜谱详情信息区必须轻压主图并形成连续内容面');
+assert(/\.detail-view\.is-recipe-detail \.detail-hero\s*\{[^}]*position:\s*sticky[^}]*top:\s*0/s.test(fixes), '菜谱详情主图必须固定在顶部');
+assert(/\.detail-view\.is-recipe-detail \.detail-hero-actions\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*10/s.test(fixes), '菜谱详情操作按钮必须脱离主图并固定在最上层');
+assert(/\.detail-view\.is-recipe-detail \.detail-content\s*\{[^}]*position:\s*relative/s.test(fixes) && !/\.detail-view\.is-recipe-detail \.detail-content\s*\{[^}]*overflow-y:\s*auto/s.test(fixes), '菜谱完整信息模块必须只使用页面单一滚动');
+assert(js.includes('</div>${detailHeroActions}${detailSheetLock}<section class="detail-content">'), '详情操作按钮与锁定遮罩必须脱离主图裁切层');
+assert(js.includes('detail-sheet-safe-zone') && js.includes('detail-sheet-cap') && js.includes('is-sheet-locked'), '菜谱信息模块缺少单滚动锁定遮罩');
+assert(js.includes('${detailSeasoningDiscovery}<div class="detail-bottom">${bottomActions}</div></section>'), '详情底部操作必须位于完整信息模块内部');
+assert(/\.detail-view\.is-recipe-detail \.detail-bottom\s*\{[^}]*position:\s*static/s.test(fixes), '菜谱底部操作不能独立固定在视口底部');
+assert(/\.detail-view\.is-recipe-detail \.detail-heading\s*\{[^}]*padding:\s*18px 16px 0/s.test(fixes), '菜谱标题信息区必须保持紧凑内边距');
+assert(/\.detail-view\.is-recipe-detail \.detail-tab-module\s*\{[^}]*border-top:\s*0/s.test(fixes), '菜谱标题与选项卡之间不能再出现割裂横线');
 assert(/\.season-item\s*\{[^}]*background:\s*var\(--surface-primary\)/s.test(fixes), '时令果蔬必须使用独立白色卡片承载');
 assert(/\.recipe-card\s*\{[^}]*padding:\s*0\s+0\s+10px/s.test(fixes), '菜谱图片必须贴合卡片上沿和左右边缘');
 assert(/\.grid-recipe\s*\{[^}]*padding:\s*0\s+0\s+12px/s.test(fixes), '双列菜谱图片必须贴合卡片上沿和左右边缘');

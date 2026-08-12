@@ -651,7 +651,7 @@ onBackPress(() => {
 }
 
 .save-spacer {
-  height: calc(136rpx + env(safe-area-inset-bottom, 0));
+  height: calc(136rpx + var(--app-safe-area-bottom));
 }
 
 .save-bar {
@@ -661,7 +661,7 @@ onBackPress(() => {
   left: 0;
   z-index: 20;
   box-sizing: border-box;
-  padding: 18rpx 32rpx calc(18rpx + env(safe-area-inset-bottom, 0));
+  padding: 18rpx 32rpx calc(18rpx + var(--app-safe-area-bottom));
   background: rgba(245, 241, 234, 0.94);
   backdrop-filter: blur(20rpx);
   -webkit-backdrop-filter: blur(20rpx);
