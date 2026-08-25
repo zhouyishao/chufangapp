@@ -644,6 +644,7 @@ model Recipe {
   authorId         Int?    @map("author_id")
   rejectReason     String? @map("reject_reason") @db.Text
   importSourceType String? @map("source_type_external") @db.VarChar(80)
+  importQualityScore Int?  @map("import_quality_score")
   sourceName       String? @map("source_name") @db.VarChar(120)
   sourceRecipeId   String? @map("source_recipe_id") @db.VarChar(120)
   sourceUrl        String? @map("source_url") @db.VarChar(255)
@@ -1796,6 +1797,8 @@ model ResourceApiProvider {
   method          String       @default("GET") @db.VarChar(16)
   endpointUrl     String       @map("endpoint_url") @db.VarChar(500)
   sourceHomeUrl   String?      @map("source_home_url") @db.VarChar(500)
+  termsUrl        String?      @map("terms_url") @db.VarChar(500)
+  licenseNote     String?      @map("license_note") @db.Text
   authType        String       @default("NONE") @map("auth_type") @db.VarChar(32)
   appKey          String?      @map("app_key") @db.VarChar(255)
   encryptedSecret String?      @map("encrypted_secret") @db.Text
@@ -1853,6 +1856,9 @@ model ResourceImportItem {
   rowIndex          Int                 @map("row_index")
   rawData           Json                @map("raw_data") // Original unmapped row payload
   mappedData        Json                @map("mapped_data") // Formatted payload ready for insertion
+  qualityScore      Int?                @map("quality_score")
+  isChinese         Boolean?            @map("is_chinese")
+  qualityIssues     Json?               @map("quality_issues")
   status            String              @default("PENDING") @db.VarChar(20) // PENDING / IMPORTED / FAILED
   errorMessage      String?             @map("error_message") @db.Text
   targetId          Int?                @map("target_id") // Inserted row ID in main tables on success
@@ -1863,6 +1869,7 @@ model ResourceImportItem {
   createdAt         DateTime            @default(now()) @map("created_at")
 
   @@index([importId])
+  @@index([status, isChinese, qualityScore], map: "resource_import_items_recipe_quality_idx")
   @@map("resource_import_items")
 }
 
