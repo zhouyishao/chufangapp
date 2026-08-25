@@ -39,7 +39,12 @@ test('provider serialization redacts JSON credentials and update placeholders re
     id: 1,
     providerCode: 'tianapi_caipu',
     resourceType: 'RECIPE',
-    defaultHeaders: { Authorization: 'Bearer real-header-token', 'X-Api-Key': 'real-header-key' },
+    defaultHeaders: {
+      Authorization: 'Bearer real-header-token',
+      'X-Api-Key': 'real-header-key',
+      Cookie: 'session=real-cookie',
+      'Set-Cookie': 'csrf=real-set-cookie'
+    },
     defaultParams: { token: 'real-param-token', word: '豆腐' },
     lastSyncedAt: null,
     lastTestedAt: null,
@@ -48,11 +53,24 @@ test('provider serialization redacts JSON credentials and update placeholders re
     _count: { importBatches: 0 }
   });
 
-  assert.doesNotMatch(JSON.stringify(serialized), /real-header-token|real-header-key|real-param-token/);
+  assert.doesNotMatch(
+    JSON.stringify(serialized),
+    /real-header-token|real-header-key|real-param-token|real-cookie|real-set-cookie/
+  );
   assert.deepEqual(resolveProviderJsonConfig(
-    { Authorization: '***', nested: { token: '***', page: 2 } },
-    { Authorization: 'Bearer saved', nested: { token: 'saved-token', page: 1 } }
-  ), { Authorization: 'Bearer saved', nested: { token: 'saved-token', page: 2 } });
+    { Authorization: '***', Cookie: '***', 'Set-Cookie': '***', nested: { token: '***', page: 2 } },
+    {
+      Authorization: 'Bearer saved',
+      Cookie: 'session=saved',
+      'Set-Cookie': 'csrf=saved',
+      nested: { token: 'saved-token', page: 1 }
+    }
+  ), {
+    Authorization: 'Bearer saved',
+    Cookie: 'session=saved',
+    'Set-Cookie': 'csrf=saved',
+    nested: { token: 'saved-token', page: 2 }
+  });
   assert.deepEqual(resolveProviderJsonConfig(undefined, { token: 'saved-token' }), { token: 'saved-token' });
   assert.equal(resolveProviderJsonConfig(null, { token: 'saved-token' }), null);
   assert.deepEqual(resolveProviderJsonConfig(

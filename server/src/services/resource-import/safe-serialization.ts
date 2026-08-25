@@ -11,6 +11,12 @@ export const isSensitiveResourceImportKey = (key: string): boolean => {
     'signature',
     'sign',
     'authorization',
+    'cookie',
+    'setcookie',
+    'session',
+    'sessionid',
+    'csrf',
+    'xsrf',
     'password',
     'credential'
   ].some((name) => normalized === name || normalized.endsWith(name));
@@ -51,7 +57,7 @@ export const sanitizeResourceImportValue = (value: unknown): unknown => {
 export const sanitizeResourceImportError = (value: string): string => {
   const withSafeUrls = value.replace(/https?:\/\/[^\s'"）)]+/giu, sanitizeResourceImportUrl);
   return withSafeUrls.replace(
-    /((?:api[_-]?key|app[_-]?key|access[_-]?key|access[_-]?token|token|secret|signature|sign|authorization|password|credential)\s*[=:]\s*['"]?)[^\s,;:'"`]+/giu,
+    /((?:api[_-]?key|app[_-]?key|access[_-]?key|access[_-]?token|token|secret|signature|sign|authorization|cookie|set[_-]?cookie|session(?:[_-]?id)?|csrf|xsrf|password|credential)\s*[=:]\s*['"]?)[^\s,;:'"`]+/giu,
     '$1***'
   );
 };

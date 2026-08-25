@@ -12,7 +12,10 @@ import { createBusinessId, nextCodeFromItems } from '../../lib/business-id';
 import { createOfficialRecord } from '../../services/resource-import/importer';
 import { normalizeResourcePayload } from '../../services/resource-import/validator';
 import type { ResourceImportType } from '../../services/resource-import/types';
-import { evaluateStagedResourceCandidate } from '../../services/resource-import/governed-staging';
+import {
+  evaluateStagedResourceCandidate,
+  getRecipeImportAdmissionFailure
+} from '../../services/resource-import/governed-staging';
 
 export const adminResourcesRouter = Router();
 
@@ -1378,13 +1381,40 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
       try {
         const mapped = item.mappedData as Record<string, any>;
         if (!String(mapped.name ?? '').trim()) throw new Error('必填项缺失: 名称为空');
+        const resourceType = batch.importType as ResourceImportType;
+        const candidate = resourceType === 'RECIPE'
+          ? await evaluateStagedResourceCandidate(tx, resourceType, mapped as any)
+          : null;
+        const admissionFailure = candidate ? getRecipeImportAdmissionFailure(candidate) : null;
+        if (admissionFailure) {
+          await tx.resourceImportItem.update({
+            where: { id: item.id },
+            data: {
+              mappedData: candidate!.mappedData as Prisma.InputJsonValue,
+              status: 'FAILED',
+              errorMessage: admissionFailure,
+              externalId: candidate!.externalId,
+              externalUrl: candidate!.externalUrl,
+              filterCode: candidate!.filterCode,
+              duplicateTargetId: candidate!.duplicateTargetId,
+              qualityScore: candidate!.qualityScore,
+              isChinese: candidate!.isChinese,
+              qualityIssues: candidate!.qualityIssues
+                ? (candidate!.qualityIssues as Prisma.InputJsonValue)
+                : Prisma.DbNull
+            }
+          });
+          failCount++;
+          continue;
+        }
+        const governedMapped = candidate?.mappedData ?? mapped;
         const targetId = await createOfficialRecord(
           tx,
-          batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
-          mapped as any,
+          resourceType,
+          governedMapped as any,
           item.id,
           batch.provider?.providerName ?? batch.sourceName ?? null,
-          (mapped.externalUrl as string | undefined) ?? null
+          (governedMapped.externalUrl as string | undefined) ?? null
         );
         await tx.resourceImportItem.update({
           where: { id: item.id },
@@ -1412,72 +1442,101 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
 // 10. POST /resource-imports/:id/retry-failed
 adminResourcesRouter.post('/resource-imports/:id/retry-failed', requireAdminAuth, async (req, res) => {
   const id = parseId(req.params.id);
-  const batch = await prisma.resourceImportBatch.findUnique({
-    where: { id },
-    include: { provider: true }
-  } as any) as any;
-  if (!batch) throw new HttpError('导入批次不存在', 404, 404);
+  const result = await prisma.$transaction(async (tx) => {
+    const batch = await tx.resourceImportBatch.findUnique({
+      where: { id },
+      include: { provider: true }
+    } as any) as any;
+    if (!batch) throw new HttpError('导入批次不存在', 404, 404);
 
-  const failedItems = await prisma.resourceImportItem.findMany({
-    where: { importId: id, status: 'FAILED' }
-  });
+    const failedItems = await tx.resourceImportItem.findMany({
+      where: { importId: id, status: 'FAILED' },
+      select: { id: true }
+    });
+    const failedItemIds = failedItems.map((item) => item.id);
+    if (failedItemIds.length === 0) {
+      await refreshImportBatchStats(tx, [id]);
+      return { successCount: 0, failCount: 0, batch: await tx.resourceImportBatch.findUnique({ where: { id } }) };
+    }
 
-  let successCount = 0;
-  let failCount = 0;
+    const claimed = await tx.resourceImportItem.updateMany({
+      where: { id: { in: failedItemIds }, importId: id, status: 'FAILED' },
+      data: { status: 'PROCESSING' }
+    });
+    if (claimed.count !== failedItemIds.length) {
+      throw new HttpError('资源状态已变化，请刷新后重试', 409, 409);
+    }
 
-  for (const item of failedItems) {
-    try {
-      const mapped = item.mappedData as Record<string, any>;
-      if (!String(mapped.name ?? '').trim()) {
-        throw new Error('必填项缺失: 名称为空');
+    const items = await tx.resourceImportItem.findMany({
+      where: { id: { in: failedItemIds }, importId: id, status: 'PROCESSING' }
+    });
+    if (items.length !== failedItemIds.length) {
+      throw new HttpError('资源状态已变化，请刷新后重试', 409, 409);
+    }
+
+    const resourceType = batch.importType as ResourceImportType;
+    let successCount = 0;
+    let failCount = 0;
+    for (const item of items) {
+      try {
+        const mapped = item.mappedData as Record<string, any>;
+        if (!String(mapped.name ?? '').trim()) throw new Error('必填项缺失: 名称为空');
+        const candidate = resourceType === 'RECIPE'
+          ? await evaluateStagedResourceCandidate(tx, resourceType, mapped as any)
+          : null;
+        const admissionFailure = candidate ? getRecipeImportAdmissionFailure(candidate) : null;
+        if (admissionFailure) {
+          await tx.resourceImportItem.update({
+            where: { id: item.id },
+            data: {
+              mappedData: candidate!.mappedData as Prisma.InputJsonValue,
+              status: 'FAILED',
+              errorMessage: admissionFailure,
+              externalId: candidate!.externalId,
+              externalUrl: candidate!.externalUrl,
+              filterCode: candidate!.filterCode,
+              duplicateTargetId: candidate!.duplicateTargetId,
+              qualityScore: candidate!.qualityScore,
+              isChinese: candidate!.isChinese,
+              qualityIssues: candidate!.qualityIssues
+                ? (candidate!.qualityIssues as Prisma.InputJsonValue)
+                : Prisma.DbNull
+            }
+          });
+          failCount++;
+          continue;
+        }
+        const governedMapped = candidate?.mappedData ?? mapped;
+        const targetId = await createOfficialRecord(
+          tx,
+          resourceType,
+          governedMapped as any,
+          item.id,
+          batch.provider?.providerName ?? batch.sourceName ?? null,
+          (governedMapped.externalUrl as string | undefined) ?? null
+        );
+        await tx.resourceImportItem.update({
+          where: { id: item.id },
+          data: { status: 'IMPORTED', errorMessage: null, targetId }
+        });
+        successCount++;
+      } catch (err: any) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        await tx.resourceImportItem.update({
+          where: { id: item.id },
+          data: { status: 'FAILED', errorMessage: errMsg }
+        });
+        failCount++;
       }
-      const targetId = await createOfficialRecord(
-        prisma,
-        batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
-        mapped as any,
-        item.id,
-        batch.provider?.providerName ?? batch.sourceName ?? null,
-        (mapped.externalUrl as string | undefined) ?? null
-      );
-
-      await prisma.resourceImportItem.update({
-        where: { id: item.id },
-        data: {
-          status: 'IMPORTED',
-          errorMessage: null,
-          targetId
-        }
-      });
-      successCount++;
-    } catch (err: any) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      await prisma.resourceImportItem.update({
-        where: { id: item.id },
-        data: {
-          status: 'FAILED',
-          errorMessage: errMsg
-        }
-      });
-      failCount++;
     }
-  }
 
-  const allItems = await prisma.resourceImportItem.findMany({
-    where: { importId: id }
-  });
-  const totalSuccess = allItems.filter(i => i.status === 'IMPORTED').length;
-  const totalFailed = allItems.filter(i => i.status === 'FAILED').length;
-  const pendingCount = allItems.filter(i => i.status === 'PENDING').length;
-
-  const updatedBatch = await prisma.resourceImportBatch.update({
-    where: { id },
-    data: {
-      successCount: totalSuccess,
-      failedCount: totalFailed,
-      status: pendingCount === 0 ? 'COMPLETED' : 'PENDING',
-      finishedAt: pendingCount === 0 ? new Date() : null
-    }
+    await refreshImportBatchStats(tx, [id]);
+    return {
+      successCount,
+      failCount,
+      batch: await tx.resourceImportBatch.findUnique({ where: { id } })
+    };
   });
 
-  res.json(ok({ successCount, failCount, batch: updatedBatch }));
+  res.json(ok(result));
 });

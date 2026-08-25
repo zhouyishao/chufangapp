@@ -1,7 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 import { findDuplicateTargetId } from './importer';
-import { evaluateChineseRecipeCandidate } from './chinese-recipe-policy';
+import {
+  evaluateChineseRecipeCandidate,
+  getChineseRecipeConfirmationFailure,
+  type ChineseRecipeEvaluation
+} from './chinese-recipe-policy';
 import type { NormalizedResourcePayload, ResourceImportType } from './types';
 import { evaluateResourcePayload } from './validator';
 
@@ -18,10 +22,13 @@ export type GovernedStagedResourceCandidate = {
   qualityScore: number | null;
   isChinese: boolean | null;
   qualityIssues: string[] | null;
+  recipeEvaluation: ChineseRecipeEvaluation | null;
 };
 
+type DbClient = PrismaClient | Prisma.TransactionClient;
+
 export const evaluateStagedResourceCandidate = async (
-  db: PrismaClient,
+  db: DbClient,
   resourceType: ResourceImportType,
   mapped: NormalizedResourcePayload
 ): Promise<GovernedStagedResourceCandidate> => {
@@ -62,6 +69,15 @@ export const evaluateStagedResourceCandidate = async (
     canApplyBatchDuplicate: !hardFailure,
     qualityScore: recipeEvaluation?.qualityScore ?? null,
     isChinese: recipeEvaluation?.isChinese ?? null,
-    qualityIssues: recipeEvaluation?.qualityIssues ?? null
+    qualityIssues: recipeEvaluation?.qualityIssues ?? null,
+    recipeEvaluation
   };
 };
+
+export const getRecipeImportAdmissionFailure = (
+  candidate: GovernedStagedResourceCandidate
+): string | null => candidate.recipeEvaluation
+  ? candidate.status === 'FAILED'
+    ? candidate.errorMessage || '菜谱暂存记录未通过准入'
+    : getChineseRecipeConfirmationFailure(candidate.recipeEvaluation)
+  : null;

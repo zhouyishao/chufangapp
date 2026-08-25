@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   containsChineseText,
   evaluateChineseRecipeCandidate,
+  getChineseRecipeConfirmationFailure,
   mapChineseRecipeCategory,
   normalizeImportedRecipeTitle
 } from '../services/resource-import/chinese-recipe-policy';
@@ -82,4 +83,20 @@ test('requires mapped category and traceable source before confirmation', () => 
 
   assert.equal(unmapped.filterCode, 'UNMAPPED_RECIPE_CATEGORY');
   assert.equal(untraceable.filterCode, 'UNTRACEABLE_RECIPE_SOURCE');
+});
+
+test('non-Chinese and unmapped recipe retries remain inadmissible', () => {
+  const overseas = evaluateChineseRecipeCandidate({
+    name: 'Chicken Handi', categoryName: 'Chicken',
+    ingredients: [{ name: 'Chicken' }, { name: 'Salt' }], steps: ['Cook'],
+    sourceName: '海外来源', externalId: 'foreign-1'
+  });
+  const unmapped = evaluateChineseRecipeCandidate({
+    name: '番茄炒蛋', categoryName: 'Western',
+    ingredients: [{ name: '番茄' }, { name: '鸡蛋' }], steps: ['翻炒'],
+    sourceName: '来源', externalId: 'unmapped-1'
+  });
+
+  assert.notEqual(getChineseRecipeConfirmationFailure(overseas), null);
+  assert.notEqual(getChineseRecipeConfirmationFailure(unmapped), null);
 });

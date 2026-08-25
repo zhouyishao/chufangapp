@@ -15,6 +15,8 @@ export const CHINESE_RECIPE_CATEGORIES = [
   '家常菜', '快手菜', '素菜', '荤菜', '汤羹', '凉菜', '主食', '早餐', '烘焙', '地方菜', '节气时令'
 ] as const;
 
+export const CHINESE_RECIPE_CONFIRMATION_QUALITY = 80;
+
 const CATEGORY_ALIASES: Record<string, (typeof CHINESE_RECIPE_CATEGORIES)[number]> = {
   家常菜: '家常菜',
   家常: '家常菜',
@@ -112,4 +114,16 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
     filterCode,
     errorMessage: filterCode ? qualityIssues.join('；') : null
   };
+};
+
+export const getChineseRecipeConfirmationFailure = (
+  evaluation: ChineseRecipeEvaluation
+): string | null => {
+  if (evaluation.hardFailure) {
+    return evaluation.errorMessage || '菜谱未通过中国家庭菜准入';
+  }
+  if (evaluation.qualityScore < CHINESE_RECIPE_CONFIRMATION_QUALITY) {
+    return `菜谱质量分低于${CHINESE_RECIPE_CONFIRMATION_QUALITY}，暂不可确认导入`;
+  }
+  return null;
 };

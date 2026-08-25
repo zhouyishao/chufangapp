@@ -48,14 +48,32 @@ test('resource import snapshots and errors redact sensitive query and parameter 
     'GET',
     'https://provider.example/recipes?apiKey=real-key&word=%E9%B1%BC',
     'data.list',
-    { token: 'real-token', nested: { sign: 'real-sign' } },
+    { token: 'real-token', nested: { sign: 'real-sign' }, Cookie: 'session=real-cookie' },
     '可信来源'
   );
-  const error = sanitizeResourceImportError('拉取失败 https://provider.example/data?secret=real-secret');
+  const error = sanitizeResourceImportError('拉取失败 https://provider.example/data?secret=real-secret cookie=real-cookie');
 
-  assert.doesNotMatch(JSON.stringify(snapshot), /real-key|real-token|real-sign/);
+  assert.doesNotMatch(JSON.stringify(snapshot), /real-key|real-token|real-sign|real-cookie/);
   assert.match(snapshot.endpointUrl, /apiKey=\*\*\*/);
-  assert.doesNotMatch(error, /real-secret/);
+  assert.doesNotMatch(error, /real-secret|real-cookie/);
+});
+
+test('retrying failed recipes re-applies Chinese admission before it can persist official records', () => {
+  const resourceRoute = readFileSync(resolve(__dirname, '../routes/admin/resources.ts'), 'utf8');
+  const retryRoute = resourceRoute.slice(resourceRoute.indexOf("adminResourcesRouter.post('/resource-imports/:id/retry-failed'"));
+
+  assert.match(retryRoute, /\$transaction\(async \(tx\)/);
+  assert.match(retryRoute, /status:\s*'PROCESSING'/);
+  assert.match(retryRoute, /evaluateStagedResourceCandidate\(tx, resourceType, mapped(?: as any)?\)/);
+  assert.match(retryRoute, /getRecipeImportAdmissionFailure\(candidate\)/);
+  assert.match(retryRoute, /status:\s*'FAILED'/);
+  assert.match(retryRoute, /createOfficialRecord\(\s*tx,/);
+  assert.match(retryRoute, /refreshImportBatchStats\(tx, \[id\]\)/);
+  assert.ok(
+    retryRoute.indexOf('getRecipeImportAdmissionFailure(candidate)')
+      < retryRoute.indexOf('createOfficialRecord('),
+    'Chinese admission must run before official persistence'
+  );
 });
 
 test('governed recipe staging centralizes all paths and bulk-ignore retains transactional eligibility', () => {
