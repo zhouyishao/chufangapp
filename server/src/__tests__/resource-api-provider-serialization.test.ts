@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  resolveProviderEndpointUrl,
+  resolveProviderJsonConfig,
   resolveProviderAppKey,
   serializeProvider
 } from '../routes/admin/resource-api-providers';
@@ -30,4 +32,38 @@ test('provider updates keep an omitted application key and clear an explicit nul
   assert.equal(resolveProviderAppKey(undefined, 'saved-key'), 'saved-key');
   assert.equal(resolveProviderAppKey(null, 'saved-key'), null);
   assert.equal(resolveProviderAppKey('replacement-key', 'saved-key'), 'replacement-key');
+});
+
+test('provider serialization redacts JSON credentials and update placeholders retain existing configuration', () => {
+  const serialized = serializeProvider({
+    id: 1,
+    providerCode: 'tianapi_caipu',
+    resourceType: 'RECIPE',
+    defaultHeaders: { Authorization: 'Bearer real-header-token', 'X-Api-Key': 'real-header-key' },
+    defaultParams: { token: 'real-param-token', word: '豆腐' },
+    lastSyncedAt: null,
+    lastTestedAt: null,
+    createdAt: new Date('2026-08-25T00:00:00.000Z'),
+    updatedAt: new Date('2026-08-25T00:00:00.000Z'),
+    _count: { importBatches: 0 }
+  });
+
+  assert.doesNotMatch(JSON.stringify(serialized), /real-header-token|real-header-key|real-param-token/);
+  assert.deepEqual(resolveProviderJsonConfig(
+    { Authorization: '***', nested: { token: '***', page: 2 } },
+    { Authorization: 'Bearer saved', nested: { token: 'saved-token', page: 1 } }
+  ), { Authorization: 'Bearer saved', nested: { token: 'saved-token', page: 2 } });
+  assert.deepEqual(resolveProviderJsonConfig(undefined, { token: 'saved-token' }), { token: 'saved-token' });
+  assert.equal(resolveProviderJsonConfig(null, { token: 'saved-token' }), null);
+  assert.deepEqual(resolveProviderJsonConfig(
+    { sourceUrl: 'https://provider.example/data?signature=***&page=2' },
+    { sourceUrl: 'https://provider.example/data?signature=saved-signature&page=1' }
+  ), { sourceUrl: 'https://provider.example/data?signature=saved-signature&page=2' });
+  assert.equal(
+    resolveProviderEndpointUrl(
+      'https://provider.example/recipes?token=***&word=%E9%B1%BC',
+      'https://provider.example/recipes?token=saved-token&word=%E9%B1%BC'
+    ),
+    'https://provider.example/recipes?token=saved-token&word=%E9%B1%BC'
+  );
 });

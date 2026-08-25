@@ -69,4 +69,7 @@ test('governed recipe staging centralizes all paths and bulk-ignore retains tran
   assert.match(resourceRoute, /batch:\s*\{\s*is:\s*\{\s*importType:\s*'RECIPE'/);
   assert.match(resourceRoute, /updated\.count !== uniqueItemIds\.length/);
   assert.match(resourceRoute, /refreshImportBatchStats\(tx,/);
+  assert.match(resourceRoute, /status:\s*'PROCESSING'/);
+  assert.match(resourceRoute, /claimed\.count !== requestedItemIds\.length/);
+  assert.match(resourceRoute, /createOfficialRecord\(\s*tx,/);
 });

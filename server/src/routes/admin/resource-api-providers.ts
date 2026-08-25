@@ -30,7 +30,12 @@ import {
   getRecipeProviderRole
 } from '../../services/resource-import/recipe-provider-policy';
 import { evaluateStagedResourceCandidate } from '../../services/resource-import/governed-staging';
-import { sanitizeResourceImportError, sanitizeResourceImportUrl } from '../../services/resource-import/safe-serialization';
+import {
+  sanitizeResourceImportError,
+  sanitizeResourceImportUrl,
+  sanitizeResourceImportValue,
+  restoreRedactedResourceImportUrl
+} from '../../services/resource-import/safe-serialization';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -75,6 +80,37 @@ export const resolveProviderAppKey = (
   existingAppKey: string | null
 ): string | null => appKey === undefined ? existingAppKey : appKey;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const mergeRedactedProviderConfig = (
+  incoming: Record<string, unknown>,
+  existing: Record<string, unknown>
+): Record<string, unknown> => Object.fromEntries(
+  Object.entries(incoming).map(([key, value]) => {
+    const existingValue = existing[key];
+    if (value === '***' && existingValue !== undefined) return [key, existingValue];
+    if (isRecord(value) && isRecord(existingValue)) return [key, mergeRedactedProviderConfig(value, existingValue)];
+    if (typeof value === 'string' && typeof existingValue === 'string') {
+      return [key, restoreRedactedResourceImportUrl(value, existingValue)];
+    }
+    return [key, value];
+  })
+);
+
+export const resolveProviderJsonConfig = (
+  incoming: Record<string, unknown> | null | undefined,
+  existing: unknown
+): Record<string, unknown> | null => {
+  const existingConfig = isRecord(existing) ? existing : null;
+  if (incoming === undefined) return existingConfig;
+  if (incoming === null) return null;
+  return mergeRedactedProviderConfig(incoming, existingConfig ?? {});
+};
+
+export const resolveProviderEndpointUrl = (incoming: string, existing: string) =>
+  restoreRedactedResourceImportUrl(incoming, existing);
+
 export const serializeProvider = (provider: any) => {
   const { appKey: _appKey, encryptedSecret, ...safeProvider } = provider;
 
@@ -83,6 +119,12 @@ export const serializeProvider = (provider: any) => {
     endpointUrl: typeof provider.endpointUrl === 'string'
       ? sanitizeResourceImportUrl(provider.endpointUrl)
       : provider.endpointUrl,
+    defaultHeaders: provider.defaultHeaders && typeof provider.defaultHeaders === 'object'
+      ? sanitizeResourceImportValue(provider.defaultHeaders)
+      : provider.defaultHeaders,
+    defaultParams: provider.defaultParams && typeof provider.defaultParams === 'object'
+      ? sanitizeResourceImportValue(provider.defaultParams)
+      : provider.defaultParams,
     recipeSourceRole: provider.resourceType === 'RECIPE'
       ? getRecipeProviderRole(provider.providerCode)
       : null,
@@ -228,6 +270,9 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
     if (duplicate) throw new HttpError('同编码资源提供方已存在', 422, 422);
   }
 
+  const defaultHeaders = resolveProviderJsonConfig(parsed.data.defaultHeaders, existing.defaultHeaders);
+  const defaultParams = resolveProviderJsonConfig(parsed.data.defaultParams, existing.defaultParams);
+
   const updated = await prisma.resourceApiProvider.update({
     where: { id },
     data: {
@@ -238,15 +283,15 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
       sourceKind: parsed.data.sourceKind,
       formatHint: parsed.data.formatHint,
       method: parsed.data.method,
-      endpointUrl: parsed.data.endpointUrl,
+      endpointUrl: resolveProviderEndpointUrl(parsed.data.endpointUrl, existing.endpointUrl),
       sourceHomeUrl: parsed.data.sourceHomeUrl ?? null,
       termsUrl: parsed.data.termsUrl ?? null,
       licenseNote: parsed.data.licenseNote ?? null,
       authType: parsed.data.authType,
       appKey: resolveProviderAppKey(parsed.data.appKey, existing.appKey),
       encryptedSecret: parsed.data.secret ? encryptSecret(parsed.data.secret) : existing.encryptedSecret,
-      defaultHeaders: parsed.data.defaultHeaders ? (parsed.data.defaultHeaders as Prisma.InputJsonValue) : Prisma.DbNull,
-      defaultParams: parsed.data.defaultParams ? (parsed.data.defaultParams as Prisma.InputJsonValue) : Prisma.DbNull,
+      defaultHeaders: defaultHeaders ? (defaultHeaders as Prisma.InputJsonValue) : Prisma.DbNull,
+      defaultParams: defaultParams ? (defaultParams as Prisma.InputJsonValue) : Prisma.DbNull,
       dataPath: parsed.data.dataPath,
       timeoutMs: parsed.data.timeoutMs,
       dailyLimit: parsed.data.dailyLimit,

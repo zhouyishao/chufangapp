@@ -49,3 +49,29 @@ test('query-key requests use the real key only for fetch and mask preview and ra
     globalThis.fetch = originalFetch;
   }
 });
+
+test('dataset source URLs redact token and signature before they become raw records', async () => {
+  const originalFetch = globalThis.fetch;
+  const sourceUrl = 'https://example.test/source.json?token=dataset-token&signature=dataset-signature';
+  globalThis.fetch = (async () => new Response(JSON.stringify([{ name: '豆腐青菜' }]), {
+    headers: { 'Content-Type': 'application/json' }
+  })) as typeof fetch;
+
+  try {
+    const preview = await fetchProviderPreview({
+      ...provider,
+      sourceKind: 'OPEN_DATASET',
+      formatHint: 'JSON',
+      authType: 'NONE',
+      appKey: null,
+      defaultParams: { __sourceUrls: [sourceUrl] },
+      dataPath: ''
+    }, 1);
+
+    assert.doesNotMatch(preview.rawRecords[0]?.sourceUrl ?? '', /dataset-token|dataset-signature/);
+    assert.match(preview.rawRecords[0]?.sourceUrl ?? '', /token=\*\*\*/);
+    assert.match(preview.rawRecords[0]?.sourceUrl ?? '', /signature=\*\*\*/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

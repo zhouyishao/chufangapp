@@ -262,7 +262,7 @@ const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: 
     rows.push(...normalizedRows);
     rawRecords.push({
       fileName,
-      sourceUrl,
+      sourceUrl: sanitizeResourceImportUrl(sourceUrl),
       contentType,
       rawText,
       rawJson: parsed.rawJson,
