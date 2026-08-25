@@ -27,6 +27,7 @@ import type { ResourceApiProviderItem, ResourceImportStagedItem } from '../types
 type ResourceType = ResourceImportStagedItem['importType'];
 type ImportStatus = ResourceImportStagedItem['status'];
 type ChineseStatusFilter = 'ALL' | 'CHINESE' | 'NON_CHINESE';
+type SelectedImportItem = Pick<ResourceImportStagedItem, 'id' | 'importId' | 'importType' | 'status'>;
 
 const resourceTypeLabels: Record<ResourceType, string> = {
   RECIPE: '菜谱',
@@ -142,7 +143,7 @@ export const ResourceAccessCenterPage = () => {
   const [bulkIgnoring, setBulkIgnoring] = useState(false);
   const [bulkIgnoreConfirmOpen, setBulkIgnoreConfirmOpen] = useState(false);
 
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedItemsById, setSelectedItemsById] = useState<Record<number, SelectedImportItem>>({});
   const [previewItem, setPreviewItem] = useState<ResourceImportStagedItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -154,6 +155,8 @@ export const ResourceAccessCenterPage = () => {
   const selectedProvider = typeof selectedProviderId === 'number'
     ? providerItems.find((item) => item.id === selectedProviderId)
     : undefined;
+  const selectedImportItems = Object.values(selectedItemsById);
+  const selectedIds = selectedImportItems.map((item) => item.id);
 
   const parseQualityFilter = () => {
     const parseValue = (value: string, label: string) => {
@@ -250,6 +253,10 @@ export const ResourceAccessCenterPage = () => {
   useEffect(() => {
     void refresh();
   }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter, chineseStatusFilter, appliedMinQuality, appliedMaxQuality]);
+
+  useEffect(() => {
+    setSelectedItemsById({});
+  }, [appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter, chineseStatusFilter, appliedMinQuality, appliedMaxQuality]);
 
   useEffect(() => {
     void refreshCategories();
@@ -367,20 +374,41 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
-  const toggleSelected = (id: number) => {
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]
-    );
+  const toggleSelected = (item: ResourceImportStagedItem) => {
+    setSelectedItemsById((current) => {
+      const next = { ...current };
+      if (next[item.id]) {
+        delete next[item.id];
+      } else {
+        next[item.id] = {
+          id: item.id,
+          importId: item.importId,
+          importType: item.importType,
+          status: item.status
+        };
+      }
+      return next;
+    });
   };
 
   const toggleAll = () => {
-    const currentIds = items.map((item) => item.id);
-    const allSelected = currentIds.every((id) => selectedIds.includes(id));
-    setSelectedIds((current) =>
-      allSelected
-        ? current.filter((id) => !currentIds.includes(id))
-        : Array.from(new Set([...current, ...currentIds]))
-    );
+    const allSelected = items.length > 0 && items.every((item) => Boolean(selectedItemsById[item.id]));
+    setSelectedItemsById((current) => {
+      const next = { ...current };
+      items.forEach((item) => {
+        if (allSelected) {
+          delete next[item.id];
+        } else {
+          next[item.id] = {
+            id: item.id,
+            importId: item.importId,
+            importType: item.importType,
+            status: item.status
+          };
+        }
+      });
+      return next;
+    });
   };
 
   const downloadTemplate = (type: ResourceType) => {
@@ -511,7 +539,7 @@ export const ResourceAccessCenterPage = () => {
 
       setNotice(`解析成功！新增批次 ID: ${res.batch.id}，共导入待处理项 ${res.items.length} 条。`);
       setPage(1);
-      setSelectedIds([]);
+      setSelectedItemsById({});
       await refresh();
       setTimeout(() => setNotice(null), 5000);
     } catch (err) {
@@ -621,7 +649,7 @@ export const ResourceAccessCenterPage = () => {
       setNotice('请先选择要导入的记录');
       return;
     }
-    const firstSelected = items.find((item) => selectedIds.includes(item.id));
+    const firstSelected = selectedImportItems[0];
     if (!firstSelected) {
       setNotice('未找到所选记录');
       return;
@@ -631,7 +659,7 @@ export const ResourceAccessCenterPage = () => {
     try {
       const res = await confirmImportBatch({ importId: firstSelected.importId, itemIds: selectedIds });
       setNotice(`批量导入完成：成功 ${res.successCount} 条，失败 ${res.failCount} 条。`);
-      setSelectedIds([]);
+      setSelectedItemsById({});
       await refresh();
       setTimeout(() => setNotice(null), 5000);
     } catch (err) {
@@ -639,7 +667,7 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
-  const selectedRecipeItems = items.filter((item) => selectedIds.includes(item.id));
+  const selectedRecipeItems = selectedImportItems;
   const canBulkIgnore = selectedRecipeItems.length > 0
     && selectedRecipeItems.length === selectedIds.length
     && selectedRecipeItems.every((item) => item.importType === 'RECIPE' && (item.status === 'PENDING' || item.status === 'FAILED'));
@@ -651,7 +679,7 @@ export const ResourceAccessCenterPage = () => {
     try {
       const result = await bulkIgnoreImportItems(selectedIds, '后台批量忽略海外或不符合定位的菜谱');
       setNotice(`已忽略 ${result.updatedCount} 条菜谱资源`);
-      setSelectedIds([]);
+      setSelectedItemsById({});
       setBulkIgnoreConfirmOpen(false);
       await refresh();
     } catch (err) {
@@ -661,7 +689,7 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
-  const allCurrentSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id));
+  const allCurrentSelected = items.length > 0 && items.every((item) => Boolean(selectedItemsById[item.id]));
 
   const columns: DataTableColumn<ResourceImportStagedItem>[] = [
     {
@@ -671,7 +699,7 @@ export const ResourceAccessCenterPage = () => {
         <input
           type="checkbox"
           checked={selectedIds.includes(item.id)}
-          onChange={() => toggleSelected(item.id)}
+          onChange={() => toggleSelected(item)}
           className="h-4 w-4 rounded border-[#d8d0c4] text-[#7a8b6f] focus:ring-[#7a8b6f]"
         />
       )

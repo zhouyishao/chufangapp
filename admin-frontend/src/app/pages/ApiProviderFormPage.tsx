@@ -450,6 +450,7 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [preview, setPreview] = useState<Array<Record<string, unknown>>>([]);
+  const [clearAppKeyRequested, setClearAppKeyRequested] = useState(false);
   const appliedPresetRef = useRef<ProviderPresetKey | null>(null);
 
   useEffect(() => {
@@ -496,6 +497,7 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
           description: item.description ?? '',
           status: item.status
         });
+        setClearAppKeyRequested(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载接口配置失败');
       } finally {
@@ -506,6 +508,26 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
   }, [id, mode]);
 
   const canSave = Boolean(draft.providerCode.trim() && draft.name.trim() && draft.providerName.trim() && draft.endpointUrl.trim() && !saving && !loading);
+
+  const buildProviderPayload = () => {
+    const { appKey: _appKey, ...providerDraft } = draft;
+    const appKeyValue = draft.appKey.trim();
+    const shouldIncludeAppKey = mode === 'create' || clearAppKeyRequested || Boolean(appKeyValue);
+    return {
+      ...providerDraft,
+      providerCode: draft.providerCode.trim(),
+      sourceKind: draft.sourceKind,
+      formatHint: draft.formatHint,
+      sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
+      termsUrl: draft.termsUrl.trim() || null,
+      licenseNote: draft.licenseNote.trim() || null,
+      ...(shouldIncludeAppKey ? { appKey: clearAppKeyRequested ? null : appKeyValue || null } : {}),
+      secret: draft.secret.trim() || null,
+      defaultHeaders: parseJsonInput(draft.defaultHeaders),
+      defaultParams: parseJsonInput(draft.defaultParams),
+      description: draft.description.trim() || null
+    };
+  };
 
   const applyPreset = (preset: ProviderPresetKey) => {
     const next = providerPresets[preset];
@@ -522,20 +544,7 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
     setSaving(true);
     setError(null);
     try {
-      const payload = {
-        ...draft,
-        providerCode: draft.providerCode.trim(),
-        sourceKind: draft.sourceKind,
-        formatHint: draft.formatHint,
-        sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
-        termsUrl: draft.termsUrl.trim() || null,
-        licenseNote: draft.licenseNote.trim() || null,
-        appKey: draft.appKey.trim() || null,
-        secret: draft.secret.trim() || null,
-        defaultHeaders: parseJsonInput(draft.defaultHeaders),
-        defaultParams: parseJsonInput(draft.defaultParams),
-        description: draft.description.trim() || null
-      };
+      const payload = buildProviderPayload();
       if (mode === 'edit' && id) {
         await updateResourceApiProvider(id, payload);
       } else {
@@ -554,20 +563,7 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
     setTesting(true);
     setError(null);
     try {
-      const payload = {
-        ...draft,
-        providerCode: draft.providerCode.trim(),
-        sourceKind: draft.sourceKind,
-        formatHint: draft.formatHint,
-        sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
-        termsUrl: draft.termsUrl.trim() || null,
-        licenseNote: draft.licenseNote.trim() || null,
-        appKey: draft.appKey.trim() || null,
-        secret: draft.secret.trim() || null,
-        defaultHeaders: parseJsonInput(draft.defaultHeaders),
-        defaultParams: parseJsonInput(draft.defaultParams),
-        description: draft.description.trim() || null
-      };
+      const payload = buildProviderPayload();
       const result = mode === 'edit' && id && !draft.secret.trim()
         ? await testSavedResourceApiProvider(id)
         : await testResourceApiProvider(payload);
@@ -677,7 +673,25 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
                 <Input value={draft.termsUrl} onChange={(e) => setDraft({ ...draft, termsUrl: e.target.value })} type="url" placeholder="https://example.com/terms" />
               </Field>
               <Field label="AppKey">
-                <Input value={draft.appKey} onChange={(e) => setDraft({ ...draft, appKey: e.target.value })} placeholder="可选" />
+                <Input
+                  value={draft.appKey}
+                  onChange={(e) => {
+                    setClearAppKeyRequested(false);
+                    setDraft({ ...draft, appKey: e.target.value });
+                  }}
+                  placeholder={mode === 'edit' ? '留空则保留已保存的 AppKey' : '可选'}
+                  disabled={clearAppKeyRequested}
+                />
+                {mode === 'edit' ? (
+                  <label className="mt-2 inline-flex items-center gap-2 text-xs text-[#8c8c8c]">
+                    <input
+                      type="checkbox"
+                      checked={clearAppKeyRequested}
+                      onChange={(e) => setClearAppKeyRequested(e.target.checked)}
+                    />
+                    保存时清空已保存的 AppKey
+                  </label>
+                ) : null}
               </Field>
               <Field label="AppSecret / Token">
                 <Input value={draft.secret} onChange={(e) => setDraft({ ...draft, secret: e.target.value })} type="password" placeholder="保存时加密" />
