@@ -8,7 +8,7 @@ import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { parseId, baseListQuerySchema } from './shared';
 import { encryptSecret, maskSecret } from '../../services/resource-import/secret';
-import { buildRequestSnapshot, findDuplicateTargetId } from '../../services/resource-import/importer';
+import { buildRequestSnapshot } from '../../services/resource-import/importer';
 import {
   evaluateResourcePayload,
   normalizeResourcePayload
@@ -29,7 +29,8 @@ import {
   assertRecipeProviderCanSync,
   getRecipeProviderRole
 } from '../../services/resource-import/recipe-provider-policy';
-import { evaluateChineseRecipeCandidate } from '../../services/resource-import/chinese-recipe-policy';
+import { evaluateStagedResourceCandidate } from '../../services/resource-import/governed-staging';
+import { sanitizeResourceImportError, sanitizeResourceImportUrl } from '../../services/resource-import/safe-serialization';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -79,6 +80,9 @@ export const serializeProvider = (provider: any) => {
 
   return {
     ...safeProvider,
+    endpointUrl: typeof provider.endpointUrl === 'string'
+      ? sanitizeResourceImportUrl(provider.endpointUrl)
+      : provider.endpointUrl,
     recipeSourceRole: provider.resourceType === 'RECIPE'
       ? getRecipeProviderRole(provider.providerCode)
       : null,
@@ -397,7 +401,7 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
   try {
     preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {}, 'sync');
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知同步错误';
+    const errorMessage = sanitizeResourceImportError(error instanceof Error ? error.message : '未知同步错误');
     await persistFailedSyncAttempt(errorMessage);
     throw new HttpError(`同步失败：${errorMessage}`, 502, 502);
   }
@@ -414,52 +418,30 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
   const staged = await Promise.all(rows.map(async (row, index) => {
     const mapped = normalizeResourcePayload(resourceType, row);
     mapped.sourceName = provider.providerName;
-    const evaluated = evaluateResourcePayload(resourceType, mapped);
-    const recipeEvaluation = resourceType === 'RECIPE'
-      ? evaluateChineseRecipeCandidate(mapped)
-      : null;
-    const governedMapped = recipeEvaluation?.mappedData ?? mapped;
-    const duplicateTargetId = await findDuplicateTargetId(prisma, resourceType, governedMapped);
-    const duplicateKey = `${resourceType}:${governedMapped.externalId?.trim() || governedMapped.name.trim().toLowerCase()}`;
-    let status = evaluated.status;
-    let errorMessage = evaluated.errorMessage;
-    let filterCode = evaluated.filterCode;
+    const candidate = await evaluateStagedResourceCandidate(prisma, resourceType, mapped);
+    let { status, errorMessage, filterCode } = candidate;
 
-    if (recipeEvaluation?.hardFailure) {
-      status = 'FAILED';
-      errorMessage = recipeEvaluation.errorMessage;
-      filterCode = recipeEvaluation.filterCode;
-    }
-
-    if (!recipeEvaluation?.hardFailure && seenKeys.has(duplicateKey)) {
+    if (candidate.canApplyBatchDuplicate && seenKeys.has(candidate.duplicateKey)) {
       status = 'FAILED';
       errorMessage = '数据重复: 同一批次中已存在相同资源';
       filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
     }
 
-    if (!recipeEvaluation?.hardFailure && duplicateTargetId) {
-      status = 'FAILED';
-      errorMessage = mapped.externalId
-        ? '数据重复: 该外部资源在正式库中已存在'
-        : '数据重复: 该资源在正式库中已存在';
-      filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
-    }
-
-    if (status === 'PENDING') seenKeys.add(duplicateKey);
+    if (status === 'PENDING') seenKeys.add(candidate.duplicateKey);
 
     return {
       rowIndex: index + 1,
       rawData: row,
-      mappedData: governedMapped,
+      mappedData: candidate.mappedData,
       status,
       errorMessage,
-      externalId: governedMapped.externalId?.trim() || null,
-      externalUrl: governedMapped.externalUrl ?? null,
+      externalId: candidate.externalId,
+      externalUrl: candidate.externalUrl,
       filterCode,
-      duplicateTargetId,
-      qualityScore: recipeEvaluation?.qualityScore ?? null,
-      isChinese: recipeEvaluation?.isChinese ?? null,
-      qualityIssues: recipeEvaluation?.qualityIssues ?? null
+      duplicateTargetId: candidate.duplicateTargetId,
+      qualityScore: candidate.qualityScore,
+      isChinese: candidate.isChinese,
+      qualityIssues: candidate.qualityIssues
     };
   }));
 
@@ -479,13 +461,13 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
       createdBy: req.admin?.username || 'admin',
       providerId: provider.id,
       sourceName: provider.providerName,
-      requestSnapshot: {
-        method: provider.method,
-        endpointUrl: provider.endpointUrl,
-        dataPath: provider.dataPath,
-        params: parsed.data.params ? (parsed.data.params as Prisma.InputJsonValue) : {},
-        sourceName: provider.providerName
-      } as Prisma.InputJsonValue
+      requestSnapshot: buildRequestSnapshot(
+        provider.method,
+        provider.endpointUrl,
+        provider.dataPath,
+        parsed.data.params ?? {},
+        provider.providerName
+      ) as Prisma.InputJsonValue
     }
   });
 

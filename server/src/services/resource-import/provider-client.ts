@@ -1,6 +1,10 @@
 import { getByPath } from './json-path';
 import { decryptSecret, maskSecret } from './secret';
 import { parseDatasetFile } from './dataset-parser';
+import {
+  sanitizeResourceImportUrl,
+  sanitizeResourceImportValue
+} from './safe-serialization';
 import type {
   ResourceApiProviderDraft,
   ResourceProviderFormatHint,
@@ -71,23 +75,6 @@ const interpolatePathTemplate = (template: string, values: Record<string, unknow
     if (value === undefined || value === null || value === '') return '';
     return encodeURIComponent(typeof value === 'string' ? value : String(value));
   });
-
-const maskUrlSecrets = (value: string, secretNames: string[]) => {
-  const url = new URL(value);
-  for (const name of secretNames) {
-    if (url.searchParams.has(name)) url.searchParams.set(name, '***');
-  }
-  return url.toString();
-};
-
-const maskHeaders = (headers: Record<string, string>, secretHeaderNames: string[]) => Object.fromEntries(
-  Object.entries(headers).map(([key, value]) => [
-    key,
-    secretHeaderNames.some((name) => name.toLowerCase() === key.toLowerCase()) || key.toLowerCase() === 'authorization'
-      ? '***'
-      : value
-  ])
-);
 
 export const serializeSecretPreview = (value: string | null | undefined) => maskSecret(value);
 
@@ -163,13 +150,13 @@ const fetchProjKitchenPreview = async (
       total: listRows.length,
       rows: listRows.slice(0, limit),
       preview: listRows.slice(0, limit),
-      requestUrl: listUrl.toString(),
+      requestUrl: sanitizeResourceImportUrl(listUrl.toString()),
       requestBody: null,
       headers,
       rawRecords: [
         {
           fileName: getFileNameFromUrl(listUrl.toString()),
-          sourceUrl: listUrl.toString(),
+          sourceUrl: sanitizeResourceImportUrl(listUrl.toString()),
           contentType: 'application/json',
           rawText: null,
           rawJson: listRaw && typeof listRaw === 'object' ? (listRaw as Record<string, unknown>) : null,
@@ -194,7 +181,7 @@ const fetchProjKitchenPreview = async (
     detailRows.push(detailRow);
     rawRecords.push({
       fileName: getFileNameFromUrl(detailUrl),
-      sourceUrl: detailUrl,
+      sourceUrl: sanitizeResourceImportUrl(detailUrl),
       contentType: 'application/json',
       rawText: null,
       rawJson: detailRaw && typeof detailRaw === 'object' ? (detailRaw as Record<string, unknown>) : null,
@@ -261,7 +248,7 @@ const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: 
       headers: { Accept: 'application/json, text/plain, text/markdown, text/csv;q=0.9, */*;q=0.8' }
     });
     if (!response.ok) {
-      throw new Error(`拉取数据集文件失败: HTTP ${response.status} ${sourceUrl}`);
+      throw new Error(`拉取数据集文件失败: HTTP ${response.status}`);
     }
     const rawText = await response.text();
     const contentType = response.headers.get('content-type');
@@ -269,7 +256,7 @@ const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: 
     const parsed = parseDatasetFile({ fileName, sourceUrl, contentType, rawText }, formatHint, provider.dataPath);
     const normalizedRows = parsed.rows.map((row) => ({
       ...row,
-      sourceUrl,
+      sourceUrl: sanitizeResourceImportUrl(sourceUrl),
       sourceName: row.sourceName ?? provider.providerName
     }));
     rows.push(...normalizedRows);
@@ -288,7 +275,7 @@ const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: 
     total: rows.length,
     rows,
     preview: rows.slice(0, limit),
-    requestUrl: sourceUrls[0] || provider.endpointUrl,
+    requestUrl: sanitizeResourceImportUrl(sourceUrls[0] || provider.endpointUrl),
     requestBody: null,
     headers: {},
     rawRecords
@@ -422,19 +409,19 @@ export async function fetchProviderPreview(
           ? [toPlainObject(extracted)]
         : [];
     const cappedRows = rows.slice(0, limit);
-    const maskedRequestUrl = maskUrlSecrets(requestUrl, [appKeyParamName, secretParamName]);
+    const safeRequestUrl = sanitizeResourceImportUrl(requestUrl);
 
     return {
       total: rows.length,
       rows,
       preview: cappedRows,
-      requestUrl: maskedRequestUrl,
-      requestBody,
-      headers: maskHeaders(headers, [secretHeaderName]),
+      requestUrl: safeRequestUrl,
+      requestBody: sanitizeResourceImportValue(requestBody) as Record<string, unknown> | null,
+      headers: sanitizeResourceImportValue(headers) as Record<string, string>,
       rawRecords: [
         {
           fileName: getFileNameFromUrl(requestUrl),
-          sourceUrl: maskedRequestUrl,
+          sourceUrl: safeRequestUrl,
           contentType: 'application/json',
           rawText: null,
           rawJson: raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null,
