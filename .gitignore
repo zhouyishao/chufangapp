@@ -33,6 +33,7 @@ unpackage/
 .playwright-cli/
 .impeccable/critique/
 scratch/
+.worktrees/
 
 # Python caches
 __pycache__/
