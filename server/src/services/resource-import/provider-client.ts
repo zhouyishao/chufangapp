@@ -422,18 +422,19 @@ export async function fetchProviderPreview(
           ? [toPlainObject(extracted)]
         : [];
     const cappedRows = rows.slice(0, limit);
+    const maskedRequestUrl = maskUrlSecrets(requestUrl, [appKeyParamName, secretParamName]);
 
     return {
       total: rows.length,
       rows,
       preview: cappedRows,
-      requestUrl: maskUrlSecrets(requestUrl, [appKeyParamName, secretParamName]),
+      requestUrl: maskedRequestUrl,
       requestBody,
       headers: maskHeaders(headers, [secretHeaderName]),
       rawRecords: [
         {
           fileName: getFileNameFromUrl(requestUrl),
-          sourceUrl: requestUrl,
+          sourceUrl: maskedRequestUrl,
           contentType: 'application/json',
           rawText: null,
           rawJson: raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null,

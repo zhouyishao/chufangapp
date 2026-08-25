@@ -68,20 +68,23 @@ const formatZodError = (error: z.ZodError) => {
   return new HttpError(`参数格式错误: ${message}`, 400, 400);
 };
 
-const serializeProvider = (provider: any) => ({
-  ...provider,
-  recipeSourceRole: provider.resourceType === 'RECIPE'
-    ? getRecipeProviderRole(provider.providerCode)
-    : null,
-  hasSecret: Boolean(provider.encryptedSecret),
-  secretPreview: maskSecret(provider.encryptedSecret),
-  encryptedSecret: undefined,
-  lastSyncedAt: provider.lastSyncedAt ? provider.lastSyncedAt.toISOString() : null,
-  lastTestedAt: provider.lastTestedAt ? provider.lastTestedAt.toISOString() : null,
-  createdAt: provider.createdAt.toISOString(),
-  updatedAt: provider.updatedAt.toISOString(),
-  importBatchCount: provider._count?.importBatches ?? 0
-});
+export const serializeProvider = (provider: any) => {
+  const { appKey: _appKey, encryptedSecret, ...safeProvider } = provider;
+
+  return {
+    ...safeProvider,
+    recipeSourceRole: provider.resourceType === 'RECIPE'
+      ? getRecipeProviderRole(provider.providerCode)
+      : null,
+    hasSecret: Boolean(encryptedSecret),
+    secretPreview: maskSecret(encryptedSecret),
+    lastSyncedAt: provider.lastSyncedAt ? provider.lastSyncedAt.toISOString() : null,
+    lastTestedAt: provider.lastTestedAt ? provider.lastTestedAt.toISOString() : null,
+    createdAt: provider.createdAt.toISOString(),
+    updatedAt: provider.updatedAt.toISOString(),
+    importBatchCount: provider._count?.importBatches ?? 0
+  };
+};
 
 const toRuntimeProvider = (provider: any): ResourceApiProviderRuntime => ({
   ...provider,
