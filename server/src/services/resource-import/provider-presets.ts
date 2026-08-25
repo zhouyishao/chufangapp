@@ -236,4 +236,12 @@ export async function ensureDefaultResourceApiProviders(prisma: PrismaClient): P
       }
     });
   }
+
+  await prisma.resourceApiProvider.updateMany({
+    where: { providerCode: { in: ['themealdb_recipe', 'mock_recipe'] } },
+    data: {
+      status: 'DISABLED',
+      lastError: '已退出中国菜谱主导入链路，历史数据仅供追溯'
+    }
+  });
 }

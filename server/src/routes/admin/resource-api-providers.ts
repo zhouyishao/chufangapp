@@ -25,6 +25,10 @@ import {
   resourceProviderMethods,
   resourceProviderSourceKinds
 } from '../../services/resource-import/types';
+import {
+  assertRecipeProviderCanSync,
+  getRecipeProviderRole
+} from '../../services/resource-import/recipe-provider-policy';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -38,6 +42,8 @@ const providerSchema = z.object({
   method: z.enum(resourceProviderMethods).default('GET'),
   endpointUrl: z.string().trim().url(),
   sourceHomeUrl: z.string().trim().url().nullable().optional(),
+  termsUrl: z.string().trim().url().max(500).nullable().optional(),
+  licenseNote: z.string().trim().max(4000).nullable().optional(),
   authType: z.enum(resourceProviderAuthTypes).default('NONE'),
   appKey: z.string().trim().max(255).nullable().optional(),
   secret: z.string().trim().max(255).nullable().optional(),
@@ -64,6 +70,9 @@ const formatZodError = (error: z.ZodError) => {
 
 const serializeProvider = (provider: any) => ({
   ...provider,
+  recipeSourceRole: provider.resourceType === 'RECIPE'
+    ? getRecipeProviderRole(provider.providerCode)
+    : null,
   hasSecret: Boolean(provider.encryptedSecret),
   secretPreview: maskSecret(provider.encryptedSecret),
   encryptedSecret: undefined,
@@ -162,6 +171,8 @@ adminResourceApiProvidersRouter.post('/', requireAdminAuth, async (req, res) => 
       method: parsed.data.method,
       endpointUrl: parsed.data.endpointUrl,
       sourceHomeUrl: parsed.data.sourceHomeUrl ?? null,
+      termsUrl: parsed.data.termsUrl ?? null,
+      licenseNote: parsed.data.licenseNote ?? null,
       authType: parsed.data.authType,
       appKey: parsed.data.appKey ?? null,
       encryptedSecret: parsed.data.secret ? encryptSecret(parsed.data.secret) : null,
@@ -216,6 +227,8 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
       method: parsed.data.method,
       endpointUrl: parsed.data.endpointUrl,
       sourceHomeUrl: parsed.data.sourceHomeUrl ?? null,
+      termsUrl: parsed.data.termsUrl ?? null,
+      licenseNote: parsed.data.licenseNote ?? null,
       authType: parsed.data.authType,
       appKey: parsed.data.appKey ?? null,
       encryptedSecret: parsed.data.secret ? encryptSecret(parsed.data.secret) : existing.encryptedSecret,
@@ -338,6 +351,7 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
   const parsed = syncSchema.safeParse(req.body);
   if (!parsed.success) throw formatZodError(parsed.error);
 
+  assertRecipeProviderCanSync(provider);
   const runtime = toRuntimeProvider(provider);
   const preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {}, 'sync');
   if (preview.rows.length === 0) {
