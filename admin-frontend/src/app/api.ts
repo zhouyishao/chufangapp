@@ -1321,6 +1321,8 @@ export const createResourceApiProvider = async (payload: {
   method: ResourceApiProviderItem['method'];
   endpointUrl: string;
   sourceHomeUrl?: string | null;
+  termsUrl?: string | null;
+  licenseNote?: string | null;
   authType: ResourceApiProviderItem['authType'];
   appKey?: string | null;
   secret?: string | null;
@@ -1348,6 +1350,8 @@ export const updateResourceApiProvider = async (
     method: ResourceApiProviderItem['method'];
     endpointUrl: string;
     sourceHomeUrl?: string | null;
+    termsUrl?: string | null;
+    licenseNote?: string | null;
     authType: ResourceApiProviderItem['authType'];
     appKey?: string | null;
     secret?: string | null;
@@ -1383,6 +1387,8 @@ export const testResourceApiProvider = async (payload: {
   method: ResourceApiProviderItem['method'];
   endpointUrl: string;
   sourceHomeUrl?: string | null;
+  termsUrl?: string | null;
+  licenseNote?: string | null;
   authType: ResourceApiProviderItem['authType'];
   appKey?: string | null;
   secret?: string | null;
@@ -1659,6 +1665,9 @@ export const listImportItems = async (params: {
   providerId?: number;
   resourceType?: ResourceImportStagedItem['importType'];
   categoryName?: string;
+  isChinese?: boolean;
+  minQuality?: number;
+  maxQuality?: number;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
@@ -1667,6 +1676,9 @@ export const listImportItems = async (params: {
   setParam(qs, 'providerId', params.providerId);
   setParam(qs, 'resourceType', params.resourceType);
   setParam(qs, 'categoryName', params.categoryName?.trim());
+  if (typeof params.isChinese === 'boolean') qs.set('isChinese', String(params.isChinese));
+  if (params.minQuality !== undefined) qs.set('minQuality', String(params.minQuality));
+  if (params.maxQuality !== undefined) qs.set('maxQuality', String(params.maxQuality));
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
 };
 
@@ -1704,6 +1716,12 @@ export const setImportItemStatus = async (
     body: JSON.stringify({ status })
   });
 };
+
+export const bulkIgnoreImportItems = async (itemIds: number[], reason: string) =>
+  request<{ updatedCount: number }>('/resource-imports/items/bulk-ignore', {
+    method: 'POST',
+    body: JSON.stringify({ itemIds, reason })
+  });
 
 export const confirmImportBatch = async (payload: { importId: number; itemIds?: number[] }) => {
   return request<{ successCount: number; failCount: number; batch: ResourceImportBatchItem }>('/resource-imports/confirm', {

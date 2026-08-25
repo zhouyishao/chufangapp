@@ -23,6 +23,8 @@ type Draft = {
   method: ResourceApiProviderItem['method'];
   endpointUrl: string;
   sourceHomeUrl: string;
+  termsUrl: string;
+  licenseNote: string;
   authType: ResourceApiProviderItem['authType'];
   appKey: string;
   secret: string;
@@ -45,6 +47,8 @@ const emptyDraft: Draft = {
   method: 'GET',
   endpointUrl: '',
   sourceHomeUrl: '',
+  termsUrl: '',
+  licenseNote: '',
   authType: 'NONE',
   appKey: '',
   secret: '',
@@ -479,6 +483,8 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
           method: item.method,
           endpointUrl: item.endpointUrl,
           sourceHomeUrl: item.sourceHomeUrl ?? '',
+          termsUrl: item.termsUrl ?? '',
+          licenseNote: item.licenseNote ?? '',
           authType: item.authType,
           appKey: item.appKey ?? '',
           secret: '',
@@ -522,6 +528,8 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
         sourceKind: draft.sourceKind,
         formatHint: draft.formatHint,
         sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
+        termsUrl: draft.termsUrl.trim() || null,
+        licenseNote: draft.licenseNote.trim() || null,
         appKey: draft.appKey.trim() || null,
         secret: draft.secret.trim() || null,
         defaultHeaders: parseJsonInput(draft.defaultHeaders),
@@ -552,6 +560,8 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
         sourceKind: draft.sourceKind,
         formatHint: draft.formatHint,
         sourceHomeUrl: draft.sourceHomeUrl.trim() || null,
+        termsUrl: draft.termsUrl.trim() || null,
+        licenseNote: draft.licenseNote.trim() || null,
         appKey: draft.appKey.trim() || null,
         secret: draft.secret.trim() || null,
         defaultHeaders: parseJsonInput(draft.defaultHeaders),
@@ -663,6 +673,9 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
               <Field label="接口地址 *" className="md:col-span-2">
                 <Input value={draft.endpointUrl} onChange={(e) => setDraft({ ...draft, endpointUrl: e.target.value })} placeholder="https://api.example.com/v1/resources" />
               </Field>
+              <Field label="来源条款地址" className="md:col-span-2">
+                <Input value={draft.termsUrl} onChange={(e) => setDraft({ ...draft, termsUrl: e.target.value })} type="url" placeholder="https://example.com/terms" />
+              </Field>
               <Field label="AppKey">
                 <Input value={draft.appKey} onChange={(e) => setDraft({ ...draft, appKey: e.target.value })} placeholder="可选" />
               </Field>
@@ -692,11 +705,20 @@ export const ApiProviderFormPage = ({ mode }: Props) => {
               <Field label="说明" className="md:col-span-2">
                 <textarea value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className={textareaClass} placeholder="用于后台同步与筛选说明" />
               </Field>
+              <Field label="内容许可/授权说明" className="md:col-span-2">
+                <textarea value={draft.licenseNote} onChange={(e) => setDraft({ ...draft, licenseNote: e.target.value })} className={textareaClass} placeholder="填写可导入、展示及保留来源署名的授权依据" />
+              </Field>
             </div>
           </FormSection>
         </div>
 
         <div className="space-y-4">
+          {draft.resourceType === 'RECIPE' && !draft.licenseNote.trim() ? (
+            <div className="rounded-3xl border border-[#f4dcc5] bg-[#fff3e8] p-5 text-sm text-[#8a5a32]">
+              <div className="font-medium">生产同步前需补齐许可</div>
+              <p className="mt-2 text-xs leading-relaxed">中文菜谱提供方可以测试连接；完成内容许可/授权说明前，不应投入生产同步。</p>
+            </div>
+          ) : null}
           <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5">
             <div className="mb-3 text-sm font-medium text-[#2f2f2f]">配置提示</div>
             <ul className="space-y-2 text-xs leading-relaxed text-[#8c8c8c]">

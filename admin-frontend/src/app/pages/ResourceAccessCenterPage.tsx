@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 import { Button } from '../components/Button';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
@@ -18,12 +19,14 @@ import {
   createImportBatch,
   updateImportItem,
   setImportItemStatus,
-  confirmImportBatch
+  confirmImportBatch,
+  bulkIgnoreImportItems
 } from '../api';
 import type { ResourceApiProviderItem, ResourceImportStagedItem } from '../types';
 
 type ResourceType = ResourceImportStagedItem['importType'];
 type ImportStatus = ResourceImportStagedItem['status'];
+type ChineseStatusFilter = 'ALL' | 'CHINESE' | 'NON_CHINESE';
 
 const resourceTypeLabels: Record<ResourceType, string> = {
   RECIPE: '菜谱',
@@ -100,6 +103,9 @@ const importStatusTone: Record<ImportStatus, 'green' | 'orange' | 'red' | 'gray'
 const selectClass =
   'h-11 w-full rounded-xl border border-[#e9e2d6] bg-white px-3 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10';
 
+const isHistoricalRecipeProvider = (provider: ResourceApiProviderItem | undefined) =>
+  provider?.resourceType === 'RECIPE' && (provider.recipeSourceRole === 'OVERSEAS' || provider.recipeSourceRole === 'TEST');
+
 export const ResourceAccessCenterPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const batchIdParam = searchParams.get('batchId');
@@ -118,6 +124,11 @@ export const ResourceAccessCenterPage = () => {
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
   const [resourceTypeFilter, setResourceTypeFilter] = useState<ResourceType | ''>('');
   const [categoryNameFilter, setCategoryNameFilter] = useState('');
+  const [chineseStatusFilter, setChineseStatusFilter] = useState<ChineseStatusFilter>('ALL');
+  const [minQuality, setMinQuality] = useState('');
+  const [maxQuality, setMaxQuality] = useState('');
+  const [appliedMinQuality, setAppliedMinQuality] = useState<number | undefined>();
+  const [appliedMaxQuality, setAppliedMaxQuality] = useState<number | undefined>();
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
@@ -128,6 +139,8 @@ export const ResourceAccessCenterPage = () => {
   const [syncParamsText, setSyncParamsText] = useState(buildSyncParamsTemplate());
   const [syncLoading, setSyncLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
+  const [bulkIgnoring, setBulkIgnoring] = useState(false);
+  const [bulkIgnoreConfirmOpen, setBulkIgnoreConfirmOpen] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [previewItem, setPreviewItem] = useState<ResourceImportStagedItem | null>(null);
@@ -138,6 +151,26 @@ export const ResourceAccessCenterPage = () => {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedProviderFilter = typeof selectedProviderId === 'number' ? selectedProviderId : undefined;
+  const selectedProvider = typeof selectedProviderId === 'number'
+    ? providerItems.find((item) => item.id === selectedProviderId)
+    : undefined;
+
+  const parseQualityFilter = () => {
+    const parseValue = (value: string, label: string) => {
+      if (!value.trim()) return undefined;
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) {
+        throw new Error(`${label}必须是 0 到 100 的整数`);
+      }
+      return parsed;
+    };
+    const nextMin = parseValue(minQuality, '最低质量分');
+    const nextMax = parseValue(maxQuality, '最高质量分');
+    if (nextMin !== undefined && nextMax !== undefined && nextMin > nextMax) {
+      throw new Error('最低质量分不能大于最高质量分');
+    }
+    return { min: nextMin, max: nextMax };
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -153,7 +186,10 @@ export const ResourceAccessCenterPage = () => {
         batchId: batchIdFilter,
         providerId: selectedProviderFilter,
         resourceType: resourceTypeFilter || undefined,
-        categoryName: categoryNameFilter || undefined
+        categoryName: categoryNameFilter || undefined,
+        isChinese: chineseStatusFilter === 'ALL' ? undefined : chineseStatusFilter === 'CHINESE',
+        minQuality: appliedMinQuality,
+        maxQuality: appliedMaxQuality
       });
       setItems(data.list);
       setTotal(data.total);
@@ -213,7 +249,7 @@ export const ResourceAccessCenterPage = () => {
 
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter, chineseStatusFilter, appliedMinQuality, appliedMaxQuality]);
 
   useEffect(() => {
     void refreshCategories();
@@ -230,6 +266,15 @@ export const ResourceAccessCenterPage = () => {
   }, [selectedProviderId, providerItems]);
 
   const handleSearch = () => {
+    try {
+      const quality = parseQualityFilter();
+      setAppliedMinQuality(quality.min);
+      setAppliedMaxQuality(quality.max);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '质量分筛选无效');
+      return;
+    }
     setPage(1);
     setAppliedQ(q);
   };
@@ -241,6 +286,11 @@ export const ResourceAccessCenterPage = () => {
     setStatusFilter('');
     setResourceTypeFilter('');
     setCategoryNameFilter('');
+    setChineseStatusFilter('ALL');
+    setMinQuality('');
+    setMaxQuality('');
+    setAppliedMinQuality(undefined);
+    setAppliedMaxQuality(undefined);
     if (searchParams.has('batchId')) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
@@ -282,6 +332,10 @@ export const ResourceAccessCenterPage = () => {
     const selectedProvider = providerItems.find((item) => item.id === selectedProviderId);
     if (selectedProvider?.status !== 'ACTIVE') {
       setNotice('当前 Provider 已禁用，请先启用或补齐后端配置');
+      return;
+    }
+    if (isHistoricalRecipeProvider(selectedProvider)) {
+      setError('海外或测试历史菜谱源仅保留查看和测试能力，不能发起生产同步');
       return;
     }
     let parsedParams: Record<string, unknown> | null = null;
@@ -585,6 +639,28 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
+  const selectedRecipeItems = items.filter((item) => selectedIds.includes(item.id));
+  const canBulkIgnore = selectedRecipeItems.length > 0
+    && selectedRecipeItems.length === selectedIds.length
+    && selectedRecipeItems.every((item) => item.importType === 'RECIPE' && (item.status === 'PENDING' || item.status === 'FAILED'));
+
+  const handleBulkIgnore = async () => {
+    if (!canBulkIgnore || bulkIgnoring) return;
+    setBulkIgnoring(true);
+    setError(null);
+    try {
+      const result = await bulkIgnoreImportItems(selectedIds, '后台批量忽略海外或不符合定位的菜谱');
+      setNotice(`已忽略 ${result.updatedCount} 条菜谱资源`);
+      setSelectedIds([]);
+      setBulkIgnoreConfirmOpen(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '批量忽略失败');
+    } finally {
+      setBulkIgnoring(false);
+    }
+  };
+
   const allCurrentSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id));
 
   const columns: DataTableColumn<ResourceImportStagedItem>[] = [
@@ -633,7 +709,7 @@ export const ResourceAccessCenterPage = () => {
     },
     {
       key: 'provider',
-      title: '提供方',
+      title: '数据来源',
       render: (item) => (
         <div className="flex flex-col gap-1">
           <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
@@ -642,6 +718,31 @@ export const ResourceAccessCenterPage = () => {
           </span>
         </div>
       )
+    },
+    {
+      key: 'chineseStatus',
+      title: '中文菜谱',
+      render: (item) => item.importType === 'RECIPE' ? (
+        <StatusTag
+          label={item.isChinese === true ? '中文' : item.isChinese === false ? '非中文' : '待判定'}
+          tone={item.isChinese === true ? 'green' : item.isChinese === false ? 'red' : 'gray'}
+        />
+      ) : <span className="text-sm text-[#8c8c8c]">-</span>
+    },
+    {
+      key: 'qualityScore',
+      title: '质量分',
+      render: (item) => item.importType === 'RECIPE' ? <span className="text-sm text-[#2f2f2f]">{item.qualityScore ?? '-'}</span> : <span className="text-sm text-[#8c8c8c]">-</span>
+    },
+    {
+      key: 'qualityIssues',
+      title: '质量问题',
+      widthClassName: 'max-w-[220px]',
+      render: (item) => item.importType === 'RECIPE' ? (
+        <span className="block max-w-[220px] truncate text-xs text-[#8c8c8c]" title={item.qualityIssues?.join('；') ?? ''}>
+          {item.qualityIssues?.length ? item.qualityIssues.join('；') : '无'}
+        </span>
+      ) : <span className="text-sm text-[#8c8c8c]">-</span>
     },
     {
       key: 'externalId',
@@ -811,8 +912,13 @@ export const ResourceAccessCenterPage = () => {
             <Button variant="ghost" className="h-11 px-5" onClick={handleTestProvider} disabled={testLoading}>
               {testLoading ? '测试中...' : '测试连接'}
             </Button>
-            <Button className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]" onClick={handleSyncProvider} disabled={syncLoading}>
-              {syncLoading ? '同步中...' : '同步到导入池'}
+            <Button
+              className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]"
+              onClick={handleSyncProvider}
+              disabled={syncLoading || isHistoricalRecipeProvider(selectedProvider)}
+              title={isHistoricalRecipeProvider(selectedProvider) ? '海外或测试历史菜谱源不能发起生产同步' : undefined}
+            >
+              {isHistoricalRecipeProvider(selectedProvider) ? '生产同步受限' : syncLoading ? '同步中...' : '同步到导入池'}
             </Button>
           </div>
         </div>
@@ -894,7 +1000,7 @@ export const ResourceAccessCenterPage = () => {
             </div>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.5fr_2fr_auto_auto] items-end">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_1.5fr_1fr_0.8fr_0.8fr_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">导入状态</span>
             <select
@@ -920,6 +1026,48 @@ export const ResourceAccessCenterPage = () => {
                 if (e.key === 'Enter') handleSearch();
               }}
               placeholder="请输入资源名称或分类名称进行搜索..."
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">中文判定（仅菜谱）</span>
+            <select
+              className={selectClass}
+              value={chineseStatusFilter}
+              onChange={(e) => {
+                setChineseStatusFilter(e.target.value as ChineseStatusFilter);
+                setPage(1);
+              }}
+            >
+              <option value="ALL">全部</option>
+              <option value="CHINESE">中文菜谱</option>
+              <option value="NON_CHINESE">非中文菜谱</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">最低质量分</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={minQuality}
+              onChange={(e) => setMinQuality(e.target.value)}
+              placeholder="0"
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">最高质量分</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={maxQuality}
+              onChange={(e) => setMaxQuality(e.target.value)}
+              placeholder="100"
               className="h-11 rounded-xl border-[#e9e2d6]"
             />
           </div>
@@ -964,6 +1112,15 @@ export const ResourceAccessCenterPage = () => {
             >
               ✓ 批量确认
             </Button>
+            <Button
+              variant="ghost"
+              className="h-11 whitespace-nowrap disabled:cursor-not-allowed"
+              disabled={!canBulkIgnore || bulkIgnoring}
+              onClick={() => setBulkIgnoreConfirmOpen(true)}
+              title={canBulkIgnore ? undefined : '仅可选择待处理或失败状态的菜谱资源'}
+            >
+              批量忽略海外菜谱
+            </Button>
           </div>
           </div>
         </div>
@@ -981,6 +1138,9 @@ export const ResourceAccessCenterPage = () => {
             />
             选择当前页 {items.length} 项 (已选 {selectedIds.length} 项)
           </label>
+          {selectedIds.length > 0 && !canBulkIgnore ? (
+            <span className="text-xs text-[#8c8c8c]">批量忽略仅支持待处理或失败状态的菜谱资源</span>
+          ) : null}
         </div>
 
         <DataTable
@@ -1295,6 +1455,17 @@ export const ResourceAccessCenterPage = () => {
           </div>
         )}
       </Drawer>
+
+      <ConfirmModal
+        title="确认批量忽略"
+        open={bulkIgnoreConfirmOpen}
+        onClose={() => setBulkIgnoreConfirmOpen(false)}
+        description={`将忽略选中的 ${selectedIds.length} 条菜谱资源，并记录“后台批量忽略海外或不符合定位的菜谱”。此操作不会删除原始导入记录。`}
+        confirmText="确认忽略"
+        danger
+        loading={bulkIgnoring}
+        onConfirm={() => void handleBulkIgnore()}
+      />
     </div>
   );
 };

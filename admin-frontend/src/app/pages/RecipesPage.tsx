@@ -319,6 +319,8 @@ export const RecipesPage = () => {
     { key: 'mainIngredients', title: '主要食材', render: (item) => item.ingredients?.slice(0, 3).map((ingredient) => ingredient.name).filter(Boolean).join('、') || '-' },
     { key: 'difficulty', title: '难度', render: (item) => item.difficulty ?? '-' },
     { key: 'cookTime', title: '制作时间', render: (item) => (item.cookTime ? `${item.cookTime} 分钟` : '-') },
+    { key: 'sourceName', title: '数据来源', render: (item) => item.sourceName ?? '后台创建' },
+    { key: 'importQualityScore', title: '导入质量', render: (item) => item.importQualityScore ?? '-' },
     { key: 'status', title: '状态', render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={item.status === 'ACTIVE' ? 'green' : 'gray'} /> },
     { key: 'viewCount', title: '浏览量', render: (item) => Number(item.viewCount ?? 0).toLocaleString('zh-CN') },
     { key: 'favoriteCount', title: '收藏量', render: (item) => Number(item.favoriteCount ?? 0).toLocaleString('zh-CN') },
