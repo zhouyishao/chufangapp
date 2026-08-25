@@ -123,7 +123,8 @@ export async function createOfficialRecord(
   mapped: NormalizedResourcePayload,
   importItemId: number,
   sourceName: string | null,
-  sourceUrl: string | null
+  sourceUrl: string | null,
+  importQualityScore: number | null = null
 ): Promise<number> {
   const titleOrName = mapped.title?.trim() || mapped.name.trim();
 
@@ -154,6 +155,7 @@ export async function createOfficialRecord(
         sourceType: 'IMPORT',
         sourceId: importItemId,
         importSourceType: 'PUBLIC_API',
+        importQualityScore,
         sourceName: sourceName ?? mapped.sourceName ?? null,
         sourceRecipeId: mapped.externalId ?? null,
         sourceUrl: sourceUrl ?? mapped.externalUrl ?? null,

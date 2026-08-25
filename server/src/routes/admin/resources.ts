@@ -1414,11 +1414,28 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
           governedMapped as any,
           item.id,
           batch.provider?.providerName ?? batch.sourceName ?? null,
-          (governedMapped.externalUrl as string | undefined) ?? null
+          (governedMapped.externalUrl as string | undefined) ?? null,
+          candidate?.recipeEvaluation?.qualityScore ?? null
         );
         await tx.resourceImportItem.update({
           where: { id: item.id },
-          data: { status: 'IMPORTED', errorMessage: null, targetId }
+          data: {
+            mappedData: candidate?.mappedData
+              ? (candidate.mappedData as Prisma.InputJsonValue)
+              : undefined,
+            status: 'IMPORTED',
+            errorMessage: null,
+            targetId,
+            externalId: candidate?.externalId ?? item.externalId,
+            externalUrl: candidate?.externalUrl ?? item.externalUrl,
+            filterCode: candidate?.filterCode ?? item.filterCode,
+            duplicateTargetId: candidate?.duplicateTargetId ?? item.duplicateTargetId,
+            qualityScore: candidate?.qualityScore ?? item.qualityScore,
+            isChinese: candidate?.isChinese ?? item.isChinese,
+            qualityIssues: candidate?.qualityIssues
+              ? (candidate.qualityIssues as Prisma.InputJsonValue)
+              : item.qualityIssues ?? Prisma.DbNull
+          }
         });
         successCount++;
       } catch (err: any) {
@@ -1513,11 +1530,28 @@ adminResourcesRouter.post('/resource-imports/:id/retry-failed', requireAdminAuth
           governedMapped as any,
           item.id,
           batch.provider?.providerName ?? batch.sourceName ?? null,
-          (governedMapped.externalUrl as string | undefined) ?? null
+          (governedMapped.externalUrl as string | undefined) ?? null,
+          candidate?.recipeEvaluation?.qualityScore ?? null
         );
         await tx.resourceImportItem.update({
           where: { id: item.id },
-          data: { status: 'IMPORTED', errorMessage: null, targetId }
+          data: {
+            mappedData: candidate?.mappedData
+              ? (candidate.mappedData as Prisma.InputJsonValue)
+              : undefined,
+            status: 'IMPORTED',
+            errorMessage: null,
+            targetId,
+            externalId: candidate?.externalId ?? item.externalId,
+            externalUrl: candidate?.externalUrl ?? item.externalUrl,
+            filterCode: candidate?.filterCode ?? item.filterCode,
+            duplicateTargetId: candidate?.duplicateTargetId ?? item.duplicateTargetId,
+            qualityScore: candidate?.qualityScore ?? item.qualityScore,
+            isChinese: candidate?.isChinese ?? item.isChinese,
+            qualityIssues: candidate?.qualityIssues
+              ? (candidate.qualityIssues as Prisma.InputJsonValue)
+              : item.qualityIssues ?? Prisma.DbNull
+          }
         });
         successCount++;
       } catch (err: any) {

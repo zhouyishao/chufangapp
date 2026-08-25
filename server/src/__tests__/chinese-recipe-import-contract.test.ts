@@ -91,3 +91,16 @@ test('governed recipe staging centralizes all paths and bulk-ignore retains tran
   assert.match(resourceRoute, /claimed\.count !== requestedItemIds\.length/);
   assert.match(resourceRoute, /createOfficialRecord\(\s*tx,/);
 });
+
+test('confirmation and publication enforce Chinese recipe readiness', () => {
+  const resourceRoute = readFileSync(resolve(__dirname, '../routes/admin/resources.ts'), 'utf8');
+  const importer = readFileSync(resolve(__dirname, '../services/resource-import/importer.ts'), 'utf8');
+  const recipeRoute = readFileSync(resolve(__dirname, '../routes/admin/recipes.ts'), 'utf8');
+
+  assert.match(resourceRoute, /getRecipeImportAdmissionFailure\(candidate\)/);
+  assert.match(resourceRoute, /recipeEvaluation\?\.qualityScore/);
+  assert.match(importer, /importQualityScore:/);
+  assert.match(recipeRoute, /coverFileId/);
+  assert.match(recipeRoute, /菜谱发布前必须上传受管封面/);
+  assert.match(recipeRoute, /有效用料至少需要2项/);
+});
