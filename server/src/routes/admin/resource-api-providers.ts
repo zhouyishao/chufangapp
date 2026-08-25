@@ -68,6 +68,11 @@ const formatZodError = (error: z.ZodError) => {
   return new HttpError(`参数格式错误: ${message}`, 400, 400);
 };
 
+export const resolveProviderAppKey = (
+  appKey: string | null | undefined,
+  existingAppKey: string | null
+): string | null => appKey === undefined ? existingAppKey : appKey;
+
 export const serializeProvider = (provider: any) => {
   const { appKey: _appKey, encryptedSecret, ...safeProvider } = provider;
 
@@ -233,7 +238,7 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
       termsUrl: parsed.data.termsUrl ?? null,
       licenseNote: parsed.data.licenseNote ?? null,
       authType: parsed.data.authType,
-      appKey: parsed.data.appKey ?? null,
+      appKey: resolveProviderAppKey(parsed.data.appKey, existing.appKey),
       encryptedSecret: parsed.data.secret ? encryptSecret(parsed.data.secret) : existing.encryptedSecret,
       defaultHeaders: parsed.data.defaultHeaders ? (parsed.data.defaultHeaders as Prisma.InputJsonValue) : Prisma.DbNull,
       defaultParams: parsed.data.defaultParams ? (parsed.data.defaultParams as Prisma.InputJsonValue) : Prisma.DbNull,
