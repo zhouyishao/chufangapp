@@ -66,6 +66,7 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
   const stepCount = entryCount(payload.steps);
   const qualityIssues: string[] = [];
   let qualityScore = 0;
+  const testTitle = /(?:E2E|测试|^\d+$)/i.test(originalTitle);
 
   if (isChinese && title.length >= 2 && title.length <= 40) qualityScore += 20;
   else qualityIssues.push('中文标题无效');
@@ -79,10 +80,13 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
   else qualityIssues.push('缺少封面');
   if ((payload.sourceName && payload.externalId) || payload.externalUrl) qualityScore += 10;
   else qualityIssues.push('来源不可追溯');
+  if (testTitle) {
+    qualityIssues.push('测试标题不可导入');
+    qualityScore = 0;
+  }
 
   const invalidTitle = !title || title.length < 2 || title.length > 40;
   const incomplete = ingredientCount < 2 || stepCount < 1;
-  const testTitle = /(?:E2E|测试|^\d+$)/i.test(originalTitle);
   const traceable = Boolean((payload.sourceName && payload.externalId) || payload.externalUrl);
   const filterCode = testTitle
     ? 'TEST_RECIPE_TITLE'

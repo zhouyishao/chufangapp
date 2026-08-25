@@ -12,6 +12,19 @@ test('normalizes Chinese recipe titles and rejects test-only titles', () => {
   assert.equal(normalizeImportedRecipeTitle('  E2E_20260825_番茄炒蛋  '), '番茄炒蛋');
   assert.equal(containsChineseText('番茄炒蛋'), true);
   assert.equal(containsChineseText('Chicken Handi'), false);
+
+  const testRecipe = evaluateChineseRecipeCandidate({
+    name: 'E2E_20260825_番茄炒蛋',
+    categoryName: '家常菜',
+    cover: 'https://example.com/tomato-eggs.webp',
+    ingredients: [{ name: '番茄' }, { name: '鸡蛋' }],
+    steps: ['翻炒'],
+    sourceName: '测试来源',
+    externalId: 'e2e-001'
+  });
+  assert.equal(testRecipe.filterCode, 'TEST_RECIPE_TITLE');
+  assert.ok(testRecipe.qualityIssues.includes('测试标题不可导入'));
+  assert.notEqual(testRecipe.errorMessage, '');
 });
 
 test('maps known Chinese categories without creating overseas categories', () => {
