@@ -29,6 +29,7 @@ import {
   assertRecipeProviderCanSync,
   getRecipeProviderRole
 } from '../../services/resource-import/recipe-provider-policy';
+import { evaluateChineseRecipeCandidate } from '../../services/resource-import/chinese-recipe-policy';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -361,13 +362,49 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
 
   assertRecipeProviderCanSync(provider);
   const runtime = toRuntimeProvider(provider);
-  const preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {}, 'sync');
+  const persistFailedSyncAttempt = async (errorMessage: string) => {
+    await prisma.$transaction([
+      prisma.resourceImportBatch.create({
+        data: {
+          importType: provider.resourceType,
+          sourceType: 'API',
+          fileName: `公共资源-${provider.providerName}-${new Date().toISOString().slice(0, 10)}`,
+          status: 'FAILED',
+          totalCount: 0,
+          successCount: 0,
+          failedCount: 0,
+          errorMessage,
+          createdBy: req.admin?.username || 'admin',
+          providerId: provider.id,
+          sourceName: provider.providerName,
+          requestSnapshot: buildRequestSnapshot(
+            provider.method,
+            provider.endpointUrl,
+            provider.dataPath,
+            parsed.data.params ?? {},
+            provider.providerName
+          ) as Prisma.InputJsonValue,
+          finishedAt: new Date()
+        }
+      }),
+      prisma.resourceApiProvider.update({
+        where: { id: provider.id },
+        data: { lastError: errorMessage }
+      })
+    ]);
+  };
+  let preview: Awaited<ReturnType<typeof fetchProviderPreview>>;
+  try {
+    preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {}, 'sync');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '未知同步错误';
+    await persistFailedSyncAttempt(errorMessage);
+    throw new HttpError(`同步失败：${errorMessage}`, 502, 502);
+  }
   if (preview.rows.length === 0) {
-    throw new HttpError(
-      `${provider.providerName} 未返回可导入数据，请检查关键词、API Key、额度或 dataPath`,
-      422,
-      422
-    );
+    const errorMessage = `${provider.providerName} 未返回可导入数据，请检查关键词、API Key、额度或 dataPath`;
+    await persistFailedSyncAttempt(errorMessage);
+    throw new HttpError(errorMessage, 422, 422);
   }
   const resourceType = provider.resourceType as (typeof resourceImportTypes)[number];
   const seenKeys = new Set<string>();
@@ -378,19 +415,29 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
     const mapped = normalizeResourcePayload(resourceType, row);
     mapped.sourceName = provider.providerName;
     const evaluated = evaluateResourcePayload(resourceType, mapped);
-    const duplicateTargetId = await findDuplicateTargetId(prisma, resourceType, mapped);
-    const duplicateKey = `${resourceType}:${mapped.externalId?.trim() || mapped.name.trim().toLowerCase()}`;
+    const recipeEvaluation = resourceType === 'RECIPE'
+      ? evaluateChineseRecipeCandidate(mapped)
+      : null;
+    const governedMapped = recipeEvaluation?.mappedData ?? mapped;
+    const duplicateTargetId = await findDuplicateTargetId(prisma, resourceType, governedMapped);
+    const duplicateKey = `${resourceType}:${governedMapped.externalId?.trim() || governedMapped.name.trim().toLowerCase()}`;
     let status = evaluated.status;
     let errorMessage = evaluated.errorMessage;
     let filterCode = evaluated.filterCode;
 
-    if (seenKeys.has(duplicateKey)) {
+    if (recipeEvaluation?.hardFailure) {
+      status = 'FAILED';
+      errorMessage = recipeEvaluation.errorMessage;
+      filterCode = recipeEvaluation.filterCode;
+    }
+
+    if (!recipeEvaluation?.hardFailure && seenKeys.has(duplicateKey)) {
       status = 'FAILED';
       errorMessage = '数据重复: 同一批次中已存在相同资源';
       filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
     }
 
-    if (duplicateTargetId) {
+    if (!recipeEvaluation?.hardFailure && duplicateTargetId) {
       status = 'FAILED';
       errorMessage = mapped.externalId
         ? '数据重复: 该外部资源在正式库中已存在'
@@ -403,13 +450,16 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
     return {
       rowIndex: index + 1,
       rawData: row,
-      mappedData: mapped,
+      mappedData: governedMapped,
       status,
       errorMessage,
-      externalId: evaluated.externalId,
-      externalUrl: evaluated.externalUrl,
+      externalId: governedMapped.externalId?.trim() || null,
+      externalUrl: governedMapped.externalUrl ?? null,
       filterCode,
-      duplicateTargetId
+      duplicateTargetId,
+      qualityScore: recipeEvaluation?.qualityScore ?? null,
+      isChinese: recipeEvaluation?.isChinese ?? null,
+      qualityIssues: recipeEvaluation?.qualityIssues ?? null
     };
   }));
 
@@ -450,7 +500,12 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
       externalId: item.externalId,
       externalUrl: item.externalUrl,
       filterCode: item.filterCode,
-      duplicateTargetId: item.duplicateTargetId
+      duplicateTargetId: item.duplicateTargetId,
+      qualityScore: item.qualityScore,
+      isChinese: item.isChinese,
+      qualityIssues: item.qualityIssues
+        ? (item.qualityIssues as Prisma.InputJsonValue)
+        : Prisma.DbNull
     }))
   });
 

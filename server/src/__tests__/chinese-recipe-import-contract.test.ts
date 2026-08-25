@@ -20,3 +20,20 @@ test('recipe import quality fields are additive and indexed', () => {
   assert.match(migration, /CREATE INDEX "resource_import_items_recipe_quality_idx"/);
   assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM/);
 });
+
+test('recipe sync persists Chinese quality and exposes governed filters', () => {
+  const providerRoute = readFileSync(resolve(__dirname, '../routes/admin/resource-api-providers.ts'), 'utf8');
+  const resourceRoute = readFileSync(resolve(__dirname, '../routes/admin/resources.ts'), 'utf8');
+
+  assert.match(providerRoute, /assertRecipeProviderCanSync\(provider\)/);
+  assert.match(providerRoute, /evaluateChineseRecipeCandidate\(mapped\)/);
+  assert.match(providerRoute, /qualityScore:/);
+  assert.match(providerRoute, /isChinese:/);
+  assert.match(providerRoute, /qualityIssues:/);
+  assert.match(providerRoute, /status:\s*'FAILED'/);
+  assert.match(providerRoute, /lastError:/);
+  assert.match(resourceRoute, /minQuality/);
+  assert.match(resourceRoute, /maxQuality/);
+  assert.match(resourceRoute, /bulk-ignore/);
+  assert.match(resourceRoute, /status:\s*'IGNORED'/);
+});

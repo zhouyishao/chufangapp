@@ -925,8 +925,37 @@ const importItemListQuerySchema = baseListQuerySchema.extend({
   status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']).optional(),
   providerId: z.coerce.number().int().optional(),
   resourceType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional(),
-  categoryName: z.string().trim().min(1).max(80).optional()
+  categoryName: z.string().trim().min(1).max(80).optional(),
+  isChinese: z.preprocess(
+    (value) => value === 'true' || value === true ? true : value === 'false' || value === false ? false : value,
+    z.boolean()
+  ).optional(),
+  minQuality: z.coerce.number().int().min(0).max(100).optional(),
+  maxQuality: z.coerce.number().int().min(0).max(100).optional()
 });
+
+const bulkIgnoreRecipeImportsSchema = z.object({
+  itemIds: z.array(z.coerce.number().int().positive()).min(1).max(500),
+  reason: z.string().trim().min(2).max(200)
+});
+
+const writeResourceImportOperationLog = async (
+  tx: Prisma.TransactionClient,
+  input: { adminId: number | null; method: string; path: string; itemIds: number[]; reason: string }
+) => {
+  await tx.operationLog.create({
+    data: {
+      adminId: input.adminId,
+      module: 'resource',
+      action: 'bulk_ignore_recipe_imports',
+      method: input.method,
+      path: input.path,
+      requestBody: {
+        detail: { itemIds: input.itemIds, reason: input.reason }
+      } as Prisma.InputJsonValue
+    }
+  });
+};
 
 // 3. GET /resource-imports/batches/stats
 adminResourcesRouter.get('/resource-imports/batches/stats', requireAdminAuth, async (req, res) => {
@@ -996,7 +1025,20 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
   }).safeParse(req.query);
 
   if (!parsed.success) throw formatZodError(parsed);
-  const { page, pageSize, q, status, batchId, importId, providerId, resourceType, categoryName } = parsed.data;
+  const {
+    page,
+    pageSize,
+    q,
+    status,
+    batchId,
+    importId,
+    providerId,
+    resourceType,
+    categoryName,
+    isChinese,
+    minQuality,
+    maxQuality
+  } = parsed.data;
   const skip = (page - 1) * pageSize;
 
   const targetImportId = importId || batchId;
@@ -1010,6 +1052,15 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
     ...(status ? { status } : {}),
     ...(Object.keys(batchWhere).length > 0 ? { batch: { is: batchWhere } } : {}),
     ...(categoryName ? { mappedData: { path: ['categoryName'], string_contains: categoryName } } : {}),
+    ...(typeof isChinese === 'boolean' ? { isChinese } : {}),
+    ...(minQuality !== undefined || maxQuality !== undefined
+      ? {
+          qualityScore: {
+            ...(minQuality !== undefined ? { gte: minQuality } : {}),
+            ...(maxQuality !== undefined ? { lte: maxQuality } : {})
+          }
+        }
+      : {}),
     ...(q ? {
       OR: [
         { mappedData: { path: ['name'], string_contains: q } },
@@ -1043,11 +1094,45 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
     externalUrl: item.externalUrl,
     filterCode: item.filterCode,
     duplicateTargetId: item.duplicateTargetId,
+    qualityScore: item.qualityScore,
+    isChinese: item.isChinese,
+    qualityIssues: item.qualityIssues,
     createdAt: item.createdAt.toISOString()
   }));
 
   const data: PageResult<any> = { list, total, page, pageSize };
   res.json(ok(data));
+});
+
+adminResourcesRouter.post('/resource-imports/items/bulk-ignore', requireAdminAuth, async (req, res) => {
+  const parsed = bulkIgnoreRecipeImportsSchema.safeParse(req.body);
+  if (!parsed.success) throw formatZodError(parsed);
+
+  const items = await prisma.resourceImportItem.findMany({
+    where: { id: { in: parsed.data.itemIds }, status: { in: ['PENDING', 'FAILED'] } },
+    include: { batch: { select: { importType: true } } }
+  });
+  const uniqueItemCount = new Set(parsed.data.itemIds).size;
+  if (items.length !== uniqueItemCount || items.some((item) => item.batch.importType !== 'RECIPE')) {
+    throw new HttpError('只能批量忽略待处理或失败的菜谱资源', 409, 409);
+  }
+
+  const adminId = Number.parseInt(req.admin?.sub ?? '', 10);
+  await prisma.$transaction(async (tx) => {
+    await tx.resourceImportItem.updateMany({
+      where: { id: { in: parsed.data.itemIds } },
+      data: { status: 'IGNORED', errorMessage: parsed.data.reason, filterCode: 'MANUAL_IGNORE' }
+    });
+    await writeResourceImportOperationLog(tx, {
+      adminId: Number.isFinite(adminId) ? adminId : null,
+      method: req.method,
+      path: req.originalUrl,
+      itemIds: parsed.data.itemIds,
+      reason: parsed.data.reason
+    });
+  });
+
+  res.json(ok({ updatedCount: items.length }));
 });
 
 adminResourcesRouter.get('/resource-imports/categories', requireAdminAuth, async (req, res) => {
@@ -1119,6 +1204,9 @@ adminResourcesRouter.get('/resource-imports/:id', requireAdminAuth, async (req, 
     externalUrl: item.externalUrl,
     filterCode: item.filterCode,
     duplicateTargetId: item.duplicateTargetId,
+    qualityScore: item.qualityScore,
+    isChinese: item.isChinese,
+    qualityIssues: item.qualityIssues,
     createdAt: item.createdAt.toISOString()
   }));
 
