@@ -13,8 +13,23 @@ const getKnownSecretValues = (options: ResourceImportSanitizationOptions = {}) =
   )
 ].sort((left, right) => right.length - left.length);
 
-const redactKnownSecretValues = (value: string, options: ResourceImportSanitizationOptions = {}) =>
-  getKnownSecretValues(options).reduce((safeValue, secret) => safeValue.split(secret).join('***'), value);
+const isKnownSecretValue = (value: string, options: ResourceImportSanitizationOptions = {}) =>
+  getKnownSecretValues(options).includes(value);
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const redactBoundedKnownSecretValues = (
+  value: string,
+  options: ResourceImportSanitizationOptions = {}
+) => getKnownSecretValues(options)
+  .filter((secret) => secret.length >= 4)
+  .reduce(
+    (safeValue, secret) => safeValue.replace(
+      new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegExp(secret)}(?=$|[^\\p{L}\\p{N}_])`, 'gu'),
+      '$1***'
+    ),
+    value
+  );
 
 export const isSensitiveResourceImportKey = (
   key: string,
@@ -57,17 +72,14 @@ export const sanitizeResourceImportUrl = (
 ): string => {
   try {
     const url = new URL(value);
-    url.searchParams.forEach((item, key) => {
+    url.searchParams.forEach((_item, key) => {
       if (isSensitiveResourceImportKey(key, options)) {
         url.searchParams.set(key, '***');
-        return;
       }
-      const redactedValue = redactKnownSecretValues(item, options);
-      if (redactedValue !== item) url.searchParams.set(key, redactedValue);
     });
-    return redactKnownSecretValues(url.toString(), options);
+    return url.toString();
   } catch {
-    return redactLooseQueryValues(redactKnownSecretValues(value, options), options);
+    return redactLooseQueryValues(value, options);
   }
 };
 
@@ -76,10 +88,10 @@ export const sanitizeResourceImportValue = (
   options: ResourceImportSanitizationOptions = {}
 ): unknown => {
   if (typeof value === 'string') {
-    const redactedValue = redactKnownSecretValues(value, options);
-    return /^https?:\/\//iu.test(redactedValue)
-      ? sanitizeResourceImportUrl(redactedValue, options)
-      : redactedValue;
+    if (isKnownSecretValue(value, options)) return '***';
+    return /^https?:\/\//iu.test(value)
+      ? sanitizeResourceImportUrl(value, options)
+      : value;
   }
   if (Array.isArray(value)) return value.map((item) => sanitizeResourceImportValue(item, options));
   if (!value || typeof value !== 'object') return value;
@@ -92,27 +104,33 @@ export const sanitizeResourceImportValue = (
   );
 };
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 export const sanitizeResourceImportError = (
   value: string,
   options: ResourceImportSanitizationOptions = {}
 ): string => {
-  const withSafeUrls = value.replace(
+  const safeUrls: string[] = [];
+  const withUrlPlaceholders = value.replace(
     /https?:\/\/[^\s'"）)]+/giu,
-    (url) => sanitizeResourceImportUrl(url, options)
+    (url) => {
+      const index = safeUrls.push(sanitizeResourceImportUrl(url, options)) - 1;
+      return `\uE000${index}\uE001`;
+    }
   );
   const withKnownAssignments = (options.sensitiveKeys ?? []).reduce(
     (safeValue, key) => safeValue.replace(
-      new RegExp(`(${escapeRegExp(key)}\\s*[=:]\\s*['"]?)[^\\s,;:'"]+`, 'giu'),
+      new RegExp(`(['"]?${escapeRegExp(key)}['"]?\\s*[=:]\\s*['"]?)[^\\s,;:'"}]+`, 'giu'),
       '$1***'
     ),
-    withSafeUrls
+    withUrlPlaceholders
   );
-  return redactKnownSecretValues(withKnownAssignments.replace(
-    /((?:api[_-]?key|app[_-]?key|access[_-]?key|access[_-]?token|token|secret|signature|sign|authorization|cookie|set[_-]?cookie|session(?:[_-]?id)?|csrf|xsrf|password|credential)\s*[=:]\s*['"]?)[^\s,;:'"]+/giu,
+  const withNamedAssignments = withKnownAssignments.replace(
+    /(['"]?(?:api[_-]?key|app[_-]?key|access[_-]?key|access[_-]?token|token|secret|signature|sign|authorization|cookie|set[_-]?cookie|session(?:[_-]?id)?|csrf|xsrf|password|credential)['"]?\s*[=:]\s*['"]?)[^\s,;:'"}]+/giu,
     '$1***'
-  ), options);
+  );
+  const withSafeKnownValues = isKnownSecretValue(withNamedAssignments, options)
+    ? '***'
+    : redactBoundedKnownSecretValues(withNamedAssignments, options);
+  return withSafeKnownValues.replace(/\uE000(\d+)\uE001/gu, (_match, index: string) => safeUrls[Number(index)] ?? '');
 };
 
 export const restoreRedactedResourceImportUrl = (
@@ -142,10 +160,27 @@ export const buildSafeRequestSnapshot = (
   params: Record<string, unknown>,
   sourceName: string | null,
   options: ResourceImportSanitizationOptions = {}
-) => ({
-  method,
-  endpointUrl: sanitizeResourceImportUrl(endpointUrl, options),
-  dataPath,
-  params: sanitizeResourceImportValue(params, options) as Record<string, unknown>,
-  sourceName
-});
+) => {
+  const dynamicSensitiveKeys = ['__appKeyParam', '__secretParam', '__secretHeader']
+    .map((controlKey) => params[controlKey])
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim());
+  const snapshotOptions: ResourceImportSanitizationOptions = {
+    sensitiveKeys: [...(options.sensitiveKeys ?? []), ...dynamicSensitiveKeys],
+    secretValues: [
+      ...(options.secretValues ?? []),
+      ...dynamicSensitiveKeys.map((key) => {
+        const value = params[key];
+        return typeof value === 'string' ? value : null;
+      })
+    ]
+  };
+
+  return {
+    method,
+    endpointUrl: sanitizeResourceImportUrl(endpointUrl, snapshotOptions),
+    dataPath,
+    params: sanitizeResourceImportValue(params, snapshotOptions) as Record<string, unknown>,
+    sourceName
+  };
+};
