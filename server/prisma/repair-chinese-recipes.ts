@@ -6,6 +6,14 @@ import { getRecipeProviderRole } from '../src/services/resource-import/recipe-pr
 const apply = process.argv.includes('--apply');
 const TEST_TITLE = /(?:E2E|测试|^\d+$)/i;
 const OVERSEAS_OR_TEST_PROVIDER_CODES = ['themealdb_recipe', 'mock_recipe'];
+export const REPAIR_REASON = '中国菜谱资源治理：海外、英文或测试内容已隐藏';
+
+export function shouldHideRecipe(recipe: { title: string; isPublish: boolean; rejectReason: string | null }): boolean {
+  if (recipe.isPublish === false && recipe.rejectReason === REPAIR_REASON) return false;
+
+  const normalizedTitle = normalizeImportedRecipeTitle(recipe.title);
+  return TEST_TITLE.test(recipe.title) || !containsChineseText(normalizedTitle);
+}
 
 const refreshAffectedBatchStats = async (tx: Prisma.TransactionClient, importIds: number[]) => {
   if (importIds.length === 0) return;
@@ -38,7 +46,7 @@ const main = async () => {
   const [recipes, stagedItems] = await Promise.all([
     prisma.recipe.findMany({
       where: { deletedAt: null },
-      select: { id: true, title: true }
+      select: { id: true, title: true, isPublish: true, rejectReason: true }
     }),
     prisma.resourceImportItem.findMany({
       where: {
@@ -58,10 +66,7 @@ const main = async () => {
     })
   ]);
 
-  const recipesToHide = recipes.filter((recipe) => {
-    const normalizedTitle = normalizeImportedRecipeTitle(recipe.title);
-    return TEST_TITLE.test(recipe.title) || !containsChineseText(normalizedTitle);
-  });
+  const recipesToHide = recipes.filter(shouldHideRecipe);
   const overseasItems = stagedItems.filter((item) => {
     const providerCode = item.batch.provider?.providerCode;
     const role = providerCode ? getRecipeProviderRole(providerCode) : null;
@@ -83,7 +88,7 @@ const main = async () => {
         where: { id: { in: recipesToHide.map((item) => item.id) } },
         data: {
           isPublish: false,
-          rejectReason: '中国菜谱资源治理：海外、英文或测试内容已隐藏'
+          rejectReason: REPAIR_REASON
         }
       });
     }
@@ -103,11 +108,13 @@ const main = async () => {
   });
 };
 
-main()
-  .catch(() => {
-    console.error('中国菜谱历史资源修复未完成：无法读取或更新数据库。请确认本地数据库连接后重试。');
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch(() => {
+      console.error('中国菜谱历史资源修复未完成：无法读取或更新数据库。请确认本地数据库连接后重试。');
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
