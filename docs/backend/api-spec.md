@@ -60,7 +60,9 @@
   替代生产同步许可校验。
 - `POST /api/admin/resource-api-providers/:id/sync`：创建 Provider 同步批次。Provider
   必须为启用状态；中国菜谱主源或补充源还必须已填写内容许可/授权说明。一次首批
-  同步最多 20 条，完成去重、分类映射、媒体完整性和审核率评估后才可提升至 50 条。
+  同步接口的 `limit` 技术范围为 1–500（默认 100）。首批最多 20 条、完成去重、
+  分类映射、媒体完整性和审核率评估后才提升至 50 条，属于管理员必须遵守的运营
+  发布/灰度规则，不是当前服务端的强制参数上限。
 - `GET /api/admin/resource-imports/items`：支持 `isChinese`、`minQuality`、
   `maxQuality` 查询参数；质量分范围为 0–100。返回值含 `qualityScore`、
   `isChinese`、`qualityIssues`、`filterCode` 和来源追溯字段。
