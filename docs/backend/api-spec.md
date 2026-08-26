@@ -64,7 +64,8 @@
   分类映射、媒体完整性和审核率评估后才提升至 50 条，属于管理员必须遵守的运营
   发布/灰度规则，不是当前服务端的强制参数上限。
 - `GET /api/admin/resource-imports/items`：支持 `isChinese`、`minQuality`、
-  `maxQuality` 查询参数；质量分范围为 0–100。返回值含 `qualityScore`、
+  `maxQuality`、`filterCode` 查询参数；质量分范围为 0–100，`filterCode` 按机器码
+  精确匹配。返回值含 `qualityScore`、
   `isChinese`、`qualityIssues`、`filterCode` 和来源追溯字段。
 - `POST /api/admin/resource-imports/items/bulk-ignore`：提交 `itemIds`（1–500 个）
   和 `reason`，只允许批量忽略状态为 `PENDING` 或 `FAILED` 的菜谱导入项；操作与

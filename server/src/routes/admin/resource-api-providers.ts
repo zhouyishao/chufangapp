@@ -16,6 +16,7 @@ import {
 import {
   fetchProviderPreview,
   buildProviderDraft,
+  getProviderCredentialSanitizationOptions,
   type ResourceApiProviderRuntime
 } from '../../services/resource-import/provider-client';
 import {
@@ -85,14 +86,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const mergeRedactedProviderConfig = (
   incoming: Record<string, unknown>,
-  existing: Record<string, unknown>
+  existing: Record<string, unknown>,
+  options = {}
 ): Record<string, unknown> => Object.fromEntries(
   Object.entries(incoming).map(([key, value]) => {
     const existingValue = existing[key];
     if (value === '***' && existingValue !== undefined) return [key, existingValue];
-    if (isRecord(value) && isRecord(existingValue)) return [key, mergeRedactedProviderConfig(value, existingValue)];
+    if (isRecord(value) && isRecord(existingValue)) return [key, mergeRedactedProviderConfig(value, existingValue, options)];
     if (typeof value === 'string' && typeof existingValue === 'string') {
-      return [key, restoreRedactedResourceImportUrl(value, existingValue)];
+      return [key, restoreRedactedResourceImportUrl(value, existingValue, options)];
     }
     return [key, value];
   })
@@ -100,30 +102,37 @@ const mergeRedactedProviderConfig = (
 
 export const resolveProviderJsonConfig = (
   incoming: Record<string, unknown> | null | undefined,
-  existing: unknown
+  existing: unknown,
+  options = {}
 ): Record<string, unknown> | null => {
   const existingConfig = isRecord(existing) ? existing : null;
   if (incoming === undefined) return existingConfig;
   if (incoming === null) return null;
-  return mergeRedactedProviderConfig(incoming, existingConfig ?? {});
+  return mergeRedactedProviderConfig(incoming, existingConfig ?? {}, options);
 };
 
-export const resolveProviderEndpointUrl = (incoming: string, existing: string) =>
-  restoreRedactedResourceImportUrl(incoming, existing);
+export const resolveProviderEndpointUrl = (incoming: string, existing: string, options = {}) =>
+  restoreRedactedResourceImportUrl(incoming, existing, options);
 
 export const serializeProvider = (provider: any) => {
   const { appKey: _appKey, encryptedSecret, ...safeProvider } = provider;
+  const sanitizationOptions = getProviderCredentialSanitizationOptions({
+    appKey: provider.appKey ?? null,
+    defaultParams: provider.defaultParams && typeof provider.defaultParams === 'object'
+      ? provider.defaultParams as Record<string, unknown>
+      : null
+  });
 
   return {
     ...safeProvider,
     endpointUrl: typeof provider.endpointUrl === 'string'
-      ? sanitizeResourceImportUrl(provider.endpointUrl)
+      ? sanitizeResourceImportUrl(provider.endpointUrl, sanitizationOptions)
       : provider.endpointUrl,
     defaultHeaders: provider.defaultHeaders && typeof provider.defaultHeaders === 'object'
-      ? sanitizeResourceImportValue(provider.defaultHeaders)
+      ? sanitizeResourceImportValue(provider.defaultHeaders, sanitizationOptions)
       : provider.defaultHeaders,
     defaultParams: provider.defaultParams && typeof provider.defaultParams === 'object'
-      ? sanitizeResourceImportValue(provider.defaultParams)
+      ? sanitizeResourceImportValue(provider.defaultParams, sanitizationOptions)
       : provider.defaultParams,
     recipeSourceRole: provider.resourceType === 'RECIPE'
       ? getRecipeProviderRole(provider.providerCode)
@@ -270,8 +279,22 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
     if (duplicate) throw new HttpError('同编码资源提供方已存在', 422, 422);
   }
 
-  const defaultHeaders = resolveProviderJsonConfig(parsed.data.defaultHeaders, existing.defaultHeaders);
-  const defaultParams = resolveProviderJsonConfig(parsed.data.defaultParams, existing.defaultParams);
+  const existingSanitizationOptions = getProviderCredentialSanitizationOptions({
+    appKey: existing.appKey,
+    defaultParams: existing.defaultParams && typeof existing.defaultParams === 'object'
+      ? existing.defaultParams as Record<string, unknown>
+      : null
+  });
+  const defaultHeaders = resolveProviderJsonConfig(
+    parsed.data.defaultHeaders,
+    existing.defaultHeaders,
+    existingSanitizationOptions
+  );
+  const defaultParams = resolveProviderJsonConfig(
+    parsed.data.defaultParams,
+    existing.defaultParams,
+    existingSanitizationOptions
+  );
 
   const updated = await prisma.resourceApiProvider.update({
     where: { id },
@@ -283,7 +306,7 @@ adminResourceApiProvidersRouter.put('/:id', requireAdminAuth, async (req, res) =
       sourceKind: parsed.data.sourceKind,
       formatHint: parsed.data.formatHint,
       method: parsed.data.method,
-      endpointUrl: resolveProviderEndpointUrl(parsed.data.endpointUrl, existing.endpointUrl),
+      endpointUrl: resolveProviderEndpointUrl(parsed.data.endpointUrl, existing.endpointUrl, existingSanitizationOptions),
       sourceHomeUrl: parsed.data.sourceHomeUrl ?? null,
       termsUrl: parsed.data.termsUrl ?? null,
       licenseNote: parsed.data.licenseNote ?? null,
@@ -411,6 +434,7 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
 
   assertRecipeProviderCanSync(provider);
   const runtime = toRuntimeProvider(provider);
+  const sanitizationOptions = getProviderCredentialSanitizationOptions(runtime);
   const persistFailedSyncAttempt = async (errorMessage: string) => {
     await prisma.$transaction([
       prisma.resourceImportBatch.create({
@@ -431,7 +455,8 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
             provider.endpointUrl,
             provider.dataPath,
             parsed.data.params ?? {},
-            provider.providerName
+            provider.providerName,
+            sanitizationOptions
           ) as Prisma.InputJsonValue,
           finishedAt: new Date()
         }
@@ -446,7 +471,10 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
   try {
     preview = await fetchProviderPreview(runtime, parsed.data.limit, parsed.data.params ?? {}, 'sync');
   } catch (error) {
-    const errorMessage = sanitizeResourceImportError(error instanceof Error ? error.message : '未知同步错误');
+    const errorMessage = sanitizeResourceImportError(
+      error instanceof Error ? error.message : '未知同步错误',
+      sanitizationOptions
+    );
     await persistFailedSyncAttempt(errorMessage);
     throw new HttpError(`同步失败：${errorMessage}`, 502, 502);
   }
@@ -494,72 +522,76 @@ adminResourceApiProvidersRouter.post('/:id/sync', requireAdminAuth, async (req, 
   const failedCount = staged.filter((item) => item.status === 'FAILED').length;
   const successCount = staged.filter((item) => item.status === 'PENDING').length;
 
-  const batch = await prisma.resourceImportBatch.create({
-    data: {
-      importType: resourceType,
-      sourceType: 'API',
-      fileName: batchName,
-      status: 'PENDING',
-      totalCount,
-      successCount,
-      failedCount,
-      createdBy: req.admin?.username || 'admin',
-      providerId: provider.id,
-      sourceName: provider.providerName,
-      requestSnapshot: buildRequestSnapshot(
-        provider.method,
-        provider.endpointUrl,
-        provider.dataPath,
-        parsed.data.params ?? {},
-        provider.providerName
-      ) as Prisma.InputJsonValue
-    }
-  });
-
-  await prisma.resourceImportItem.createMany({
-    data: staged.map((item) => ({
-      importId: batch.id,
-      rowIndex: item.rowIndex,
-      rawData: item.rawData as Prisma.InputJsonValue,
-      mappedData: item.mappedData as Prisma.InputJsonValue,
-      status: item.status,
-      errorMessage: item.errorMessage,
-      externalId: item.externalId,
-      externalUrl: item.externalUrl,
-      filterCode: item.filterCode,
-      duplicateTargetId: item.duplicateTargetId,
-      qualityScore: item.qualityScore,
-      isChinese: item.isChinese,
-      qualityIssues: item.qualityIssues
-        ? (item.qualityIssues as Prisma.InputJsonValue)
-        : Prisma.DbNull
-    }))
-  });
-
-  if (preview.rawRecords.length > 0) {
-    await (prisma as any).rawImportRecord.createMany({
-      data: preview.rawRecords.map((record) => ({
-        providerId: provider.id,
-        batchId: batch.id,
-        sourceType: (provider as any).sourceKind || 'API',
-        fileName: record.fileName,
-        sourceUrl: record.sourceUrl,
-        contentType: record.contentType,
-        rawText: record.rawText,
-        rawJson: record.rawJson ? (record.rawJson as Prisma.InputJsonValue) : Prisma.DbNull,
+  const batch = await prisma.$transaction(async (tx) => {
+    const createdBatch = await tx.resourceImportBatch.create({
+      data: {
+        importType: resourceType,
+        sourceType: 'API',
+        fileName: batchName,
         status: 'PENDING',
-        parsedCount: record.parsedCount,
-        errorMessage: null
+        totalCount,
+        successCount,
+        failedCount,
+        createdBy: req.admin?.username || 'admin',
+        providerId: provider.id,
+        sourceName: provider.providerName,
+        requestSnapshot: buildRequestSnapshot(
+          provider.method,
+          provider.endpointUrl,
+          provider.dataPath,
+          parsed.data.params ?? {},
+          provider.providerName,
+          sanitizationOptions
+        ) as Prisma.InputJsonValue
+      }
+    });
+
+    await tx.resourceImportItem.createMany({
+      data: staged.map((item) => ({
+        importId: createdBatch.id,
+        rowIndex: item.rowIndex,
+        rawData: item.rawData as Prisma.InputJsonValue,
+        mappedData: item.mappedData as Prisma.InputJsonValue,
+        status: item.status,
+        errorMessage: item.errorMessage,
+        externalId: item.externalId,
+        externalUrl: item.externalUrl,
+        filterCode: item.filterCode,
+        duplicateTargetId: item.duplicateTargetId,
+        qualityScore: item.qualityScore,
+        isChinese: item.isChinese,
+        qualityIssues: item.qualityIssues
+          ? (item.qualityIssues as Prisma.InputJsonValue)
+          : Prisma.DbNull
       }))
     });
-  }
 
-  await prisma.resourceApiProvider.update({
-    where: { id: provider.id },
-    data: {
-      lastSyncedAt: new Date(),
-      lastError: null
+    if (preview.rawRecords.length > 0) {
+      await tx.rawImportRecord.createMany({
+        data: preview.rawRecords.map((record) => ({
+          providerId: provider.id,
+          batchId: createdBatch.id,
+          sourceType: provider.sourceKind || 'API',
+          fileName: record.fileName,
+          sourceUrl: record.sourceUrl,
+          contentType: record.contentType,
+          rawText: record.rawText,
+          rawJson: record.rawJson ? (record.rawJson as Prisma.InputJsonValue) : Prisma.DbNull,
+          status: 'PENDING',
+          parsedCount: record.parsedCount,
+          errorMessage: null
+        }))
+      });
     }
+
+    await tx.resourceApiProvider.update({
+      where: { id: provider.id },
+      data: {
+        lastSyncedAt: new Date(),
+        lastError: null
+      }
+    });
+    return createdBatch;
   });
 
   res.json(ok({
