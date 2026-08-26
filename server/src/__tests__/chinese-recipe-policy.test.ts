@@ -152,3 +152,40 @@ test('rejects suspicious overseas mixed-language titles but preserves Chinese di
   assert.equal(brandDish.hardFailure, false);
   assert.equal(commonDishWithUnit.hardFailure, false);
 });
+
+test('hard-fails mixed-language titles that use an English dish name after Chinese text', () => {
+  const mixedTitle = evaluateChineseRecipeCandidate({
+    name: '泰式 Tom Yum Soup', categoryName: '家常菜', cover: 'https://example.com/tom-yum.webp',
+    ingredients: [{ name: '虾' }, { name: '香茅' }], steps: ['虾洗净后放入锅中煮熟'],
+    sourceName: '来源', externalId: 'tom-yum-001'
+  });
+
+  assert.equal(mixedTitle.hardFailure, true);
+  assert.equal(mixedTitle.filterCode, 'MIXED_LANGUAGE_RECIPE');
+  assert.ok(mixedTitle.qualityIssues.some((issue) => issue.includes('中英混合')));
+});
+
+test('hard-fails a Chinese step when its executable content is English-dominant', () => {
+  const mixedStep = evaluateChineseRecipeCandidate({
+    name: '番茄炒蛋', categoryName: '家常菜', cover: 'https://example.com/tomato-eggs.webp',
+    ingredients: [{ name: '番茄' }, { name: '鸡蛋' }],
+    steps: ['Whisk eggs and cook until done，最后炒匀出锅'],
+    sourceName: '来源', externalId: 'mixed-step-001'
+  });
+
+  assert.equal(mixedStep.hardFailure, true);
+  assert.equal(mixedStep.filterCode, 'INVALID_RECIPE_STEPS');
+  assert.ok(mixedStep.qualityIssues.some((issue) => issue.includes('步骤')));
+});
+
+test('allows Chinese-dominant instructions with whitelisted brands and unit forms', () => {
+  const chineseRecipe = evaluateChineseRecipeCandidate({
+    name: 'Kikkoman 照烧鸡翅 200g', categoryName: '家常菜', cover: 'https://example.com/wings.webp',
+    ingredients: [{ name: '鸡翅' }, { name: '酱油' }],
+    steps: ['鸡翅洗净后加入 200g Kikkoman 酱油腌制', '烤箱预热至 180°C，烤熟后出锅'],
+    sourceName: '来源', externalId: 'whitelist-001'
+  });
+
+  assert.equal(chineseRecipe.hardFailure, false);
+  assert.ok(chineseRecipe.qualityScore >= 80);
+});

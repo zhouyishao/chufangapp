@@ -63,16 +63,58 @@ const getStepText = (step: NonNullable<NormalizedResourcePayload['steps']>[numbe
   typeof step === 'string' ? step.trim() : step.description.trim();
 
 const CHINESE_RECIPE_ACTION = /(?:洗|切|剁|拍|焯|煮|炖|蒸|煎|炒|炸|烤|烘|拌|腌|调|倒|加|放|烧|焖|煲|熬|煨|盛|装|搅|打|煸|爆|汆|卤|烩|收汁|勾芡|出锅)/u;
-const OVERSEAS_RECIPE_TITLE = /\b(?:chicken|beef|pork|pasta|pizza|burger|steak|salad|curry|taco|sushi|handi|risotto|spaghetti|lasagna|sandwich|cocktail|mojito|margarita|smoothie)\b/i;
 const PACKAGED_FOOD_TEXT = /(?:包装食品|预包装|方便面|速食|零食|薯片|饼干|罐头|即食|调味包)/u;
 const DRINK_TEXT = /(?:鸡尾酒|饮品|饮料|奶茶|咖啡|果汁|汽水|啤酒|红酒|白酒|威士忌|伏特加|朗姆酒|调酒|酒水)/u;
 const COOKED_DISH_TITLE = /(?:炒|煮|炖|蒸|煎|炸|烤|拌|烧|焖|煲|熬|卤|烩|鸡翅|排骨|肉|菜|蛋|豆腐|饭|面|饺|包|粥|羹|汤)/u;
+const LATIN_WORD = /[A-Za-z]+/gu;
+const CHINESE_CHARACTER = /[\u3400-\u9fff]/gu;
+const NUMERIC_UNIT = /\b\d+(?:\.\d+)?\s*(?:g|kg|ml|l|°c|cm|min)\b/giu;
+const ALLOWED_RECIPE_LATIN_TOKENS = ['kikkoman', 'bbq'] as const;
+const ALLOWED_RECIPE_LATIN_TOKEN = new RegExp(`\\b(?:${ALLOWED_RECIPE_LATIN_TOKENS.join('|')})\\b`, 'giu');
+const TITLE_MIN_CHINESE_RATIO = 0.9;
+const TITLE_MAX_NON_WHITELISTED_ENGLISH_WORDS = 0;
+const TITLE_MAX_NON_WHITELISTED_ENGLISH_SEGMENT_LENGTH = 0;
+const STEP_MIN_CHINESE_RATIO = 0.7;
+const STEP_MAX_NON_WHITELISTED_ENGLISH_WORDS = 0;
+
+type RecipeLanguageBalance = {
+  chineseRatio: number;
+  englishWordCount: number;
+  longestEnglishWordLength: number;
+};
+
+const getRecipeLanguageBalance = (value: string): RecipeLanguageBalance => {
+  const normalized = value
+    .replace(NUMERIC_UNIT, ' ')
+    .replace(ALLOWED_RECIPE_LATIN_TOKEN, ' ');
+  const chineseCharacterCount = normalized.match(CHINESE_CHARACTER)?.length ?? 0;
+  const englishWords = normalized.match(LATIN_WORD) ?? [];
+  const englishCharacterCount = englishWords.join('').length;
+  const languageCharacterCount = chineseCharacterCount + englishCharacterCount;
+
+  return {
+    chineseRatio: languageCharacterCount > 0 ? chineseCharacterCount / languageCharacterCount : 0,
+    englishWordCount: englishWords.length,
+    longestEnglishWordLength: Math.max(0, ...englishWords.map((word) => word.length))
+  };
+};
+
+const hasUnsupportedMixedLanguageTitle = (title: string): boolean => {
+  const balance = getRecipeLanguageBalance(title);
+  return balance.chineseRatio < TITLE_MIN_CHINESE_RATIO
+    || balance.englishWordCount > TITLE_MAX_NON_WHITELISTED_ENGLISH_WORDS
+    || balance.longestEnglishWordLength > TITLE_MAX_NON_WHITELISTED_ENGLISH_SEGMENT_LENGTH;
+};
 
 const hasChineseExecutableSteps = (steps: NormalizedResourcePayload['steps']): boolean =>
   Array.isArray(steps)
   && steps.filter((step) => getStepText(step).length > 0).every((step) => {
     const text = getStepText(step);
-    return containsChineseText(text) && CHINESE_RECIPE_ACTION.test(text);
+    const balance = getRecipeLanguageBalance(text);
+    return containsChineseText(text)
+      && CHINESE_RECIPE_ACTION.test(text)
+      && balance.chineseRatio >= STEP_MIN_CHINESE_RATIO
+      && balance.englishWordCount <= STEP_MAX_NON_WHITELISTED_ENGLISH_WORDS;
   });
 
 const isDrinkPayload = (payload: NormalizedResourcePayload): boolean =>
@@ -111,7 +153,7 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
   const stepCount = entryCount(payload.steps);
   const validChineseSteps = hasChineseExecutableSteps(payload.steps);
   const householdExclusion = getHouseholdRecipeExclusion(payload, title);
-  const mixedOverseasTitle = /[A-Za-z]/.test(title) && OVERSEAS_RECIPE_TITLE.test(title);
+  const mixedLanguageTitle = hasUnsupportedMixedLanguageTitle(title);
   const qualityIssues: string[] = [];
   let qualityScore = 0;
   const testTitle = /(?:E2E|测试|^\d+$)/i.test(originalTitle);
@@ -123,7 +165,7 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
   if (ingredientCount >= 2) qualityScore += 20;
   else qualityIssues.push('有效用料少于2项');
   if (stepCount >= 1 && validChineseSteps) qualityScore += 20;
-  else qualityIssues.push(stepCount < 1 ? '制作步骤为空' : '每个步骤必须是中文可执行烹饪说明');
+  else qualityIssues.push(stepCount < 1 ? '制作步骤为空' : '每个步骤必须以中文为主且为可执行烹饪说明');
   if (payload.cover) qualityScore += 15;
   else qualityIssues.push('缺少封面');
   if ((payload.sourceName && payload.externalId) || payload.externalUrl) qualityScore += 10;
@@ -133,7 +175,7 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
     qualityScore = 0;
   }
   if (householdExclusion) qualityIssues.push(householdExclusion);
-  if (mixedOverseasTitle) qualityIssues.push('中英混合海外菜名需人工复核，不可自动导入');
+  if (mixedLanguageTitle) qualityIssues.push('中英混合标题不可自动导入');
 
   const invalidTitle = !title || title.length < 2 || title.length > 40;
   const incomplete = ingredientCount < 2 || stepCount < 1;
@@ -146,7 +188,7 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
         ? 'NON_CHINESE_RECIPE'
         : householdExclusion
           ? 'NOT_HOUSEHOLD_RECIPE'
-          : mixedOverseasTitle
+          : mixedLanguageTitle
             ? 'MIXED_LANGUAGE_RECIPE'
             : !validChineseSteps
               ? 'INVALID_RECIPE_STEPS'
