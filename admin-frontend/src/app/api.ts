@@ -1668,6 +1668,7 @@ export const listImportItems = async (params: {
   isChinese?: boolean;
   minQuality?: number;
   maxQuality?: number;
+  filterCode?: string;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'q', params.q?.trim());
@@ -1679,6 +1680,7 @@ export const listImportItems = async (params: {
   if (typeof params.isChinese === 'boolean') qs.set('isChinese', String(params.isChinese));
   if (params.minQuality !== undefined) qs.set('minQuality', String(params.minQuality));
   if (params.maxQuality !== undefined) qs.set('maxQuality', String(params.maxQuality));
+  setParam(qs, 'filterCode', params.filterCode);
   return request<PageResult<ResourceImportStagedItem>>(`/resource-imports/items?${qs.toString()}`);
 };
 

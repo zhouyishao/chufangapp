@@ -2,6 +2,8 @@ import { getByPath } from './json-path';
 import { decryptSecret, maskSecret } from './secret';
 import { parseDatasetFile } from './dataset-parser';
 import {
+  type ResourceImportSanitizationOptions,
+  sanitizeResourceImportError,
   sanitizeResourceImportUrl,
   sanitizeResourceImportValue
 } from './safe-serialization';
@@ -63,6 +65,21 @@ const mergeRecords = (...values: Array<Record<string, unknown> | null | undefine
 const getControlText = (params: Record<string, unknown>, key: string, fallback: string) => {
   const value = params[key];
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+};
+
+export const getProviderCredentialSanitizationOptions = (
+  provider: Pick<ResourceApiProviderRuntime, 'appKey' | 'defaultParams'>,
+  knownSecrets: readonly (string | null | undefined)[] = []
+): ResourceImportSanitizationOptions => {
+  const params = provider.defaultParams ?? {};
+  return {
+    sensitiveKeys: [
+      getControlText(params, '__appKeyParam', 'appKey'),
+      getControlText(params, '__secretParam', 'secret'),
+      getControlText(params, '__secretHeader', 'X-Resource-Secret')
+    ],
+    secretValues: [provider.appKey, ...knownSecrets]
+  };
 };
 
 const stripControlParams = (params: Record<string, unknown>) => Object.fromEntries(
@@ -314,6 +331,13 @@ export async function fetchProviderPreview(
     : secretEnvName
       ? process.env[secretEnvName]?.trim() || null
       : null;
+  const requestCredentialValues = [
+    runtimeAppKey,
+    runtimeSecret,
+    typeof requestParams[appKeyParamName] === 'string' ? requestParams[appKeyParamName] : null,
+    typeof requestParams[secretParamName] === 'string' ? requestParams[secretParamName] : null
+  ];
+  const sanitizationOptions = getProviderCredentialSanitizationOptions(provider, requestCredentialValues);
   if (appKeyEnvName && !runtimeAppKey) {
     throw new Error(`Missing env: ${appKeyEnvName}`);
   }
@@ -408,27 +432,35 @@ export async function fetchProviderPreview(
         : extracted && typeof extracted === 'object'
           ? [toPlainObject(extracted)]
         : [];
-    const cappedRows = rows.slice(0, limit);
-    const safeRequestUrl = sanitizeResourceImportUrl(requestUrl);
+    const safeRows = sanitizeResourceImportValue(rows, sanitizationOptions) as Record<string, unknown>[];
+    const cappedRows = safeRows.slice(0, limit);
+    const safeRequestUrl = sanitizeResourceImportUrl(requestUrl, sanitizationOptions);
 
     return {
       total: rows.length,
-      rows,
+      rows: safeRows,
       preview: cappedRows,
       requestUrl: safeRequestUrl,
-      requestBody: sanitizeResourceImportValue(requestBody) as Record<string, unknown> | null,
-      headers: sanitizeResourceImportValue(headers) as Record<string, string>,
+      requestBody: sanitizeResourceImportValue(requestBody, sanitizationOptions) as Record<string, unknown> | null,
+      headers: sanitizeResourceImportValue(headers, sanitizationOptions) as Record<string, string>,
       rawRecords: [
         {
           fileName: getFileNameFromUrl(requestUrl),
           sourceUrl: safeRequestUrl,
           contentType: 'application/json',
           rawText: null,
-          rawJson: raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null,
+          rawJson: raw && typeof raw === 'object'
+            ? sanitizeResourceImportValue(raw, sanitizationOptions) as Record<string, unknown>
+            : null,
           parsedCount: rows.length
         }
       ]
     };
+  } catch (error) {
+    throw new Error(sanitizeResourceImportError(
+      error instanceof Error ? error.message : '未知资源请求错误',
+      sanitizationOptions
+    ));
   } finally {
     clearTimeout(timeout);
   }

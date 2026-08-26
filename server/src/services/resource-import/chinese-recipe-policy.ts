@@ -7,7 +7,7 @@ export type ChineseRecipeEvaluation = {
   qualityScore: number;
   qualityIssues: string[];
   hardFailure: boolean;
-  filterCode: 'NON_CHINESE_RECIPE' | 'INCOMPLETE_RECIPE' | 'INVALID_RECIPE_TITLE' | 'TEST_RECIPE_TITLE' | 'UNMAPPED_RECIPE_CATEGORY' | 'UNTRACEABLE_RECIPE_SOURCE' | null;
+  filterCode: 'NON_CHINESE_RECIPE' | 'NOT_HOUSEHOLD_RECIPE' | 'INVALID_RECIPE_STEPS' | 'MIXED_LANGUAGE_RECIPE' | 'INCOMPLETE_RECIPE' | 'INVALID_RECIPE_TITLE' | 'TEST_RECIPE_TITLE' | 'UNMAPPED_RECIPE_CATEGORY' | 'UNTRACEABLE_RECIPE_SOURCE' | null;
   errorMessage: string | null;
 };
 
@@ -59,6 +59,49 @@ const entryCount = (value: unknown): number => Array.isArray(value)
     }).length
   : 0;
 
+const getStepText = (step: NonNullable<NormalizedResourcePayload['steps']>[number]): string =>
+  typeof step === 'string' ? step.trim() : step.description.trim();
+
+const CHINESE_RECIPE_ACTION = /(?:洗|切|剁|拍|焯|煮|炖|蒸|煎|炒|炸|烤|烘|拌|腌|调|倒|加|放|烧|焖|煲|熬|煨|盛|装|搅|打|煸|爆|汆|卤|烩|收汁|勾芡|出锅)/u;
+const OVERSEAS_RECIPE_TITLE = /\b(?:chicken|beef|pork|pasta|pizza|burger|steak|salad|curry|taco|sushi|handi|risotto|spaghetti|lasagna|sandwich|cocktail|mojito|margarita|smoothie)\b/i;
+const PACKAGED_FOOD_TEXT = /(?:包装食品|预包装|方便面|速食|零食|薯片|饼干|罐头|即食|调味包)/u;
+const DRINK_TEXT = /(?:鸡尾酒|饮品|饮料|奶茶|咖啡|果汁|汽水|啤酒|红酒|白酒|威士忌|伏特加|朗姆酒|调酒|酒水)/u;
+const COOKED_DISH_TITLE = /(?:炒|煮|炖|蒸|煎|炸|烤|拌|烧|焖|煲|熬|卤|烩|鸡翅|排骨|肉|菜|蛋|豆腐|饭|面|饺|包|粥|羹|汤)/u;
+
+const hasChineseExecutableSteps = (steps: NormalizedResourcePayload['steps']): boolean =>
+  Array.isArray(steps)
+  && steps.filter((step) => getStepText(step).length > 0).every((step) => {
+    const text = getStepText(step);
+    return containsChineseText(text) && CHINESE_RECIPE_ACTION.test(text);
+  });
+
+const isDrinkPayload = (payload: NormalizedResourcePayload): boolean =>
+  Boolean(
+    payload.beverageType
+    || payload.drinkType
+    || payload.cocktailMethod
+    || payload.baseSpirit
+    || payload.glassType
+    || payload.alcoholicType
+    || payload.isAlcoholic === true
+    || (payload.alcoholDegree ?? 0) > 0
+    || payload.instructions
+    || payload.garnish
+    || payload.measures?.length
+  );
+
+const getHouseholdRecipeExclusion = (payload: NormalizedResourcePayload, title: string): string | null => {
+  const metadataText = [payload.categoryName, payload.description, payload.subtitle, payload.scene, payload.taste]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(' ');
+  const allText = `${title} ${metadataText}`;
+  if (isDrinkPayload(payload) || DRINK_TEXT.test(allText) && !COOKED_DISH_TITLE.test(title)) {
+    return '饮品或鸡尾酒不属于中国家庭菜谱';
+  }
+  if (PACKAGED_FOOD_TEXT.test(allText)) return '包装食品不属于中国家庭菜谱';
+  return null;
+};
+
 export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayload): ChineseRecipeEvaluation => {
   const originalTitle = payload.title?.trim() || payload.name.trim();
   const title = normalizeImportedRecipeTitle(originalTitle);
@@ -66,6 +109,9 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
   const categoryName = mapChineseRecipeCategory(payload.categoryName);
   const ingredientCount = entryCount(payload.ingredients);
   const stepCount = entryCount(payload.steps);
+  const validChineseSteps = hasChineseExecutableSteps(payload.steps);
+  const householdExclusion = getHouseholdRecipeExclusion(payload, title);
+  const mixedOverseasTitle = /[A-Za-z]/.test(title) && OVERSEAS_RECIPE_TITLE.test(title);
   const qualityIssues: string[] = [];
   let qualityScore = 0;
   const testTitle = /(?:E2E|测试|^\d+$)/i.test(originalTitle);
@@ -76,8 +122,8 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
   else qualityIssues.push('分类待映射');
   if (ingredientCount >= 2) qualityScore += 20;
   else qualityIssues.push('有效用料少于2项');
-  if (stepCount >= 1) qualityScore += 20;
-  else qualityIssues.push('制作步骤为空');
+  if (stepCount >= 1 && validChineseSteps) qualityScore += 20;
+  else qualityIssues.push(stepCount < 1 ? '制作步骤为空' : '每个步骤必须是中文可执行烹饪说明');
   if (payload.cover) qualityScore += 15;
   else qualityIssues.push('缺少封面');
   if ((payload.sourceName && payload.externalId) || payload.externalUrl) qualityScore += 10;
@@ -86,6 +132,8 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
     qualityIssues.push('测试标题不可导入');
     qualityScore = 0;
   }
+  if (householdExclusion) qualityIssues.push(householdExclusion);
+  if (mixedOverseasTitle) qualityIssues.push('中英混合海外菜名需人工复核，不可自动导入');
 
   const invalidTitle = !title || title.length < 2 || title.length > 40;
   const incomplete = ingredientCount < 2 || stepCount < 1;
@@ -96,6 +144,12 @@ export const evaluateChineseRecipeCandidate = (payload: NormalizedResourcePayloa
       ? 'INVALID_RECIPE_TITLE'
       : !isChinese
         ? 'NON_CHINESE_RECIPE'
+        : householdExclusion
+          ? 'NOT_HOUSEHOLD_RECIPE'
+          : mixedOverseasTitle
+            ? 'MIXED_LANGUAGE_RECIPE'
+            : !validChineseSteps
+              ? 'INVALID_RECIPE_STEPS'
         : incomplete
           ? 'INCOMPLETE_RECIPE'
           : !categoryName

@@ -283,12 +283,6 @@ export const ApiProviderListPage = () => {
           </Button>
           <Button
             variant="ghost"
-            onClick={() => navigate('/resources/api-providers/create?preset=JUHE_RECIPE')}
-          >
-            新建 Juhe 菜谱
-          </Button>
-          <Button
-            variant="ghost"
             onClick={() => navigate('/resources/api-providers/create?preset=TIANAPI_RECIPE')}
           >
             新建 TianAPI 菜谱

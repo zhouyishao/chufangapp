@@ -256,8 +256,8 @@ export function normalizeResourcePayload(resourceType: ResourceImportType, rawIn
   const payload: NormalizedResourcePayload = {
     name,
     sourceName: getText(raw, ['sourceName', 'providerName', '来源名称']) || null,
-    externalId: getText(raw, ['externalId', 'id', 'ID', 'fdcId', 'sourceId', 'idDrink', 'idMeal', 'code', '_id', 'cpId', 'menuId', 'cookId']) || null,
-    externalUrl: normalizeUrl(raw.sourceUrl ?? raw.url ?? raw.source_url ?? raw.strImageSource ?? raw.strSource ?? raw['链接']) || null,
+    externalId: getText(raw, ['externalId', '外部 ID', '外部ID', 'id', 'ID', 'fdcId', 'sourceId', 'idDrink', 'idMeal', 'code', '_id', 'cpId', 'menuId', 'cookId']) || null,
+    externalUrl: normalizeUrl(raw.externalUrl ?? raw['外部链接'] ?? raw.sourceUrl ?? raw.url ?? raw.source_url ?? raw.strImageSource ?? raw.strSource ?? raw['链接']) || null,
     rawJson: raw
   };
 

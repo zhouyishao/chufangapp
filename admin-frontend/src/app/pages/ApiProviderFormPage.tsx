@@ -65,7 +65,6 @@ type Props = { mode: 'create' | 'edit' };
 
 type ProviderPresetKey =
   | 'PROJ_KITCHEN'
-  | 'JUHE_RECIPE'
   | 'TIANAPI_RECIPE'
   | 'TIANAPI_INGREDIENT'
   | 'TIANAPI_FRUIT'
@@ -115,41 +114,6 @@ const providerPresets: Record<ProviderPresetKey, ProviderPreset> = {
       timeoutMs: 10000,
       dailyLimit: 1000,
       description: '中国菜谱主接口，只用于菜谱导入；测试连接只请求测试接口。',
-      status: 'ACTIVE'
-    }
-  },
-  JUHE_RECIPE: {
-    title: 'Juhe 菜谱大全',
-    description: '中文菜谱主源，优先接家常菜和食材检索。',
-    draft: {
-      providerCode: 'juhe_recipe',
-      name: 'Juhe 菜谱大全',
-      providerName: 'Juhe',
-      resourceType: 'RECIPE',
-      sourceKind: 'API',
-      formatHint: 'JSON',
-      method: 'GET',
-      endpointUrl: 'https://apis.juhe.cn/cook/query.php',
-      sourceHomeUrl: 'https://www.juhe.cn',
-      authType: 'QUERY_KEY',
-      appKey: '',
-      secret: '',
-      defaultHeaders: '',
-      defaultParams: JSON.stringify(
-        {
-          __appKeyEnv: 'JUHE_COOK_KEY',
-          __appKeyParam: 'key',
-          menu: '黄瓜',
-          rn: 10,
-          pn: 0
-        },
-        null,
-        2
-      ),
-      dataPath: 'result.data',
-      timeoutMs: 10000,
-      dailyLimit: 1000,
-      description: '中文菜谱主源，支持按菜名或食材关键词查询',
       status: 'ACTIVE'
     }
   },

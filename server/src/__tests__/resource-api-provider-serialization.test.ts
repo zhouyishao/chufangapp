@@ -85,3 +85,28 @@ test('provider serialization redacts JSON credentials and update placeholders re
     'https://provider.example/recipes?token=saved-token&word=%E9%B1%BC'
   );
 });
+
+test('provider serialization redacts dynamically configured credential fields', () => {
+  const serialized = serializeProvider({
+    id: 2,
+    providerCode: 'custom_provider',
+    resourceType: 'INGREDIENT',
+    appKey: 'real-client-id',
+    encryptedSecret: 'encrypted-real-secret',
+    endpointUrl: 'https://provider.example/resources?client_id=real-client-id',
+    defaultHeaders: { 'X-Private-Partner': 'real-header-secret' },
+    defaultParams: {
+      __appKeyParam: 'client_id',
+      __secretHeader: 'X-Private-Partner'
+    },
+    lastSyncedAt: null,
+    lastTestedAt: null,
+    createdAt: new Date('2026-08-25T00:00:00.000Z'),
+    updatedAt: new Date('2026-08-25T00:00:00.000Z'),
+    _count: { importBatches: 0 }
+  });
+
+  assert.doesNotMatch(JSON.stringify(serialized), /real-client-id|real-header-secret/);
+  assert.match(serialized.endpointUrl, /client_id=\*\*\*/);
+  assert.equal((serialized.defaultHeaders as Record<string, unknown>)['X-Private-Partner'], '***');
+});

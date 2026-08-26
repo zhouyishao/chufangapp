@@ -180,38 +180,17 @@ export async function ensureDefaultResourceApiProviders(prisma: PrismaClient): P
     const existing = await prisma.resourceApiProvider.findUnique({
       where: { providerCode: preset.providerCode }
     });
+
+    if (existing) {
+      continue;
+    }
+
     const appKey = resolveAppKey(preset) || null;
     const defaultParams = preset.defaultParams;
     const controlParams = preset.defaultParams as Record<string, unknown> | null;
     const status = preset.authType === 'QUERY_KEY' && typeof controlParams?.__appKeyEnv === 'string' && !appKey
       ? 'DISABLED'
       : preset.status;
-
-    if (existing) {
-      await prisma.resourceApiProvider.update({
-        where: { id: existing.id },
-        data: {
-          name: preset.name,
-          providerName: preset.providerName,
-          resourceType: preset.resourceType,
-          sourceKind: preset.sourceKind,
-          formatHint: preset.formatHint,
-          method: 'GET',
-          endpointUrl: preset.endpointUrl,
-          sourceHomeUrl: preset.sourceHomeUrl,
-          authType: preset.authType,
-          appKey,
-          defaultHeaders: preset.defaultHeaders ? (preset.defaultHeaders as Prisma.InputJsonValue) : Prisma.DbNull,
-          defaultParams: defaultParams ? (defaultParams as Prisma.InputJsonValue) : Prisma.DbNull,
-          dataPath: preset.dataPath,
-          timeoutMs: preset.timeoutMs,
-          dailyLimit: preset.dailyLimit,
-          description: preset.description,
-          lastError: null
-        }
-      });
-      continue;
-    }
 
     await prisma.resourceApiProvider.create({
       data: {

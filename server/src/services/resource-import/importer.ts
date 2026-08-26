@@ -2,7 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 import { createBusinessId, nextCodeFromItems } from '../../lib/business-id';
 import type { NormalizedResourcePayload, ResourceImportType } from './types';
-import { buildSafeRequestSnapshot } from './safe-serialization';
+import { buildSafeRequestSnapshot, type ResourceImportSanitizationOptions } from './safe-serialization';
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -275,6 +275,13 @@ export async function buildDuplicateFilterCode(
   return { filterCode: null, errorMessage: null };
 }
 
-export function buildRequestSnapshot(method: string, endpointUrl: string, dataPath: string, params: Record<string, unknown>, sourceName: string | null) {
-  return buildSafeRequestSnapshot(method, endpointUrl, dataPath, params, sourceName);
+export function buildRequestSnapshot(
+  method: string,
+  endpointUrl: string,
+  dataPath: string,
+  params: Record<string, unknown>,
+  sourceName: string | null,
+  options: ResourceImportSanitizationOptions = {}
+) {
+  return buildSafeRequestSnapshot(method, endpointUrl, dataPath, params, sourceName, options);
 }

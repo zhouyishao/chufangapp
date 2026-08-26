@@ -34,3 +34,20 @@ test('admin preserves cross-page recipe selections and saved provider keys', () 
   assert.match(providerForm, /shouldIncludeAppKey/);
   assert.match(providerForm, /\.\.\.\(shouldIncludeAppKey/);
 });
+
+test('admin recipe import workflow requires traceable templates and safe batch confirmation', () => {
+  assert.match(accessCenter, /来源名称/);
+  assert.match(accessCenter, /外部 ID/);
+  assert.match(accessCenter, /外部链接/);
+  assert.match(accessCenter, /至少填写外部链接，或同时填写来源名称与外部 ID/);
+  assert.match(accessCenter, /filterCode/);
+  assert.match(api, /filterCode/);
+  assert.match(accessCenter, /canBulkConfirm/);
+  assert.match(accessCenter, /同一导入批次/);
+});
+
+test('admin no longer promotes the removed Juhe recipe source', () => {
+  assert.doesNotMatch(providerForm, /JUHE_RECIPE|Juhe 菜谱/);
+  assert.doesNotMatch(providers, /Juhe 菜谱|JUHE_RECIPE/);
+  assert.doesNotMatch(accessCenter, /juhe_recipe|JUHE_COOK_KEY/);
+});
