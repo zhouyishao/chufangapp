@@ -417,3 +417,102 @@ test('request snapshots derive dynamic credential boundaries from their own cont
   assert.equal(snapshot.params.externalId, '123');
   assert.equal(snapshot.params.cover, 'https://cdn.example.test/1.webp');
 });
+
+test('long path credentials stay real for fetch and are redacted from request, row, and raw URLs', async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchedUrl = '';
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    fetchedUrl = String(input);
+    return new Response(JSON.stringify({
+      result: {
+        list: [{
+          name: '家常豆腐',
+          sourceUrl: String(input),
+          cover: 'https://cdn.example.test/1.webp'
+        }]
+      }
+    }), { headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+
+  try {
+    const preview = await fetchProviderPreview({
+      ...provider,
+      authType: 'NONE',
+      appKey: 'real-path-api-key',
+      endpointUrl: 'https://provider.test/api/real-path-api-key/recipes',
+      defaultParams: { word: '豆腐' }
+    }, 1);
+
+    assert.match(fetchedUrl, /\/api\/real-path-api-key\/recipes/);
+    assert.doesNotMatch(JSON.stringify(preview), /real-path-api-key/);
+    assert.match(preview.requestUrl, /\/api\/\*\*\*\/recipes/);
+    assert.match(preview.rows[0]?.sourceUrl as string, /\/api\/\*\*\*\/recipes/);
+    assert.match(preview.rawRecords[0]?.sourceUrl ?? '', /\/api\/\*\*\*\/recipes/);
+    const rawResult = preview.rawRecords[0]?.rawJson?.result as Record<string, unknown>;
+    const rawList = rawResult.list as Array<Record<string, unknown>>;
+    assert.match(rawList[0]?.sourceUrl as string, /\/api\/\*\*\*\/recipes/);
+    assert.equal(preview.rows[0]?.cover, 'https://cdn.example.test/1.webp');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('URL-shaped errors and request snapshots redact long path credentials without changing short media paths', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    throw new Error(`network failure for ${String(input)}`);
+  }) as typeof fetch;
+  const pathProvider = {
+    ...provider,
+    authType: 'NONE',
+    appKey: 'real-path-api-key',
+    endpointUrl: 'https://provider.test/api/real-path-api-key/recipes',
+    defaultParams: { word: '豆腐' }
+  };
+
+  try {
+    await assert.rejects(
+      fetchProviderPreview(pathProvider, 1),
+      (error: Error) => {
+        assert.doesNotMatch(error.message, /real-path-api-key/);
+        assert.match(error.message, /\/api\/\*\*\*\/recipes/);
+        return true;
+      }
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const snapshot = buildSafeRequestSnapshot(
+    'GET',
+    pathProvider.endpointUrl,
+    'result.list',
+    {
+      cover: 'https://cdn.example.test/1.webp',
+      businessUrl: 'https://cdn.example.test/prefix-real-path-api-key-suffix/cover.webp'
+    },
+    '测试来源',
+    getProviderCredentialSanitizationOptions(pathProvider)
+  );
+  assert.equal(snapshot.endpointUrl, 'https://provider.test/api/***/recipes');
+  assert.equal(snapshot.params.cover, 'https://cdn.example.test/1.webp');
+  assert.equal(
+    snapshot.params.businessUrl,
+    'https://cdn.example.test/prefix-real-path-api-key-suffix/cover.webp'
+  );
+
+  const encodedPathProvider = {
+    ...pathProvider,
+    appKey: '中文路径密钥-abcdef',
+    endpointUrl: `https://provider.test/api/${encodeURIComponent('中文路径密钥-abcdef')}/recipes`
+  };
+  const encodedSnapshot = buildSafeRequestSnapshot(
+    'GET',
+    encodedPathProvider.endpointUrl,
+    'result.list',
+    {},
+    '测试来源',
+    getProviderCredentialSanitizationOptions(encodedPathProvider)
+  );
+  assert.equal(encodedSnapshot.endpointUrl, 'https://provider.test/api/***/recipes');
+});

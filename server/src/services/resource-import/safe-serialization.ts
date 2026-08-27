@@ -16,6 +16,30 @@ const getKnownSecretValues = (options: ResourceImportSanitizationOptions = {}) =
 const isKnownSecretValue = (value: string, options: ResourceImportSanitizationOptions = {}) =>
   getKnownSecretValues(options).includes(value);
 
+const MIN_PATH_SECRET_LENGTH = 8;
+
+const redactKnownSecretPathSegments = (
+  url: URL,
+  options: ResourceImportSanitizationOptions
+) => {
+  const pathSecrets = getKnownSecretValues(options).filter((secret) => secret.length >= MIN_PATH_SECRET_LENGTH);
+  if (pathSecrets.length === 0) return;
+
+  let changed = false;
+  const safeSegments = url.pathname.split('/').map((segment) => {
+    let decodedSegment = segment;
+    try {
+      decodedSegment = decodeURIComponent(segment);
+    } catch {
+      return segment;
+    }
+    if (!pathSecrets.includes(decodedSegment)) return segment;
+    changed = true;
+    return '***';
+  });
+  if (changed) url.pathname = safeSegments.join('/');
+};
+
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const redactBoundedKnownSecretValues = (
@@ -72,6 +96,7 @@ export const sanitizeResourceImportUrl = (
 ): string => {
   try {
     const url = new URL(value);
+    redactKnownSecretPathSegments(url, options);
     url.searchParams.forEach((_item, key) => {
       if (isSensitiveResourceImportKey(key, options)) {
         url.searchParams.set(key, '***');

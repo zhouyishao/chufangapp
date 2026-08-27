@@ -110,3 +110,24 @@ test('provider serialization redacts dynamically configured credential fields', 
   assert.match(serialized.endpointUrl, /client_id=\*\*\*/);
   assert.equal((serialized.defaultHeaders as Record<string, unknown>)['X-Private-Partner'], '***');
 });
+
+test('provider serialization redacts a long application key used as a complete endpoint path segment', () => {
+  const serialized = serializeProvider({
+    id: 3,
+    providerCode: 'path_key_provider',
+    resourceType: 'INGREDIENT',
+    appKey: 'real-path-api-key',
+    encryptedSecret: null,
+    endpointUrl: 'https://provider.test/api/real-path-api-key/recipes',
+    defaultHeaders: null,
+    defaultParams: null,
+    lastSyncedAt: null,
+    lastTestedAt: null,
+    createdAt: new Date('2026-08-25T00:00:00.000Z'),
+    updatedAt: new Date('2026-08-25T00:00:00.000Z'),
+    _count: { importBatches: 0 }
+  });
+
+  assert.equal(serialized.endpointUrl, 'https://provider.test/api/***/recipes');
+  assert.doesNotMatch(JSON.stringify(serialized), /real-path-api-key/);
+});
