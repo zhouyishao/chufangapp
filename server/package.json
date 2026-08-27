@@ -12,7 +12,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "npm run build && node dist/prisma/seed.js"
+    "prisma:seed": "npm run build && node dist/prisma/seed.js",
+    "data:repair-chinese-recipes": "tsx prisma/repair-chinese-recipes.ts",
+    "data:repair-chinese-recipes:apply": "tsx prisma/repair-chinese-recipes.ts --apply"
   },
   "keywords": [],
   "author": "",

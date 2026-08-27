@@ -96,6 +96,10 @@ export type Recipe = {
   auditStatus: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
   rejectReason?: string | null;
   sourceType?: 'ADMIN' | 'USER' | 'IMPORT' | 'SYSTEM';
+  sourceName?: string | null;
+  sourceRecipeId?: string | null;
+  sourceUrl?: string | null;
+  importQualityScore?: number | null;
   authorId?: number | null;
   status: 'ACTIVE' | 'DISABLED';
   sort: number;
@@ -231,6 +235,9 @@ export type ResourceApiProviderItem = {
   method: 'GET' | 'POST';
   endpointUrl: string;
   sourceHomeUrl: string | null;
+  recipeSourceRole: 'PRIMARY' | 'SUPPLEMENTAL' | 'OVERSEAS' | 'TEST' | null;
+  termsUrl: string | null;
+  licenseNote: string | null;
   authType: 'NONE' | 'HEADER_TOKEN' | 'QUERY_KEY' | 'CUSTOM_HEADERS';
   appKey: string | null;
   hasSecret?: boolean;
@@ -329,5 +336,8 @@ export type ResourceImportStagedItem = {
   externalUrl?: string | null;
   filterCode?: string | null;
   duplicateTargetId?: number | null;
+  qualityScore: number | null;
+  isChinese: boolean | null;
+  qualityIssues: string[] | null;
   createdAt: string;
 };

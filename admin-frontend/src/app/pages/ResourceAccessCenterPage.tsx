@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 import { Button } from '../components/Button';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
@@ -18,12 +19,27 @@ import {
   createImportBatch,
   updateImportItem,
   setImportItemStatus,
-  confirmImportBatch
+  confirmImportBatch,
+  bulkIgnoreImportItems
 } from '../api';
 import type { ResourceApiProviderItem, ResourceImportStagedItem } from '../types';
 
 type ResourceType = ResourceImportStagedItem['importType'];
 type ImportStatus = ResourceImportStagedItem['status'];
+type ChineseStatusFilter = 'ALL' | 'CHINESE' | 'NON_CHINESE';
+type SelectedImportItem = Pick<ResourceImportStagedItem, 'id' | 'importId' | 'importType' | 'status'>;
+
+const recipeFailureFilterOptions = [
+  { label: '全部失败原因', value: '' },
+  { label: '非中国菜谱', value: 'NON_CHINESE_RECIPE' },
+  { label: '非家庭菜/饮品/包装食品', value: 'NOT_HOUSEHOLD_RECIPE' },
+  { label: '中英混合海外菜名', value: 'MIXED_LANGUAGE_RECIPE' },
+  { label: '步骤不合格', value: 'INVALID_RECIPE_STEPS' },
+  { label: '用料或步骤不完整', value: 'INCOMPLETE_RECIPE' },
+  { label: '分类未映射', value: 'UNMAPPED_RECIPE_CATEGORY' },
+  { label: '来源不可追溯', value: 'UNTRACEABLE_RECIPE_SOURCE' },
+  { label: '人工忽略', value: 'MANUAL_IGNORE' }
+] as const;
 
 const resourceTypeLabels: Record<ResourceType, string> = {
   RECIPE: '菜谱',
@@ -52,9 +68,6 @@ const buildSyncParamsTemplate = (provider?: ResourceApiProviderItem) => {
   const providerName = `${provider.providerName} ${provider.name}`.toLowerCase();
   if (providerCode === 'proj_kitchen' || providerName.includes('proj.kitchen') || providerName.includes('厨房计划')) {
     return '{\n  "__testEndpointUrl": "https://proj.kitchen/api/recipes",\n  "__syncEndpointUrl": "https://proj.kitchen/api/recipes",\n  "__detailEndpointTemplate": "https://proj.kitchen/api/recipes/{id}",\n  "__excludeCategories": ["饮品"],\n  "page": 1,\n  "pageSize": 20\n}';
-  }
-  if (providerCode === 'juhe_recipe' || providerName.includes('juhe') || providerName.includes('聚合')) {
-    return '{\n  "__appKeyEnv": "JUHE_COOK_KEY",\n  "__appKeyParam": "key",\n  "menu": "黄瓜",\n  "rn": 10,\n  "pn": 0\n}';
   }
   if (providerCode === 'tianapi_caipu' || providerCode.startsWith('tianapi_nutrient') || providerName.includes('tianapi') || providerName.includes('天行') || providerName.includes('天聚')) {
     return '{\n  "__appKeyEnv": "TIANAPI_KEY",\n  "__appKeyParam": "key",\n  "word": "黄瓜",\n  "num": 10,\n  "page": 1\n}';
@@ -100,6 +113,9 @@ const importStatusTone: Record<ImportStatus, 'green' | 'orange' | 'red' | 'gray'
 const selectClass =
   'h-11 w-full rounded-xl border border-[#e9e2d6] bg-white px-3 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10';
 
+const isHistoricalRecipeProvider = (provider: ResourceApiProviderItem | undefined) =>
+  provider?.resourceType === 'RECIPE' && (provider.recipeSourceRole === 'OVERSEAS' || provider.recipeSourceRole === 'TEST');
+
 export const ResourceAccessCenterPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const batchIdParam = searchParams.get('batchId');
@@ -118,6 +134,12 @@ export const ResourceAccessCenterPage = () => {
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
   const [resourceTypeFilter, setResourceTypeFilter] = useState<ResourceType | ''>('');
   const [categoryNameFilter, setCategoryNameFilter] = useState('');
+  const [chineseStatusFilter, setChineseStatusFilter] = useState<ChineseStatusFilter>('ALL');
+  const [filterCodeFilter, setFilterCodeFilter] = useState('');
+  const [minQuality, setMinQuality] = useState('');
+  const [maxQuality, setMaxQuality] = useState('');
+  const [appliedMinQuality, setAppliedMinQuality] = useState<number | undefined>();
+  const [appliedMaxQuality, setAppliedMaxQuality] = useState<number | undefined>();
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
@@ -128,8 +150,10 @@ export const ResourceAccessCenterPage = () => {
   const [syncParamsText, setSyncParamsText] = useState(buildSyncParamsTemplate());
   const [syncLoading, setSyncLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
+  const [bulkIgnoring, setBulkIgnoring] = useState(false);
+  const [bulkIgnoreConfirmOpen, setBulkIgnoreConfirmOpen] = useState(false);
 
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedItemsById, setSelectedItemsById] = useState<Record<number, SelectedImportItem>>({});
   const [previewItem, setPreviewItem] = useState<ResourceImportStagedItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -138,6 +162,28 @@ export const ResourceAccessCenterPage = () => {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedProviderFilter = typeof selectedProviderId === 'number' ? selectedProviderId : undefined;
+  const selectedProvider = typeof selectedProviderId === 'number'
+    ? providerItems.find((item) => item.id === selectedProviderId)
+    : undefined;
+  const selectedImportItems = Object.values(selectedItemsById);
+  const selectedIds = selectedImportItems.map((item) => item.id);
+
+  const parseQualityFilter = () => {
+    const parseValue = (value: string, label: string) => {
+      if (!value.trim()) return undefined;
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) {
+        throw new Error(`${label}必须是 0 到 100 的整数`);
+      }
+      return parsed;
+    };
+    const nextMin = parseValue(minQuality, '最低质量分');
+    const nextMax = parseValue(maxQuality, '最高质量分');
+    if (nextMin !== undefined && nextMax !== undefined && nextMin > nextMax) {
+      throw new Error('最低质量分不能大于最高质量分');
+    }
+    return { min: nextMin, max: nextMax };
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -153,7 +199,11 @@ export const ResourceAccessCenterPage = () => {
         batchId: batchIdFilter,
         providerId: selectedProviderFilter,
         resourceType: resourceTypeFilter || undefined,
-        categoryName: categoryNameFilter || undefined
+        categoryName: categoryNameFilter || undefined,
+        isChinese: chineseStatusFilter === 'ALL' ? undefined : chineseStatusFilter === 'CHINESE',
+        minQuality: appliedMinQuality,
+        maxQuality: appliedMaxQuality,
+        filterCode: filterCodeFilter || undefined
       });
       setItems(data.list);
       setTotal(data.total);
@@ -213,7 +263,11 @@ export const ResourceAccessCenterPage = () => {
 
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter, chineseStatusFilter, filterCodeFilter, appliedMinQuality, appliedMaxQuality]);
+
+  useEffect(() => {
+    setSelectedItemsById({});
+  }, [appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter, chineseStatusFilter, filterCodeFilter, appliedMinQuality, appliedMaxQuality]);
 
   useEffect(() => {
     void refreshCategories();
@@ -230,6 +284,15 @@ export const ResourceAccessCenterPage = () => {
   }, [selectedProviderId, providerItems]);
 
   const handleSearch = () => {
+    try {
+      const quality = parseQualityFilter();
+      setAppliedMinQuality(quality.min);
+      setAppliedMaxQuality(quality.max);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '质量分筛选无效');
+      return;
+    }
     setPage(1);
     setAppliedQ(q);
   };
@@ -241,6 +304,12 @@ export const ResourceAccessCenterPage = () => {
     setStatusFilter('');
     setResourceTypeFilter('');
     setCategoryNameFilter('');
+    setChineseStatusFilter('ALL');
+    setFilterCodeFilter('');
+    setMinQuality('');
+    setMaxQuality('');
+    setAppliedMinQuality(undefined);
+    setAppliedMaxQuality(undefined);
     if (searchParams.has('batchId')) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
@@ -284,6 +353,10 @@ export const ResourceAccessCenterPage = () => {
       setNotice('当前 Provider 已禁用，请先启用或补齐后端配置');
       return;
     }
+    if (isHistoricalRecipeProvider(selectedProvider)) {
+      setError('海外或测试历史菜谱源仅保留查看和测试能力，不能发起生产同步');
+      return;
+    }
     let parsedParams: Record<string, unknown> | null = null;
     if (syncParamsText.trim()) {
       try {
@@ -313,20 +386,41 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
-  const toggleSelected = (id: number) => {
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]
-    );
+  const toggleSelected = (item: ResourceImportStagedItem) => {
+    setSelectedItemsById((current) => {
+      const next = { ...current };
+      if (next[item.id]) {
+        delete next[item.id];
+      } else {
+        next[item.id] = {
+          id: item.id,
+          importId: item.importId,
+          importType: item.importType,
+          status: item.status
+        };
+      }
+      return next;
+    });
   };
 
   const toggleAll = () => {
-    const currentIds = items.map((item) => item.id);
-    const allSelected = currentIds.every((id) => selectedIds.includes(id));
-    setSelectedIds((current) =>
-      allSelected
-        ? current.filter((id) => !currentIds.includes(id))
-        : Array.from(new Set([...current, ...currentIds]))
-    );
+    const allSelected = items.length > 0 && items.every((item) => Boolean(selectedItemsById[item.id]));
+    setSelectedItemsById((current) => {
+      const next = { ...current };
+      items.forEach((item) => {
+        if (allSelected) {
+          delete next[item.id];
+        } else {
+          next[item.id] = {
+            id: item.id,
+            importId: item.importId,
+            importType: item.importType,
+            status: item.status
+          };
+        }
+      });
+      return next;
+    });
   };
 
   const downloadTemplate = (type: ResourceType) => {
@@ -335,11 +429,15 @@ export const ResourceAccessCenterPage = () => {
 
     if (type === 'RECIPE') {
       headers = [
-        '名称', '分类', '副标题', '描述', '耗时', '难度', '份量', '卡路里', '口味', '场景', '技巧', '用料', '步骤'
+        '名称', '分类', '封面', '来源名称', '外部 ID', '外部链接', '副标题', '描述', '耗时', '难度', '份量', '卡路里', '口味', '场景', '技巧', '用料', '步骤'
       ];
       example = {
         '名称': '西红柿炒鸡蛋 (必填)',
         '分类': '家常菜',
+        '封面': 'https://example.com/tomato-eggs.webp',
+        '来源名称': '家庭菜谱整理',
+        '外部 ID': 'home-tomato-eggs-001',
+        '外部链接': 'https://example.com/recipes/home-tomato-eggs-001',
         '副标题': '经典下饭菜，酸甜适口',
         '描述': '这是一道最经典的家常菜，富含维生素，营养丰富。',
         '耗时': 15,
@@ -457,7 +555,7 @@ export const ResourceAccessCenterPage = () => {
 
       setNotice(`解析成功！新增批次 ID: ${res.batch.id}，共导入待处理项 ${res.items.length} 条。`);
       setPage(1);
-      setSelectedIds([]);
+      setSelectedItemsById({});
       await refresh();
       setTimeout(() => setNotice(null), 5000);
     } catch (err) {
@@ -489,6 +587,9 @@ export const ResourceAccessCenterPage = () => {
       tips: mapped.tips || raw.tips || raw['技巧'] || '',
       steps: mapped.steps || raw.steps || [],
       ingredients: mapped.ingredients || raw.ingredients || [],
+      sourceName: mapped.sourceName || raw.sourceName || raw['来源名称'] || '',
+      externalId: mapped.externalId || raw.externalId || raw['外部 ID'] || '',
+      externalUrl: mapped.externalUrl || raw.externalUrl || raw['外部链接'] || '',
       // For BEVERAGE:
       coverImage: mapped.coverImage || raw.coverImage || raw.cover || raw['图片'] || '',
       beverageType: mapped.beverageType || raw.beverageType || raw['酒水类型'] || '',
@@ -513,6 +614,15 @@ export const ResourceAccessCenterPage = () => {
 
   const handleSaveDraft = async () => {
     if (!previewItem) return;
+    if (previewItem.importType === 'RECIPE') {
+      const sourceName = String(draftContent.sourceName || '').trim();
+      const externalId = String(draftContent.externalId || '').trim();
+      const externalUrl = String(draftContent.externalUrl || '').trim();
+      if (!externalUrl && !(sourceName && externalId)) {
+        setError('菜谱至少填写外部链接，或同时填写来源名称与外部 ID，才能追溯后续导入。');
+        return;
+      }
+    }
     setSaveLoading(true);
     setError(null);
     try {
@@ -521,7 +631,10 @@ export const ResourceAccessCenterPage = () => {
         content: draftContent
       });
       setDrawerOpen(false);
-      setNotice(`临时记录「${updated.mappedData?.name || draftName}」已更新`);
+      const qualitySummary = previewItem.importType === 'RECIPE'
+        ? `；后端重新评估：质量分 ${updated.qualityScore ?? '-'}，${updated.qualityIssues?.length ? `问题：${updated.qualityIssues.join('；')}` : '无质量问题'}`
+        : '';
+      setNotice(`临时记录「${updated.mappedData?.name || draftName}」已更新${qualitySummary}`);
       await refresh();
       setTimeout(() => setNotice(null), 3000);
     } catch (err) {
@@ -550,11 +663,14 @@ export const ResourceAccessCenterPage = () => {
   };
 
   const handleSingleIgnore = async (item: ResourceImportStagedItem) => {
+    if (item.status !== 'PENDING' && item.status !== 'FAILED') {
+      setNotice('仅待处理或导入失败的记录可标记为忽略');
+      return;
+    }
     setError(null);
-    const nextStatus = item.status === 'IGNORED' ? 'PENDING' : 'IGNORED';
     try {
-      await setImportItemStatus(item.id, nextStatus);
-      setNotice(nextStatus === 'IGNORED' ? '已标记为忽略' : '已取消忽略并移回待处理');
+      await setImportItemStatus(item.id, 'IGNORED');
+      setNotice('已标记为忽略');
       await refresh();
       setTimeout(() => setNotice(null), 3000);
     } catch (err) {
@@ -563,11 +679,11 @@ export const ResourceAccessCenterPage = () => {
   };
 
   const handleBatchImport = async () => {
-    if (selectedIds.length === 0) {
-      setNotice('请先选择要导入的记录');
+    if (!canBulkConfirm) {
+      setNotice(bulkConfirmDisabledReason || '请先选择同一导入批次的待处理记录');
       return;
     }
-    const firstSelected = items.find((item) => selectedIds.includes(item.id));
+    const firstSelected = selectedImportItems[0];
     if (!firstSelected) {
       setNotice('未找到所选记录');
       return;
@@ -577,7 +693,7 @@ export const ResourceAccessCenterPage = () => {
     try {
       const res = await confirmImportBatch({ importId: firstSelected.importId, itemIds: selectedIds });
       setNotice(`批量导入完成：成功 ${res.successCount} 条，失败 ${res.failCount} 条。`);
-      setSelectedIds([]);
+      setSelectedItemsById({});
       await refresh();
       setTimeout(() => setNotice(null), 5000);
     } catch (err) {
@@ -585,7 +701,39 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
-  const allCurrentSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id));
+  const selectedRecipeItems = selectedImportItems;
+  const selectedBatchIds = new Set(selectedImportItems.map((item) => item.importId));
+  const hasNonPendingSelection = selectedImportItems.some((item) => item.status !== 'PENDING');
+  const canBulkConfirm = selectedImportItems.length > 0 && selectedBatchIds.size === 1 && !hasNonPendingSelection;
+  const bulkConfirmDisabledReason = selectedImportItems.length === 0
+    ? '请先选择要确认的记录'
+    : selectedBatchIds.size !== 1
+      ? '批量确认只能选择同一导入批次的记录'
+      : hasNonPendingSelection
+        ? '批量确认仅支持待处理状态；已导入、失败或已忽略记录不能确认'
+        : null;
+  const canBulkIgnore = selectedRecipeItems.length > 0
+    && selectedRecipeItems.length === selectedIds.length
+    && selectedRecipeItems.every((item) => item.importType === 'RECIPE' && (item.status === 'PENDING' || item.status === 'FAILED'));
+
+  const handleBulkIgnore = async () => {
+    if (!canBulkIgnore || bulkIgnoring) return;
+    setBulkIgnoring(true);
+    setError(null);
+    try {
+      const result = await bulkIgnoreImportItems(selectedIds, '后台批量忽略海外或不符合定位的菜谱');
+      setNotice(`已忽略 ${result.updatedCount} 条菜谱资源`);
+      setSelectedItemsById({});
+      setBulkIgnoreConfirmOpen(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '批量忽略失败');
+    } finally {
+      setBulkIgnoring(false);
+    }
+  };
+
+  const allCurrentSelected = items.length > 0 && items.every((item) => Boolean(selectedItemsById[item.id]));
 
   const columns: DataTableColumn<ResourceImportStagedItem>[] = [
     {
@@ -595,7 +743,7 @@ export const ResourceAccessCenterPage = () => {
         <input
           type="checkbox"
           checked={selectedIds.includes(item.id)}
-          onChange={() => toggleSelected(item.id)}
+          onChange={() => toggleSelected(item)}
           className="h-4 w-4 rounded border-[#d8d0c4] text-[#7a8b6f] focus:ring-[#7a8b6f]"
         />
       )
@@ -633,7 +781,7 @@ export const ResourceAccessCenterPage = () => {
     },
     {
       key: 'provider',
-      title: '提供方',
+      title: '数据来源',
       render: (item) => (
         <div className="flex flex-col gap-1">
           <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
@@ -642,6 +790,31 @@ export const ResourceAccessCenterPage = () => {
           </span>
         </div>
       )
+    },
+    {
+      key: 'chineseStatus',
+      title: '中文菜谱',
+      render: (item) => item.importType === 'RECIPE' ? (
+        <StatusTag
+          label={item.isChinese === true ? '中文' : item.isChinese === false ? '非中文' : '待判定'}
+          tone={item.isChinese === true ? 'green' : item.isChinese === false ? 'red' : 'gray'}
+        />
+      ) : <span className="text-sm text-[#8c8c8c]">-</span>
+    },
+    {
+      key: 'qualityScore',
+      title: '质量分',
+      render: (item) => item.importType === 'RECIPE' ? <span className="text-sm text-[#2f2f2f]">{item.qualityScore ?? '-'}</span> : <span className="text-sm text-[#8c8c8c]">-</span>
+    },
+    {
+      key: 'qualityIssues',
+      title: '质量问题',
+      widthClassName: 'max-w-[220px]',
+      render: (item) => item.importType === 'RECIPE' ? (
+        <span className="block max-w-[220px] truncate text-xs text-[#8c8c8c]" title={item.qualityIssues?.join('；') ?? ''}>
+          {item.qualityIssues?.length ? item.qualityIssues.join('；') : '无'}
+        </span>
+      ) : <span className="text-sm text-[#8c8c8c]">-</span>
     },
     {
       key: 'externalId',
@@ -693,7 +866,7 @@ export const ResourceAccessCenterPage = () => {
           <button
             className="text-[#c27b48] hover:underline font-semibold disabled:text-zinc-300 disabled:no-underline"
             type="button"
-            disabled={item.status === 'IMPORTED'}
+            disabled={item.status !== 'PENDING'}
             onClick={() => void handleSingleImport(item)}
           >
             导入
@@ -702,10 +875,10 @@ export const ResourceAccessCenterPage = () => {
           <button
             className="text-zinc-500 hover:underline font-semibold disabled:text-zinc-300 disabled:no-underline"
             type="button"
-            disabled={item.status === 'IMPORTED'}
+            disabled={item.status !== 'PENDING' && item.status !== 'FAILED'}
             onClick={() => void handleSingleIgnore(item)}
           >
-            {item.status === 'IGNORED' ? '取消忽略' : '忽略'}
+            忽略
           </button>
         </div>
       )
@@ -811,8 +984,13 @@ export const ResourceAccessCenterPage = () => {
             <Button variant="ghost" className="h-11 px-5" onClick={handleTestProvider} disabled={testLoading}>
               {testLoading ? '测试中...' : '测试连接'}
             </Button>
-            <Button className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]" onClick={handleSyncProvider} disabled={syncLoading}>
-              {syncLoading ? '同步中...' : '同步到导入池'}
+            <Button
+              className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]"
+              onClick={handleSyncProvider}
+              disabled={syncLoading || isHistoricalRecipeProvider(selectedProvider)}
+              title={isHistoricalRecipeProvider(selectedProvider) ? '海外或测试历史菜谱源不能发起生产同步' : undefined}
+            >
+              {isHistoricalRecipeProvider(selectedProvider) ? '生产同步受限' : syncLoading ? '同步中...' : '同步到导入池'}
             </Button>
           </div>
         </div>
@@ -894,7 +1072,7 @@ export const ResourceAccessCenterPage = () => {
             </div>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.5fr_2fr_auto_auto] items-end">
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_1.35fr_1fr_1.25fr_0.75fr_0.75fr_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">导入状态</span>
             <select
@@ -920,6 +1098,64 @@ export const ResourceAccessCenterPage = () => {
                 if (e.key === 'Enter') handleSearch();
               }}
               placeholder="请输入资源名称或分类名称进行搜索..."
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">中文判定（仅菜谱）</span>
+            <select
+              className={selectClass}
+              value={chineseStatusFilter}
+              onChange={(e) => {
+                setChineseStatusFilter(e.target.value as ChineseStatusFilter);
+                setPage(1);
+              }}
+            >
+              <option value="ALL">全部</option>
+              <option value="CHINESE">中文菜谱</option>
+              <option value="NON_CHINESE">非中文菜谱</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">常用失败原因</span>
+            <select
+              className={selectClass}
+              value={filterCodeFilter}
+              onChange={(e) => {
+                setFilterCodeFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              {recipeFailureFilterOptions.map((option) => (
+                <option key={option.value || 'ALL'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">最低质量分</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={minQuality}
+              onChange={(e) => setMinQuality(e.target.value)}
+              placeholder="0"
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">最高质量分</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={maxQuality}
+              onChange={(e) => setMaxQuality(e.target.value)}
+              placeholder="100"
               className="h-11 rounded-xl border-[#e9e2d6]"
             />
           </div>
@@ -959,10 +1195,20 @@ export const ResourceAccessCenterPage = () => {
             </Button>
             <Button
               className="h-11 bg-[#2f6f2f] hover:bg-[#235623] text-white disabled:opacity-50 whitespace-nowrap"
-              disabled={selectedIds.length === 0}
+              disabled={!canBulkConfirm}
               onClick={handleBatchImport}
+              title={bulkConfirmDisabledReason ?? undefined}
             >
               ✓ 批量确认
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-11 whitespace-nowrap disabled:cursor-not-allowed"
+              disabled={!canBulkIgnore || bulkIgnoring}
+              onClick={() => setBulkIgnoreConfirmOpen(true)}
+              title={canBulkIgnore ? undefined : '仅可选择待处理或失败状态的菜谱资源'}
+            >
+              批量忽略海外菜谱
             </Button>
           </div>
           </div>
@@ -981,6 +1227,11 @@ export const ResourceAccessCenterPage = () => {
             />
             选择当前页 {items.length} 项 (已选 {selectedIds.length} 项)
           </label>
+          {selectedIds.length > 0 && (!canBulkConfirm || !canBulkIgnore) ? (
+            <span className="text-xs text-[#8c8c8c]">
+              {!canBulkConfirm ? bulkConfirmDisabledReason : '批量忽略仅支持待处理或失败状态的菜谱资源'}
+            </span>
+          ) : null}
         </div>
 
         <DataTable
@@ -1055,6 +1306,48 @@ export const ResourceAccessCenterPage = () => {
             {/* Render conditional inputs depending on importType */}
             {previewItem.importType === 'RECIPE' && (
               <>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-[#2f2f2f]">封面链接 *</span>
+                  <Input
+                    value={draftContent.cover || ''}
+                    onChange={(e) => setDraftContent({ ...draftContent, cover: e.target.value })}
+                    placeholder="https://example.com/recipe-cover.webp"
+                    className="h-10 rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-[#2f2f2f]">来源名称</span>
+                    <Input
+                      value={draftContent.sourceName || ''}
+                      onChange={(e) => setDraftContent({ ...draftContent, sourceName: e.target.value })}
+                      placeholder="例如：家庭菜谱整理"
+                      className="h-10 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-[#2f2f2f]">外部 ID</span>
+                    <Input
+                      value={draftContent.externalId || ''}
+                      onChange={(e) => setDraftContent({ ...draftContent, externalId: e.target.value })}
+                      placeholder="例如：home-tomato-eggs-001"
+                      className="h-10 rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-[#2f2f2f]">外部链接</span>
+                  <Input
+                    value={draftContent.externalUrl || ''}
+                    onChange={(e) => setDraftContent({ ...draftContent, externalUrl: e.target.value })}
+                    placeholder="https://example.com/recipes/home-tomato-eggs-001"
+                    className="h-10 rounded-xl"
+                  />
+                  <span className="text-xs text-[#8c8c8c]">至少填写外部链接，或同时填写来源名称与外部 ID。</span>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-semibold text-[#2f2f2f]">副标题</span>
@@ -1295,6 +1588,17 @@ export const ResourceAccessCenterPage = () => {
           </div>
         )}
       </Drawer>
+
+      <ConfirmModal
+        title="确认批量忽略"
+        open={bulkIgnoreConfirmOpen}
+        onClose={() => setBulkIgnoreConfirmOpen(false)}
+        description={`将忽略选中的 ${selectedIds.length} 条菜谱资源，并记录“后台批量忽略海外或不符合定位的菜谱”。此操作不会删除原始导入记录。`}
+        confirmText="确认忽略"
+        danger
+        loading={bulkIgnoring}
+        onConfirm={() => void handleBulkIgnore()}
+      />
     </div>
   );
 };

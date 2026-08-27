@@ -36,6 +36,16 @@ const authTypeLabels: Record<ResourceApiProviderItem['authType'], string> = {
   CUSTOM_HEADERS: '自定义请求头'
 };
 
+const recipeSourceRoleLabels = {
+  PRIMARY: '中国菜谱主源',
+  SUPPLEMENTAL: '中国菜谱补充源',
+  OVERSEAS: '海外历史源',
+  TEST: '测试历史源'
+} as const;
+
+const isRecipeSyncBlocked = (item: ResourceApiProviderItem) =>
+  item.resourceType === 'RECIPE' && (item.recipeSourceRole === 'OVERSEAS' || item.recipeSourceRole === 'TEST');
+
 export const ApiProviderListPage = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<ResourceApiProviderItem[]>([]);
@@ -116,6 +126,10 @@ export const ApiProviderListPage = () => {
   };
 
   const handleSync = async (item: ResourceApiProviderItem) => {
+    if (isRecipeSyncBlocked(item)) {
+      setError(`${recipeSourceRoleLabels[item.recipeSourceRole!]}仅保留历史追溯，不能发起生产同步`);
+      return;
+    }
     setSyncingId(item.id);
     setError(null);
     try {
@@ -151,6 +165,20 @@ export const ApiProviderListPage = () => {
       render: (item) => <span className="text-sm text-[#2f2f2f]">{resourceTypeLabels[item.resourceType]}</span>
     },
     {
+      key: 'recipeSourceRole',
+      title: '菜谱来源角色',
+      render: (item) => {
+        if (item.resourceType !== 'RECIPE' || !item.recipeSourceRole) return <span className="text-sm text-[#8c8c8c]">-</span>;
+        const needsLicense = (item.recipeSourceRole === 'PRIMARY' || item.recipeSourceRole === 'SUPPLEMENTAL') && !item.licenseNote?.trim();
+        return (
+          <div className="flex flex-col gap-1">
+            <span className="text-sm text-[#2f2f2f]">{recipeSourceRoleLabels[item.recipeSourceRole]}</span>
+            {needsLicense ? <span className="text-xs text-[#c27b48]">缺少内容许可说明，暂不建议生产同步</span> : null}
+          </div>
+        );
+      }
+    },
+    {
       key: 'endpointUrl',
       title: '接口地址',
       widthClassName: 'max-w-[260px]',
@@ -177,13 +205,18 @@ export const ApiProviderListPage = () => {
       render: (item) => (
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => navigate(`/resources/api-providers/${item.id}/edit`)}>
-            编辑
+            {isRecipeSyncBlocked(item) ? '查看/编辑' : '编辑'}
           </Button>
           <Button variant="ghost" onClick={() => void handleTest(item)} disabled={testingId === item.id}>
             {testingId === item.id ? '测试中...' : '测试'}
           </Button>
-          <Button variant="ghost" onClick={() => void handleSync(item)} disabled={syncingId === item.id}>
-            {syncingId === item.id ? '同步中...' : '同步'}
+          <Button
+            variant="ghost"
+            onClick={() => void handleSync(item)}
+            disabled={syncingId === item.id || isRecipeSyncBlocked(item)}
+            title={isRecipeSyncBlocked(item) ? '海外或测试菜谱源仅保留查看和测试能力' : undefined}
+          >
+            {isRecipeSyncBlocked(item) ? '同步受限' : syncingId === item.id ? '同步中...' : '同步'}
           </Button>
           <Button variant="danger" onClick={() => setDeleting(item)}>
             删除
@@ -247,12 +280,6 @@ export const ApiProviderListPage = () => {
             onClick={() => navigate('/resources/api-providers/create?preset=PROJ_KITCHEN')}
           >
             新建 厨房计划
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/resources/api-providers/create?preset=JUHE_RECIPE')}
-          >
-            新建 Juhe 菜谱
           </Button>
           <Button
             variant="ghost"

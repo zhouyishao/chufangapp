@@ -9,9 +9,19 @@ import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { baseListQuerySchema, parseId } from './shared';
 import { createBusinessId, nextCodeFromItems } from '../../lib/business-id';
-import { createOfficialRecord, findDuplicateTargetId } from '../../services/resource-import/importer';
-import { evaluateResourcePayload, normalizeResourcePayload } from '../../services/resource-import/validator';
+import { createOfficialRecord } from '../../services/resource-import/importer';
+import { normalizeResourcePayload } from '../../services/resource-import/validator';
 import type { ResourceImportType } from '../../services/resource-import/types';
+import {
+  evaluateStagedResourceCandidate,
+  getRecipeImportAdmissionFailure
+} from '../../services/resource-import/governed-staging';
+import {
+  assertImportItemCanBeEdited,
+  assertManualImportItemTransition,
+  assertRecipeImportBatchCanFinalize,
+  EDITABLE_IMPORT_ITEM_STATUSES
+} from '../../services/resource-import/import-governance';
 
 export const adminResourcesRouter = Router();
 
@@ -801,31 +811,15 @@ adminResourcesRouter.post('/resource-imports/preview', requireAdminAuth, async (
 
   const previewedItems = await Promise.all(items.map(async (item) => {
     const raw = item.rawData;
-    const mapped = mapRowData(importType, raw);
-    const evaluated = evaluateResourcePayload(importType as ResourceImportType, mapped as any);
-    let status = evaluated.status;
-    let errorMessage = evaluated.errorMessage;
-    let filterCode = evaluated.filterCode;
-    const duplicateTargetId = await findDuplicateTargetId(prisma, importType as ResourceImportType, mapped as any);
-
-    if (duplicateTargetId) {
-      status = 'FAILED';
-      errorMessage = mapped.externalId
-        ? '数据重复: 该外部资源在正式库中已存在'
-        : '数据重复: 该资源在正式库中已存在';
-      filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
-    }
+    const resourceType = importType as ResourceImportType;
+    const mapped = mapRowData(resourceType, raw);
+    const candidate = await evaluateStagedResourceCandidate(prisma, resourceType, mapped);
+    const { duplicateKey: _duplicateKey, canApplyBatchDuplicate: _canApplyBatchDuplicate, ...stagedCandidate } = candidate;
 
     return {
       rowIndex: item.rowIndex,
       rawData: raw,
-      mappedData: mapped,
-      status,
-      errorMessage,
-      externalId: evaluated.externalId,
-      externalUrl: evaluated.externalUrl,
-      filterCode,
-      duplicateTargetId
+      ...stagedCandidate
     };
   }));
 
@@ -852,53 +846,37 @@ adminResourcesRouter.post('/resource-imports/upload', requireAdminAuth, async (r
 
   const stagedItemsData = await Promise.all(items.map(async (item) => {
     const raw = item.rawData;
-    const mapped = mapRowData(importType, raw);
-    const evaluated = evaluateResourcePayload(importType as ResourceImportType, mapped as any);
-    let status = evaluated.status;
-    let errorMessage = evaluated.errorMessage;
-    let filterCode = evaluated.filterCode;
-    const duplicateTargetId = await findDuplicateTargetId(prisma, importType as ResourceImportType, mapped as any);
-
-    if (duplicateTargetId) {
-      status = 'FAILED';
-      errorMessage = mapped.externalId
-        ? '数据重复: 该外部资源在正式库中已存在'
-        : '数据重复: 该资源在正式库中已存在';
-      filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
-    }
+    const resourceType = importType as ResourceImportType;
+    const mapped = mapRowData(resourceType, raw);
+    const candidate = await evaluateStagedResourceCandidate(prisma, resourceType, mapped);
+    const { duplicateKey: _duplicateKey, canApplyBatchDuplicate: _canApplyBatchDuplicate, ...stagedCandidate } = candidate;
 
     return {
       rowIndex: item.rowIndex,
       rawData: raw,
-      mappedData: mapped,
-      status,
-      errorMessage,
-      externalId: evaluated.externalId,
-      externalUrl: evaluated.externalUrl,
-      filterCode,
-      duplicateTargetId
+      ...stagedCandidate
     };
   }));
 
   const failedCount = stagedItemsData.filter(i => i.status === 'FAILED').length;
 
-  const batch = await prisma.resourceImportBatch.create({
-    data: {
-      importType,
-      sourceType,
-      fileName,
-      status: 'PENDING',
-      totalCount: items.length,
-      successCount: 0,
-      failedCount,
-      createdBy: username
-    }
-  });
-
-  const createdItems = await Promise.all(stagedItemsData.map((item) => {
-    return prisma.resourceImportItem.create({
+  const { batch, createdItems } = await prisma.$transaction(async (tx) => {
+    const createdBatch = await tx.resourceImportBatch.create({
       data: {
-        importId: batch.id,
+        importType,
+        sourceType,
+        fileName,
+        status: 'PENDING',
+        totalCount: items.length,
+        successCount: 0,
+        failedCount,
+        createdBy: username
+      }
+    });
+
+    await tx.resourceImportItem.createMany({
+      data: stagedItemsData.map((item) => ({
+        importId: createdBatch.id,
         rowIndex: item.rowIndex,
         rawData: item.rawData as Prisma.InputJsonValue,
         mappedData: item.mappedData as Prisma.InputJsonValue,
@@ -907,10 +885,20 @@ adminResourcesRouter.post('/resource-imports/upload', requireAdminAuth, async (r
         externalId: item.externalId,
         externalUrl: item.externalUrl,
         filterCode: item.filterCode,
-        duplicateTargetId: item.duplicateTargetId
-      }
+        duplicateTargetId: item.duplicateTargetId,
+        qualityScore: item.qualityScore,
+        isChinese: item.isChinese,
+        qualityIssues: item.qualityIssues
+          ? (item.qualityIssues as Prisma.InputJsonValue)
+          : Prisma.DbNull
+      }))
     });
-  }));
+    const insertedItems = await tx.resourceImportItem.findMany({
+      where: { importId: createdBatch.id },
+      orderBy: { rowIndex: 'asc' }
+    });
+    return { batch: createdBatch, createdItems: insertedItems };
+  });
 
   res.json(ok({ batch, items: createdItems }));
 });
@@ -925,8 +913,69 @@ const importItemListQuerySchema = baseListQuerySchema.extend({
   status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']).optional(),
   providerId: z.coerce.number().int().optional(),
   resourceType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']).optional(),
-  categoryName: z.string().trim().min(1).max(80).optional()
+  categoryName: z.string().trim().min(1).max(80).optional(),
+  filterCode: z.string().trim().min(1).max(64).optional(),
+  isChinese: z.preprocess(
+    (value) => value === 'true' || value === true ? true : value === 'false' || value === false ? false : value,
+    z.boolean()
+  ).optional(),
+  minQuality: z.coerce.number().int().min(0).max(100).optional(),
+  maxQuality: z.coerce.number().int().min(0).max(100).optional()
+}).superRefine((value, context) => {
+  const { minQuality, maxQuality } = value;
+  if (minQuality !== undefined && maxQuality !== undefined && minQuality > maxQuality) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['minQuality'],
+      message: 'minQuality 不能大于 maxQuality'
+    });
+  }
 });
+
+const bulkIgnoreRecipeImportsSchema = z.object({
+  itemIds: z.array(z.coerce.number().int().positive()).min(1).max(500),
+  reason: z.string().trim().min(2).max(200)
+});
+
+const writeResourceImportOperationLog = async (
+  tx: Prisma.TransactionClient,
+  input: { adminId: number | null; method: string; path: string; itemIds: number[]; reason: string }
+) => {
+  await tx.operationLog.create({
+    data: {
+      adminId: input.adminId,
+      module: 'resource',
+      action: 'bulk_ignore_recipe_imports',
+      method: input.method,
+      path: input.path,
+      requestBody: {
+        detail: { itemIds: input.itemIds, reason: input.reason }
+      } as Prisma.InputJsonValue
+    }
+  });
+};
+
+const refreshImportBatchStats = async (tx: Prisma.TransactionClient, importIds: number[]) => {
+  const batches = await tx.resourceImportBatch.findMany({
+    where: { id: { in: importIds } },
+    include: { items: { select: { status: true } } }
+  });
+
+  await Promise.all(batches.map(async (batch) => {
+    const successCount = batch.items.filter((item) => item.status === 'IMPORTED').length;
+    const failedCount = batch.items.filter((item) => item.status === 'FAILED').length;
+    const pendingCount = batch.items.filter((item) => item.status === 'PENDING').length;
+    await tx.resourceImportBatch.update({
+      where: { id: batch.id },
+      data: {
+        successCount,
+        failedCount,
+        status: pendingCount === 0 ? 'COMPLETED' : 'PENDING',
+        finishedAt: pendingCount === 0 ? new Date() : null
+      }
+    });
+  }));
+};
 
 // 3. GET /resource-imports/batches/stats
 adminResourcesRouter.get('/resource-imports/batches/stats', requireAdminAuth, async (req, res) => {
@@ -996,7 +1045,21 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
   }).safeParse(req.query);
 
   if (!parsed.success) throw formatZodError(parsed);
-  const { page, pageSize, q, status, batchId, importId, providerId, resourceType, categoryName } = parsed.data;
+  const {
+    page,
+    pageSize,
+    q,
+    status,
+    batchId,
+    importId,
+    providerId,
+    resourceType,
+    categoryName,
+    filterCode,
+    isChinese,
+    minQuality,
+    maxQuality
+  } = parsed.data;
   const skip = (page - 1) * pageSize;
 
   const targetImportId = importId || batchId;
@@ -1010,6 +1073,16 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
     ...(status ? { status } : {}),
     ...(Object.keys(batchWhere).length > 0 ? { batch: { is: batchWhere } } : {}),
     ...(categoryName ? { mappedData: { path: ['categoryName'], string_contains: categoryName } } : {}),
+    ...(filterCode ? { filterCode } : {}),
+    ...(typeof isChinese === 'boolean' ? { isChinese } : {}),
+    ...(minQuality !== undefined || maxQuality !== undefined
+      ? {
+          qualityScore: {
+            ...(minQuality !== undefined ? { gte: minQuality } : {}),
+            ...(maxQuality !== undefined ? { lte: maxQuality } : {})
+          }
+        }
+      : {}),
     ...(q ? {
       OR: [
         { mappedData: { path: ['name'], string_contains: q } },
@@ -1043,11 +1116,58 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
     externalUrl: item.externalUrl,
     filterCode: item.filterCode,
     duplicateTargetId: item.duplicateTargetId,
+    qualityScore: item.qualityScore,
+    isChinese: item.isChinese,
+    qualityIssues: item.qualityIssues,
     createdAt: item.createdAt.toISOString()
   }));
 
   const data: PageResult<any> = { list, total, page, pageSize };
   res.json(ok(data));
+});
+
+adminResourcesRouter.post('/resource-imports/items/bulk-ignore', requireAdminAuth, async (req, res) => {
+  const parsed = bulkIgnoreRecipeImportsSchema.safeParse(req.body);
+  if (!parsed.success) throw formatZodError(parsed);
+
+  const uniqueItemIds = [...new Set(parsed.data.itemIds)];
+  const adminId = Number.parseInt(req.admin?.sub ?? '', 10);
+  const updatedCount = await prisma.$transaction(async (tx) => {
+    const eligibleItems = await tx.resourceImportItem.findMany({
+      where: {
+        id: { in: uniqueItemIds },
+        status: { in: ['PENDING', 'FAILED'] },
+        batch: { is: { importType: 'RECIPE' } }
+      },
+      select: { id: true, importId: true }
+    });
+    if (eligibleItems.length !== uniqueItemIds.length) {
+      throw new HttpError('只能批量忽略待处理或失败的菜谱资源', 409, 409);
+    }
+
+    const updated = await tx.resourceImportItem.updateMany({
+      where: {
+        id: { in: uniqueItemIds },
+        status: { in: ['PENDING', 'FAILED'] },
+        batch: { is: { importType: 'RECIPE' } }
+      },
+      data: { status: 'IGNORED', errorMessage: parsed.data.reason, filterCode: 'MANUAL_IGNORE' }
+    });
+    if (updated.count !== uniqueItemIds.length) {
+      throw new HttpError('菜谱资源状态已变化，请刷新后重试', 409, 409);
+    }
+    await refreshImportBatchStats(tx, [...new Set(eligibleItems.map((item) => item.importId))]);
+    await writeResourceImportOperationLog(tx, {
+      adminId: Number.isFinite(adminId) ? adminId : null,
+      method: req.method,
+      path: req.originalUrl,
+      itemIds: uniqueItemIds,
+      reason: parsed.data.reason
+    });
+    return updated.count;
+  });
+
+  res.json(ok({ updatedCount }));
 });
 
 adminResourcesRouter.get('/resource-imports/categories', requireAdminAuth, async (req, res) => {
@@ -1119,6 +1239,9 @@ adminResourcesRouter.get('/resource-imports/:id', requireAdminAuth, async (req, 
     externalUrl: item.externalUrl,
     filterCode: item.filterCode,
     duplicateTargetId: item.duplicateTargetId,
+    qualityScore: item.qualityScore,
+    isChinese: item.isChinese,
+    qualityIssues: item.qualityIssues,
     createdAt: item.createdAt.toISOString()
   }));
 
@@ -1149,44 +1272,38 @@ adminResourcesRouter.put('/resource-imports/items/:id', requireAdminAuth, async 
     include: { batch: true }
   });
   if (!existing) throw new HttpError('导入项不存在', 404, 404);
+  assertImportItemCanBeEdited(existing.status);
 
   const raw = { ...existing.rawData as Record<string, any>, name: parsed.data.name, ...parsed.data.content };
-  const mapped = mapRowData(existing.batch.importType, raw);
-  const evaluated = evaluateResourcePayload(existing.batch.importType as ResourceImportType, mapped as any);
-  let status = evaluated.status;
-  let errorMessage = evaluated.errorMessage;
-  let filterCode = evaluated.filterCode;
-  const duplicateTargetId = await findDuplicateTargetId(prisma, existing.batch.importType as ResourceImportType, mapped as any);
+  const resourceType = existing.batch.importType as ResourceImportType;
+  const mapped = mapRowData(resourceType, raw);
+  if (resourceType === 'RECIPE') mapped.sourceName = existing.batch.sourceName ?? mapped.sourceName;
+  const candidate = await evaluateStagedResourceCandidate(prisma, resourceType, mapped);
 
-  if (duplicateTargetId) {
-    status = 'FAILED';
-    errorMessage = mapped.externalId
-      ? '数据重复: 该外部资源在正式库中已存在'
-      : '数据重复: 该资源在正式库中已存在';
-    filterCode = mapped.externalId ? 'DUPLICATE_EXTERNAL_ID' : 'DUPLICATE_NAME';
-  }
-
-  const updated = await prisma.resourceImportItem.update({
-    where: { id },
+  const updated = await prisma.$transaction(async (tx) => {
+    const updateResult = await tx.resourceImportItem.updateMany({
+      where: { id, status: { in: [...EDITABLE_IMPORT_ITEM_STATUSES] } },
       data: {
-      rawData: raw as Prisma.InputJsonValue,
-      mappedData: mapped as Prisma.InputJsonValue,
-      status,
-      errorMessage,
-      externalId: evaluated.externalId,
-      externalUrl: evaluated.externalUrl,
-      filterCode,
-      duplicateTargetId
+        rawData: raw as Prisma.InputJsonValue,
+        mappedData: candidate.mappedData as Prisma.InputJsonValue,
+        status: candidate.status,
+        errorMessage: candidate.errorMessage,
+        externalId: candidate.externalId,
+        externalUrl: candidate.externalUrl,
+        filterCode: candidate.filterCode,
+        duplicateTargetId: candidate.duplicateTargetId,
+        qualityScore: candidate.qualityScore,
+        isChinese: candidate.isChinese,
+        qualityIssues: candidate.qualityIssues
+          ? (candidate.qualityIssues as Prisma.InputJsonValue)
+          : Prisma.DbNull
+      }
+    });
+    if (updateResult.count !== 1) {
+      throw new HttpError('导入项状态已变化，请刷新后重试', 409, 409);
     }
-  });
-
-  const allBatchItems = await prisma.resourceImportItem.findMany({
-    where: { importId: existing.importId }
-  });
-  const failedCount = allBatchItems.filter(i => i.status === 'FAILED').length;
-  await prisma.resourceImportBatch.update({
-    where: { id: existing.importId },
-    data: { failedCount }
+    await refreshImportBatchStats(tx, [existing.importId]);
+    return tx.resourceImportItem.findUniqueOrThrow({ where: { id } });
   });
 
   res.json(ok(updated));
@@ -1195,32 +1312,28 @@ adminResourcesRouter.put('/resource-imports/items/:id', requireAdminAuth, async 
 // 8. PATCH /resource-imports/items/:id/status
 adminResourcesRouter.patch('/resource-imports/items/:id/status', requireAdminAuth, async (req, res) => {
   const id = parseId(req.params.id);
-  const statusSchema = z.object({ status: z.enum(['PENDING', 'IMPORTED', 'FAILED', 'IGNORED']) });
+  const statusSchema = z.object({ status: z.literal('IGNORED') });
   const parsed = statusSchema.safeParse(req.body);
   if (!parsed.success) throw formatZodError(parsed);
 
   const existing = await prisma.resourceImportItem.findUnique({ where: { id } });
   if (!existing) throw new HttpError('导入项不存在', 404, 404);
+  assertManualImportItemTransition(existing.status, parsed.data.status);
 
-  const updated = await prisma.resourceImportItem.update({
-    where: { id },
-    data: { status: parsed.data.status }
-  });
-
-  const allBatchItems = await prisma.resourceImportItem.findMany({
-    where: { importId: existing.importId }
-  });
-  const failedCount = allBatchItems.filter(i => i.status === 'FAILED').length;
-  const successCount = allBatchItems.filter(i => i.status === 'IMPORTED').length;
-  const pendingCount = allBatchItems.filter(i => i.status === 'PENDING').length;
-
-  await prisma.resourceImportBatch.update({
-    where: { id: existing.importId },
-    data: {
-      successCount,
-      failedCount,
-      status: pendingCount === 0 ? 'COMPLETED' : 'PENDING'
+  const updated = await prisma.$transaction(async (tx) => {
+    const updateResult = await tx.resourceImportItem.updateMany({
+      where: { id, status: { in: [...EDITABLE_IMPORT_ITEM_STATUSES] } },
+      data: {
+        status: 'IGNORED',
+        errorMessage: '管理员手动忽略',
+        filterCode: 'MANUAL_IGNORE'
+      }
+    });
+    if (updateResult.count !== 1) {
+      throw new HttpError('导入项状态已变化，请刷新后重试', 409, 409);
     }
+    await refreshImportBatchStats(tx, [existing.importId]);
+    return tx.resourceImportItem.findUniqueOrThrow({ where: { id } });
   });
 
   res.json(ok(updated));
@@ -1236,154 +1349,239 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
   if (!parsed.success) throw formatZodError(parsed);
 
   const { importId, itemIds } = parsed.data;
+  const targetItemIds = itemIds ? [...new Set(itemIds)] : null;
+  const result = await prisma.$transaction(async (tx) => {
+    const batch = await tx.resourceImportBatch.findUnique({
+      where: { id: importId },
+      include: { provider: true }
+    } as any) as any;
+    if (!batch) throw new HttpError('导入批次不存在', 404, 404);
+    assertRecipeImportBatchCanFinalize(batch);
 
-  const batch = await prisma.resourceImportBatch.findUnique({
-    where: { id: importId },
-    include: { provider: true }
-  } as any) as any;
-  if (!batch) throw new HttpError('导入批次不存在', 404, 404);
-
-  const items = await prisma.resourceImportItem.findMany({
-    where: {
-      importId,
-      status: 'PENDING',
-      ...(itemIds ? { id: { in: itemIds } } : {})
-    }
-  });
-
-  if (itemIds && items.length !== new Set(itemIds).size) {
-    throw new HttpError('只能确认校验通过且状态为待导入的资源', 409, 409);
-  }
-
-  let newSuccessCount = 0;
-  let newFailCount = 0;
-
-  for (const item of items) {
-    try {
-      const mapped = item.mappedData as Record<string, any>;
-      if (!String(mapped.name ?? '').trim()) {
-        throw new Error('必填项缺失: 名称为空');
+    const pendingItems = await tx.resourceImportItem.findMany({
+      where: {
+        importId,
+        status: 'PENDING',
+        ...(targetItemIds ? { id: { in: targetItemIds } } : {})
       }
-      const targetId = await createOfficialRecord(
-        prisma,
-        batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
-        mapped as any,
-        item.id,
-        batch.provider?.providerName ?? batch.sourceName ?? null,
-        (mapped.externalUrl as string | undefined) ?? null
-      );
-
-      await prisma.resourceImportItem.update({
-        where: { id: item.id },
-        data: {
-          status: 'IMPORTED',
-          errorMessage: null,
-          targetId
-        }
-      });
-      newSuccessCount++;
-    } catch (err: any) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      await prisma.resourceImportItem.update({
-        where: { id: item.id },
-        data: {
-          status: 'FAILED',
-          errorMessage: errMsg
-        }
-      });
-      newFailCount++;
+    });
+    const requestedItemIds = targetItemIds ?? pendingItems.map((item) => item.id);
+    if (requestedItemIds.length === 0 || pendingItems.length !== requestedItemIds.length) {
+      throw new HttpError('只能确认校验通过且状态为待导入的资源', 409, 409);
     }
-  }
 
-  const allItems = await prisma.resourceImportItem.findMany({
-    where: { importId }
-  });
-  const totalSuccess = allItems.filter(i => i.status === 'IMPORTED').length;
-  const totalFailed = allItems.filter(i => i.status === 'FAILED').length;
-  const pendingCount = allItems.filter(i => i.status === 'PENDING').length;
-
-  const updatedBatch = await prisma.resourceImportBatch.update({
-    where: { id: importId },
-    data: {
-      successCount: totalSuccess,
-      failedCount: totalFailed,
-      status: pendingCount === 0 ? 'COMPLETED' : 'PENDING',
-      finishedAt: pendingCount === 0 ? new Date() : null
+    const claimed = await tx.resourceImportItem.updateMany({
+      where: { id: { in: requestedItemIds }, importId, status: 'PENDING' },
+      data: { status: 'PROCESSING' }
+    });
+    if (claimed.count !== requestedItemIds.length) {
+      throw new HttpError('资源状态已变化，请刷新后重试', 409, 409);
     }
+
+    const items = await tx.resourceImportItem.findMany({
+      where: { id: { in: requestedItemIds }, importId, status: 'PROCESSING' }
+    });
+    if (items.length !== requestedItemIds.length) {
+      throw new HttpError('资源状态已变化，请刷新后重试', 409, 409);
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    for (const item of items) {
+      try {
+        const mapped = item.mappedData as Record<string, any>;
+        if (!String(mapped.name ?? '').trim()) throw new Error('必填项缺失: 名称为空');
+        const resourceType = batch.importType as ResourceImportType;
+        const candidate = resourceType === 'RECIPE'
+          ? await evaluateStagedResourceCandidate(tx, resourceType, mapped as any)
+          : null;
+        const admissionFailure = candidate ? getRecipeImportAdmissionFailure(candidate) : null;
+        if (admissionFailure) {
+          await tx.resourceImportItem.update({
+            where: { id: item.id },
+            data: {
+              mappedData: candidate!.mappedData as Prisma.InputJsonValue,
+              status: 'FAILED',
+              errorMessage: admissionFailure,
+              externalId: candidate!.externalId,
+              externalUrl: candidate!.externalUrl,
+              filterCode: candidate!.filterCode,
+              duplicateTargetId: candidate!.duplicateTargetId,
+              qualityScore: candidate!.qualityScore,
+              isChinese: candidate!.isChinese,
+              qualityIssues: candidate!.qualityIssues
+                ? (candidate!.qualityIssues as Prisma.InputJsonValue)
+                : Prisma.DbNull
+            }
+          });
+          failCount++;
+          continue;
+        }
+        const governedMapped = candidate?.mappedData ?? mapped;
+        const targetId = await createOfficialRecord(
+          tx,
+          resourceType,
+          governedMapped as any,
+          item.id,
+          batch.provider?.providerName ?? batch.sourceName ?? null,
+          (governedMapped.externalUrl as string | undefined) ?? null,
+          candidate?.recipeEvaluation?.qualityScore ?? null
+        );
+        await tx.resourceImportItem.update({
+          where: { id: item.id },
+          data: {
+            mappedData: candidate?.mappedData
+              ? (candidate.mappedData as Prisma.InputJsonValue)
+              : undefined,
+            status: 'IMPORTED',
+            errorMessage: null,
+            targetId,
+            externalId: candidate?.externalId ?? item.externalId,
+            externalUrl: candidate?.externalUrl ?? item.externalUrl,
+            filterCode: candidate?.filterCode ?? item.filterCode,
+            duplicateTargetId: candidate?.duplicateTargetId ?? item.duplicateTargetId,
+            qualityScore: candidate?.qualityScore ?? item.qualityScore,
+            isChinese: candidate?.isChinese ?? item.isChinese,
+            qualityIssues: candidate?.qualityIssues
+              ? (candidate.qualityIssues as Prisma.InputJsonValue)
+              : item.qualityIssues ?? Prisma.DbNull
+          }
+        });
+        successCount++;
+      } catch (err: any) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        await tx.resourceImportItem.update({
+          where: { id: item.id },
+          data: { status: 'FAILED', errorMessage }
+        });
+        failCount++;
+      }
+    }
+
+    await refreshImportBatchStats(tx, [importId]);
+    const updatedBatch = await tx.resourceImportBatch.findUnique({ where: { id: importId } });
+    return { successCount, failCount, batch: updatedBatch };
   });
 
-  res.json(ok({ successCount: newSuccessCount, failCount: newFailCount, batch: updatedBatch }));
+  res.json(ok(result));
 });
 
 // 10. POST /resource-imports/:id/retry-failed
 adminResourcesRouter.post('/resource-imports/:id/retry-failed', requireAdminAuth, async (req, res) => {
   const id = parseId(req.params.id);
-  const batch = await prisma.resourceImportBatch.findUnique({
-    where: { id },
-    include: { provider: true }
-  } as any) as any;
-  if (!batch) throw new HttpError('导入批次不存在', 404, 404);
+  const result = await prisma.$transaction(async (tx) => {
+    const batch = await tx.resourceImportBatch.findUnique({
+      where: { id },
+      include: { provider: true }
+    } as any) as any;
+    if (!batch) throw new HttpError('导入批次不存在', 404, 404);
+    assertRecipeImportBatchCanFinalize(batch);
 
-  const failedItems = await prisma.resourceImportItem.findMany({
-    where: { importId: id, status: 'FAILED' }
-  });
+    const failedItems = await tx.resourceImportItem.findMany({
+      where: { importId: id, status: 'FAILED' },
+      select: { id: true }
+    });
+    const failedItemIds = failedItems.map((item) => item.id);
+    if (failedItemIds.length === 0) {
+      await refreshImportBatchStats(tx, [id]);
+      return { successCount: 0, failCount: 0, batch: await tx.resourceImportBatch.findUnique({ where: { id } }) };
+    }
 
-  let successCount = 0;
-  let failCount = 0;
+    const claimed = await tx.resourceImportItem.updateMany({
+      where: { id: { in: failedItemIds }, importId: id, status: 'FAILED' },
+      data: { status: 'PROCESSING' }
+    });
+    if (claimed.count !== failedItemIds.length) {
+      throw new HttpError('资源状态已变化，请刷新后重试', 409, 409);
+    }
 
-  for (const item of failedItems) {
-    try {
-      const mapped = item.mappedData as Record<string, any>;
-      if (!String(mapped.name ?? '').trim()) {
-        throw new Error('必填项缺失: 名称为空');
+    const items = await tx.resourceImportItem.findMany({
+      where: { id: { in: failedItemIds }, importId: id, status: 'PROCESSING' }
+    });
+    if (items.length !== failedItemIds.length) {
+      throw new HttpError('资源状态已变化，请刷新后重试', 409, 409);
+    }
+
+    const resourceType = batch.importType as ResourceImportType;
+    let successCount = 0;
+    let failCount = 0;
+    for (const item of items) {
+      try {
+        const mapped = item.mappedData as Record<string, any>;
+        if (!String(mapped.name ?? '').trim()) throw new Error('必填项缺失: 名称为空');
+        const candidate = resourceType === 'RECIPE'
+          ? await evaluateStagedResourceCandidate(tx, resourceType, mapped as any)
+          : null;
+        const admissionFailure = candidate ? getRecipeImportAdmissionFailure(candidate) : null;
+        if (admissionFailure) {
+          await tx.resourceImportItem.update({
+            where: { id: item.id },
+            data: {
+              mappedData: candidate!.mappedData as Prisma.InputJsonValue,
+              status: 'FAILED',
+              errorMessage: admissionFailure,
+              externalId: candidate!.externalId,
+              externalUrl: candidate!.externalUrl,
+              filterCode: candidate!.filterCode,
+              duplicateTargetId: candidate!.duplicateTargetId,
+              qualityScore: candidate!.qualityScore,
+              isChinese: candidate!.isChinese,
+              qualityIssues: candidate!.qualityIssues
+                ? (candidate!.qualityIssues as Prisma.InputJsonValue)
+                : Prisma.DbNull
+            }
+          });
+          failCount++;
+          continue;
+        }
+        const governedMapped = candidate?.mappedData ?? mapped;
+        const targetId = await createOfficialRecord(
+          tx,
+          resourceType,
+          governedMapped as any,
+          item.id,
+          batch.provider?.providerName ?? batch.sourceName ?? null,
+          (governedMapped.externalUrl as string | undefined) ?? null,
+          candidate?.recipeEvaluation?.qualityScore ?? null
+        );
+        await tx.resourceImportItem.update({
+          where: { id: item.id },
+          data: {
+            mappedData: candidate?.mappedData
+              ? (candidate.mappedData as Prisma.InputJsonValue)
+              : undefined,
+            status: 'IMPORTED',
+            errorMessage: null,
+            targetId,
+            externalId: candidate?.externalId ?? item.externalId,
+            externalUrl: candidate?.externalUrl ?? item.externalUrl,
+            filterCode: candidate?.filterCode ?? item.filterCode,
+            duplicateTargetId: candidate?.duplicateTargetId ?? item.duplicateTargetId,
+            qualityScore: candidate?.qualityScore ?? item.qualityScore,
+            isChinese: candidate?.isChinese ?? item.isChinese,
+            qualityIssues: candidate?.qualityIssues
+              ? (candidate.qualityIssues as Prisma.InputJsonValue)
+              : item.qualityIssues ?? Prisma.DbNull
+          }
+        });
+        successCount++;
+      } catch (err: any) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        await tx.resourceImportItem.update({
+          where: { id: item.id },
+          data: { status: 'FAILED', errorMessage: errMsg }
+        });
+        failCount++;
       }
-      const targetId = await createOfficialRecord(
-        prisma,
-        batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
-        mapped as any,
-        item.id,
-        batch.provider?.providerName ?? batch.sourceName ?? null,
-        (mapped.externalUrl as string | undefined) ?? null
-      );
-
-      await prisma.resourceImportItem.update({
-        where: { id: item.id },
-        data: {
-          status: 'IMPORTED',
-          errorMessage: null,
-          targetId
-        }
-      });
-      successCount++;
-    } catch (err: any) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      await prisma.resourceImportItem.update({
-        where: { id: item.id },
-        data: {
-          status: 'FAILED',
-          errorMessage: errMsg
-        }
-      });
-      failCount++;
     }
-  }
 
-  const allItems = await prisma.resourceImportItem.findMany({
-    where: { importId: id }
-  });
-  const totalSuccess = allItems.filter(i => i.status === 'IMPORTED').length;
-  const totalFailed = allItems.filter(i => i.status === 'FAILED').length;
-  const pendingCount = allItems.filter(i => i.status === 'PENDING').length;
-
-  const updatedBatch = await prisma.resourceImportBatch.update({
-    where: { id },
-    data: {
-      successCount: totalSuccess,
-      failedCount: totalFailed,
-      status: pendingCount === 0 ? 'COMPLETED' : 'PENDING',
-      finishedAt: pendingCount === 0 ? new Date() : null
-    }
+    await refreshImportBatchStats(tx, [id]);
+    return {
+      successCount,
+      failCount,
+      batch: await tx.resourceImportBatch.findUnique({ where: { id } })
+    };
   });
 
-  res.json(ok({ successCount, failCount, batch: updatedBatch }));
+  res.json(ok(result));
 });

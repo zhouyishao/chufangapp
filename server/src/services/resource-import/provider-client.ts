@@ -1,6 +1,12 @@
 import { getByPath } from './json-path';
 import { decryptSecret, maskSecret } from './secret';
 import { parseDatasetFile } from './dataset-parser';
+import {
+  type ResourceImportSanitizationOptions,
+  sanitizeResourceImportError,
+  sanitizeResourceImportUrl,
+  sanitizeResourceImportValue
+} from './safe-serialization';
 import type {
   ResourceApiProviderDraft,
   ResourceProviderFormatHint,
@@ -61,9 +67,128 @@ const getControlText = (params: Record<string, unknown>, key: string, fallback: 
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 };
 
+export const getProviderCredentialSanitizationOptions = (
+  provider: Pick<ResourceApiProviderRuntime, 'appKey' | 'defaultParams'>,
+  knownSecrets: readonly (string | null | undefined)[] = []
+): ResourceImportSanitizationOptions => {
+  const params = provider.defaultParams ?? {};
+  return {
+    sensitiveKeys: [
+      getControlText(params, '__appKeyParam', 'appKey'),
+      getControlText(params, '__secretParam', 'secret'),
+      getControlText(params, '__secretHeader', 'X-Resource-Secret')
+    ],
+    secretValues: [provider.appKey, ...knownSecrets]
+  };
+};
+
+type ProviderCredentialContext = {
+  mergedParams: Record<string, unknown>;
+  requestParams: Record<string, unknown>;
+  appKeyParamName: string;
+  secretParamName: string;
+  secretHeaderName: string;
+  runtimeAppKey: string | null;
+  runtimeSecret: string | null;
+  sanitizationOptions: ResourceImportSanitizationOptions;
+};
+
 const stripControlParams = (params: Record<string, unknown>) => Object.fromEntries(
   Object.entries(params).filter(([key]) => !key.startsWith('__'))
 );
+
+const resolveProviderCredentialContext = (
+  provider: ResourceApiProviderRuntime,
+  params: Record<string, unknown>
+): ProviderCredentialContext => {
+  const mergedParams = mergeRecords(provider.defaultParams ?? {}, params);
+  const requestParams = stripControlParams(mergedParams);
+  const appKeyParamName = getControlText(mergedParams, '__appKeyParam', 'appKey');
+  const appKeyEnvName = getControlText(mergedParams, '__appKeyEnv', '');
+  const secretParamName = getControlText(mergedParams, '__secretParam', 'secret');
+  const secretHeaderName = getControlText(mergedParams, '__secretHeader', 'X-Resource-Secret');
+  const secretEnvName = getControlText(mergedParams, '__secretEnv', '');
+  const runtimeAppKey = provider.appKey
+    ? provider.appKey
+    : appKeyEnvName
+      ? process.env[appKeyEnvName]?.trim() || null
+      : null;
+  const runtimeSecret = provider.encryptedSecret
+    ? decryptSecret(provider.encryptedSecret)
+    : secretEnvName
+      ? process.env[secretEnvName]?.trim() || null
+      : null;
+  const defaultHeaderCredential = provider.defaultHeaders?.[secretHeaderName];
+  const requestCredentialValues = [
+    runtimeAppKey,
+    runtimeSecret,
+    typeof requestParams[appKeyParamName] === 'string' ? requestParams[appKeyParamName] : null,
+    typeof requestParams[secretParamName] === 'string' ? requestParams[secretParamName] : null,
+    typeof defaultHeaderCredential === 'string' ? defaultHeaderCredential : null
+  ];
+  const sanitizationOptions = getProviderCredentialSanitizationOptions({
+    appKey: provider.appKey,
+    defaultParams: mergedParams
+  }, requestCredentialValues);
+
+  if (appKeyEnvName && !runtimeAppKey) {
+    throw new Error(`Missing env: ${appKeyEnvName}`);
+  }
+  if (secretEnvName && !runtimeSecret) {
+    throw new Error(`Missing env: ${secretEnvName}`);
+  }
+
+  return {
+    mergedParams,
+    requestParams,
+    appKeyParamName,
+    secretParamName,
+    secretHeaderName,
+    runtimeAppKey,
+    runtimeSecret,
+    sanitizationOptions
+  };
+};
+
+const buildProviderHeaders = (
+  provider: ResourceApiProviderRuntime,
+  context: ProviderCredentialContext,
+  defaults: Record<string, string>
+): Record<string, string> => {
+  const headers = {
+    ...defaults,
+    ...(provider.defaultHeaders
+      ? Object.fromEntries(Object.entries(provider.defaultHeaders).map(([key, value]) => [key, String(value)]))
+      : {})
+  };
+
+  if (provider.authType === 'HEADER_TOKEN' && context.runtimeSecret) {
+    headers.Authorization = `Bearer ${context.runtimeSecret}`;
+  } else if (provider.authType === 'CUSTOM_HEADERS' && context.runtimeSecret) {
+    headers[context.secretHeaderName] = context.runtimeSecret;
+  }
+
+  return headers;
+};
+
+const applyProviderQueryCredentials = (
+  url: URL,
+  provider: ResourceApiProviderRuntime,
+  context: ProviderCredentialContext
+) => {
+  if (provider.authType !== 'QUERY_KEY') return url;
+  const requestAppKey = context.requestParams[context.appKeyParamName];
+  const requestSecret = context.requestParams[context.secretParamName];
+  const appKey = typeof requestAppKey === 'string' && requestAppKey
+    ? requestAppKey
+    : context.runtimeAppKey;
+  const secret = typeof requestSecret === 'string' && requestSecret
+    ? requestSecret
+    : context.runtimeSecret;
+  if (appKey) url.searchParams.set(context.appKeyParamName, appKey);
+  if (secret) url.searchParams.set(context.secretParamName, secret);
+  return url;
+};
 
 const interpolatePathTemplate = (template: string, values: Record<string, unknown>) =>
   template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) => {
@@ -71,23 +196,6 @@ const interpolatePathTemplate = (template: string, values: Record<string, unknow
     if (value === undefined || value === null || value === '') return '';
     return encodeURIComponent(typeof value === 'string' ? value : String(value));
   });
-
-const maskUrlSecrets = (value: string, secretNames: string[]) => {
-  const url = new URL(value);
-  for (const name of secretNames) {
-    if (url.searchParams.has(name)) url.searchParams.set(name, '***');
-  }
-  return url.toString();
-};
-
-const maskHeaders = (headers: Record<string, string>, secretHeaderNames: string[]) => Object.fromEntries(
-  Object.entries(headers).map(([key, value]) => [
-    key,
-    secretHeaderNames.some((name) => name.toLowerCase() === key.toLowerCase()) || key.toLowerCase() === 'authorization'
-      ? '***'
-      : value
-  ])
-);
 
 export const serializeSecretPreview = (value: string | null | undefined) => maskSecret(value);
 
@@ -122,14 +230,14 @@ const buildProjKitchenDetailUrl = (params: Record<string, unknown>, recipeId: st
 const fetchProjKitchenPreview = async (
   provider: ResourceApiProviderRuntime,
   limit: number,
-  params: Record<string, unknown>,
+  context: ProviderCredentialContext,
   purpose: 'test' | 'sync'
 ): Promise<ProviderFetchPreview> => {
-  const mergedParams = mergeRecords(provider.defaultParams ?? {}, params);
+  const { mergedParams, sanitizationOptions } = context;
   const endpointUrl = purpose === 'test'
     ? getControlText(mergedParams, '__testEndpointUrl', provider.endpointUrl)
     : getControlText(mergedParams, '__syncEndpointUrl', provider.endpointUrl);
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers = buildProviderHeaders(provider, context, { Accept: 'application/json' });
   const listUrl = new URL(endpointUrl);
   const listParams = stripControlParams(mergedParams);
 
@@ -138,6 +246,7 @@ const fetchProjKitchenPreview = async (
       listUrl.searchParams.set(key, typeof value === 'string' ? value : JSON.stringify(value));
     }
   }
+  applyProviderQueryCredentials(listUrl, provider, context);
 
   const listResponse = await fetch(listUrl.toString(), { headers });
   if (!listResponse.ok) {
@@ -159,20 +268,24 @@ const fetchProjKitchenPreview = async (
     });
 
   if (purpose === 'test') {
+    const safeRows = sanitizeResourceImportValue(listRows, sanitizationOptions) as Record<string, unknown>[];
+    const safeListUrl = sanitizeResourceImportUrl(listUrl.toString(), sanitizationOptions);
     return {
       total: listRows.length,
-      rows: listRows.slice(0, limit),
-      preview: listRows.slice(0, limit),
-      requestUrl: listUrl.toString(),
+      rows: safeRows.slice(0, limit),
+      preview: safeRows.slice(0, limit),
+      requestUrl: safeListUrl,
       requestBody: null,
-      headers,
+      headers: sanitizeResourceImportValue(headers, sanitizationOptions) as Record<string, string>,
       rawRecords: [
         {
           fileName: getFileNameFromUrl(listUrl.toString()),
-          sourceUrl: listUrl.toString(),
+          sourceUrl: safeListUrl,
           contentType: 'application/json',
           rawText: null,
-          rawJson: listRaw && typeof listRaw === 'object' ? (listRaw as Record<string, unknown>) : null,
+          rawJson: listRaw && typeof listRaw === 'object'
+            ? sanitizeResourceImportValue(listRaw, sanitizationOptions) as Record<string, unknown>
+            : null,
           parsedCount: listRows.length
         }
       ]
@@ -184,8 +297,13 @@ const fetchProjKitchenPreview = async (
   for (const item of listRows.slice(0, limit)) {
     const recipeId = typeof item.id === 'string' || typeof item.id === 'number' ? String(item.id) : '';
     if (!recipeId) continue;
-    const detailUrl = buildProjKitchenDetailUrl(mergedParams, recipeId);
-    const detailResponse = await fetch(detailUrl, { headers });
+    const detailUrl = applyProviderQueryCredentials(
+      new URL(buildProjKitchenDetailUrl(mergedParams, recipeId)),
+      provider,
+      context
+    );
+    const detailRequestUrl = detailUrl.toString();
+    const detailResponse = await fetch(detailRequestUrl, { headers });
     if (!detailResponse.ok) {
       throw new Error(`HTTP ${detailResponse.status} ${detailResponse.statusText}`);
     }
@@ -193,27 +311,36 @@ const fetchProjKitchenPreview = async (
     const detailRow = toPlainObject(detailRaw);
     detailRows.push(detailRow);
     rawRecords.push({
-      fileName: getFileNameFromUrl(detailUrl),
-      sourceUrl: detailUrl,
+      fileName: getFileNameFromUrl(detailRequestUrl),
+      sourceUrl: sanitizeResourceImportUrl(detailRequestUrl, sanitizationOptions),
       contentType: 'application/json',
       rawText: null,
-      rawJson: detailRaw && typeof detailRaw === 'object' ? (detailRaw as Record<string, unknown>) : null,
+      rawJson: detailRaw && typeof detailRaw === 'object'
+        ? sanitizeResourceImportValue(detailRaw, sanitizationOptions) as Record<string, unknown>
+        : null,
       parsedCount: 1
     });
   }
 
+  const safeDetailRows = sanitizeResourceImportValue(detailRows, sanitizationOptions) as Record<string, unknown>[];
+
   return {
     total: detailRows.length,
-    rows: detailRows,
-    preview: detailRows.slice(0, limit),
-    requestUrl: listUrl.toString(),
+    rows: safeDetailRows,
+    preview: safeDetailRows.slice(0, limit),
+    requestUrl: sanitizeResourceImportUrl(listUrl.toString(), sanitizationOptions),
     requestBody: null,
-    headers,
+    headers: sanitizeResourceImportValue(headers, sanitizationOptions) as Record<string, string>,
     rawRecords
   };
 };
 
-const fetchGitHubSourceUrls = async (params: Record<string, unknown>) => {
+const fetchGitHubSourceUrls = async (
+  params: Record<string, unknown>,
+  headers: Record<string, string>,
+  provider: ResourceApiProviderRuntime,
+  context: ProviderCredentialContext
+) => {
   const repo = typeof params.__githubRepo === 'string' ? params.__githubRepo.trim() : '';
   if (!repo) return [] as string[];
   const ref = typeof params.__githubRef === 'string' && params.__githubRef.trim() ? params.__githubRef.trim() : 'main';
@@ -226,9 +353,13 @@ const fetchGitHubSourceUrls = async (params: Record<string, unknown>) => {
   const extensions = Array.isArray(params.__fileExtensions)
     ? params.__fileExtensions.map((item) => String(item).trim().toLowerCase()).filter(Boolean)
     : [];
-  const treeUrl = `https://api.github.com/repos/${repo}/git/trees/${ref}?recursive=1`;
+  const treeUrl = applyProviderQueryCredentials(
+    new URL(`https://api.github.com/repos/${repo}/git/trees/${ref}?recursive=1`),
+    provider,
+    context
+  ).toString();
   const response = await fetch(treeUrl, {
-    headers: { Accept: 'application/vnd.github+json' }
+    headers: { ...headers, Accept: 'application/vnd.github+json' }
   });
   if (!response.ok) throw new Error(`GitHub tree request failed: HTTP ${response.status}`);
   const payload = (await response.json()) as { tree?: Array<{ path?: string; type?: string }> };
@@ -242,12 +373,26 @@ const fetchGitHubSourceUrls = async (params: Record<string, unknown>) => {
     .map((path) => `https://raw.githubusercontent.com/${repo}/${ref}/${path}`);
 };
 
-const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: number, params: Record<string, unknown>): Promise<ProviderFetchPreview> => {
-  const mergedParams = mergeRecords(provider.defaultParams ?? {}, params);
+const fetchDatasetPreview = async (
+  provider: ResourceApiProviderRuntime,
+  limit: number,
+  context: ProviderCredentialContext
+): Promise<ProviderFetchPreview> => {
+  const { mergedParams, sanitizationOptions } = context;
+  const headers = buildProviderHeaders(provider, context, {
+    Accept: 'application/json, text/plain, text/markdown, text/csv;q=0.9, */*;q=0.8'
+  });
   const directSourceUrls = Array.isArray(mergedParams.__sourceUrls)
     ? mergedParams.__sourceUrls.map((item: unknown) => String(item).trim()).filter(Boolean)
     : [];
-  const sourceUrls = directSourceUrls.length > 0 ? directSourceUrls : await fetchGitHubSourceUrls(mergedParams);
+  const configuredSourceUrls = directSourceUrls.length > 0
+    ? directSourceUrls
+    : await fetchGitHubSourceUrls(mergedParams, headers, provider, context);
+  const sourceUrls = configuredSourceUrls.map((sourceUrl) => applyProviderQueryCredentials(
+    new URL(sourceUrl),
+    provider,
+    context
+  ).toString());
   if (sourceUrls.length === 0) {
     throw new Error(`未配置 ${provider.providerName} 的数据源文件，请设置 __sourceUrls 或 __githubRepo`);
   }
@@ -257,28 +402,33 @@ const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: 
   const rawRecords: ProviderFetchPreview['rawRecords'] = [];
 
   for (const sourceUrl of sourceUrls) {
-    const response = await fetch(sourceUrl, {
-      headers: { Accept: 'application/json, text/plain, text/markdown, text/csv;q=0.9, */*;q=0.8' }
-    });
+    const response = await fetch(sourceUrl, { headers });
     if (!response.ok) {
-      throw new Error(`拉取数据集文件失败: HTTP ${response.status} ${sourceUrl}`);
+      throw new Error(`拉取数据集文件失败: HTTP ${response.status}`);
     }
     const rawText = await response.text();
     const contentType = response.headers.get('content-type');
     const fileName = getFileNameFromUrl(sourceUrl);
     const parsed = parseDatasetFile({ fileName, sourceUrl, contentType, rawText }, formatHint, provider.dataPath);
-    const normalizedRows = parsed.rows.map((row) => ({
+    const safeSourceUrl = sanitizeResourceImportUrl(sourceUrl, sanitizationOptions);
+    const safeParsedRows = sanitizeResourceImportValue(parsed.rows, sanitizationOptions) as Record<string, unknown>[];
+    const normalizedRows = safeParsedRows.map((row) => ({
       ...row,
-      sourceUrl,
+      sourceUrl: safeSourceUrl,
       sourceName: row.sourceName ?? provider.providerName
     }));
+    const safeRawJson = parsed.rawJson
+      ? sanitizeResourceImportValue(parsed.rawJson, sanitizationOptions) as Record<string, unknown>
+      : null;
     rows.push(...normalizedRows);
     rawRecords.push({
       fileName,
-      sourceUrl,
+      sourceUrl: safeSourceUrl,
       contentType,
-      rawText,
-      rawJson: parsed.rawJson,
+      rawText: safeRawJson
+        ? JSON.stringify(safeRawJson)
+        : sanitizeResourceImportError(rawText, sanitizationOptions),
+      rawJson: safeRawJson,
       parsedCount: normalizedRows.length
     });
     if (rows.length >= limit) break;
@@ -288,9 +438,9 @@ const fetchDatasetPreview = async (provider: ResourceApiProviderRuntime, limit: 
     total: rows.length,
     rows,
     preview: rows.slice(0, limit),
-    requestUrl: sourceUrls[0] || provider.endpointUrl,
+    requestUrl: sanitizeResourceImportUrl(sourceUrls[0] || provider.endpointUrl, sanitizationOptions),
     requestBody: null,
-    headers: {},
+    headers: sanitizeResourceImportValue(headers, sanitizationOptions) as Record<string, string>,
     rawRecords
   };
 };
@@ -301,42 +451,36 @@ export async function fetchProviderPreview(
   params: Record<string, unknown> = {},
   purpose: 'test' | 'sync' = 'sync'
 ): Promise<ProviderFetchPreview> {
+  const context = resolveProviderCredentialContext(provider, params);
   if (provider.providerCode === 'proj_kitchen') {
-    return fetchProjKitchenPreview(provider, limit, params, purpose);
+    try {
+      return await fetchProjKitchenPreview(provider, limit, context, purpose);
+    } catch (error) {
+      throw new Error(sanitizeResourceImportError(
+        error instanceof Error ? error.message : '未知资源请求错误',
+        context.sanitizationOptions
+      ));
+    }
   }
   if (provider.sourceKind === 'GITHUB_DATASET' || provider.sourceKind === 'OPEN_DATASET') {
-    return fetchDatasetPreview(provider, limit, params);
+    try {
+      return await fetchDatasetPreview(provider, limit, context);
+    } catch (error) {
+      throw new Error(sanitizeResourceImportError(
+        error instanceof Error ? error.message : '未知资源请求错误',
+        context.sanitizationOptions
+      ));
+    }
   }
 
-  const mergedParams = mergeRecords(provider.defaultParams ?? {}, params);
-  const requestParams = stripControlParams(mergedParams);
+  const {
+    mergedParams,
+    requestParams,
+    sanitizationOptions
+  } = context;
   const method = provider.method.toUpperCase() === 'POST' ? 'POST' : 'GET';
-  const appKeyParamName = getControlText(mergedParams, '__appKeyParam', 'appKey');
-  const appKeyEnvName = getControlText(mergedParams, '__appKeyEnv', '');
-  const secretParamName = getControlText(mergedParams, '__secretParam', 'secret');
-  const secretHeaderName = getControlText(mergedParams, '__secretHeader', 'X-Resource-Secret');
-  const secretEnvName = getControlText(mergedParams, '__secretEnv', '');
   const pathTemplate = getControlText(mergedParams, '__pathTemplate', '');
-  const runtimeAppKey = provider.appKey
-    ? provider.appKey
-    : appKeyEnvName
-      ? process.env[appKeyEnvName]?.trim() || null
-      : null;
-  const runtimeSecret = provider.encryptedSecret
-    ? decryptSecret(provider.encryptedSecret)
-    : secretEnvName
-      ? process.env[secretEnvName]?.trim() || null
-      : null;
-  if (appKeyEnvName && !runtimeAppKey) {
-    throw new Error(`Missing env: ${appKeyEnvName}`);
-  }
-  if (secretEnvName && !runtimeSecret) {
-    throw new Error(`Missing env: ${secretEnvName}`);
-  }
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(provider.defaultHeaders ? Object.fromEntries(Object.entries(provider.defaultHeaders).map(([key, value]) => [key, String(value)])) : {})
-  };
+  const headers = buildProviderHeaders(provider, context, { 'Content-Type': 'application/json' });
 
   const endpointOverride = purpose === 'test'
     ? getControlText(mergedParams, '__testEndpointUrl', provider.endpointUrl)
@@ -353,14 +497,7 @@ export async function fetchProviderPreview(
     }
   }
 
-  if (provider.authType === 'HEADER_TOKEN' && runtimeSecret) {
-    headers.Authorization = `Bearer ${runtimeSecret}`;
-  } else if (provider.authType === 'CUSTOM_HEADERS' && runtimeSecret) {
-    headers[secretHeaderName] = runtimeSecret;
-  } else if (provider.authType === 'QUERY_KEY') {
-    if (runtimeAppKey) url.searchParams.set(appKeyParamName, runtimeAppKey);
-    if (runtimeSecret) url.searchParams.set(secretParamName, runtimeSecret);
-  }
+  applyProviderQueryCredentials(url, provider, context);
 
   if (method === 'GET') {
     for (const [key, value] of Object.entries(requestParams)) {
@@ -421,26 +558,35 @@ export async function fetchProviderPreview(
         : extracted && typeof extracted === 'object'
           ? [toPlainObject(extracted)]
         : [];
-    const cappedRows = rows.slice(0, limit);
+    const safeRows = sanitizeResourceImportValue(rows, sanitizationOptions) as Record<string, unknown>[];
+    const cappedRows = safeRows.slice(0, limit);
+    const safeRequestUrl = sanitizeResourceImportUrl(requestUrl, sanitizationOptions);
 
     return {
       total: rows.length,
-      rows,
+      rows: safeRows,
       preview: cappedRows,
-      requestUrl: maskUrlSecrets(requestUrl, [appKeyParamName, secretParamName]),
-      requestBody,
-      headers: maskHeaders(headers, [secretHeaderName]),
+      requestUrl: safeRequestUrl,
+      requestBody: sanitizeResourceImportValue(requestBody, sanitizationOptions) as Record<string, unknown> | null,
+      headers: sanitizeResourceImportValue(headers, sanitizationOptions) as Record<string, string>,
       rawRecords: [
         {
           fileName: getFileNameFromUrl(requestUrl),
-          sourceUrl: requestUrl,
+          sourceUrl: safeRequestUrl,
           contentType: 'application/json',
           rawText: null,
-          rawJson: raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null,
+          rawJson: raw && typeof raw === 'object'
+            ? sanitizeResourceImportValue(raw, sanitizationOptions) as Record<string, unknown>
+            : null,
           parsedCount: rows.length
         }
       ]
     };
+  } catch (error) {
+    throw new Error(sanitizeResourceImportError(
+      error instanceof Error ? error.message : '未知资源请求错误',
+      sanitizationOptions
+    ));
   } finally {
     clearTimeout(timeout);
   }

@@ -23,6 +23,19 @@ test('recipe import preserves structured steps and their media metadata', () => 
   }]);
 });
 
+test('recipe spreadsheet traceability columns map to the governed source fields', () => {
+  const payload = normalizeResourcePayload('RECIPE', {
+    名称: '番茄炒蛋',
+    来源名称: '家庭菜谱整理',
+    '外部 ID': 'home-tomato-eggs-001',
+    外部链接: 'https://example.com/recipes/home-tomato-eggs-001'
+  });
+
+  assert.equal(payload.sourceName, '家庭菜谱整理');
+  assert.equal(payload.externalId, 'home-tomato-eggs-001');
+  assert.equal(payload.externalUrl, 'https://example.com/recipes/home-tomato-eggs-001');
+});
+
 test('resource confirmation imports pending rows only and keeps imported content unpublished', () => {
   const route = readFileSync(resolve(__dirname, '../routes/admin/resources.ts'), 'utf8');
   const importer = readFileSync(resolve(__dirname, '../services/resource-import/importer.ts'), 'utf8');

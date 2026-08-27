@@ -147,6 +147,65 @@ const getExistingRecipe = async (value: unknown) => {
   return existing;
 };
 
+type RecipePublicationReadiness = {
+  sourceType: string;
+  auditStatus: string;
+  status: string;
+  coverFileId: number | null;
+  ingredientCount: number;
+  stepCount: number;
+};
+
+const assertImportedRecipeCanPublish = (recipe: RecipePublicationReadiness) => {
+  if (recipe.sourceType !== 'IMPORT') return;
+  if (recipe.auditStatus !== 'APPROVED') {
+    throw new HttpError('菜谱审核通过后才能发布', 409, 409);
+  }
+  if (recipe.status !== 'ACTIVE') {
+    throw new HttpError('已停用菜谱不能发布', 409, 409);
+  }
+  if (!recipe.coverFileId) {
+    throw new HttpError('菜谱发布前必须上传受管封面', 409, 409);
+  }
+  if (recipe.ingredientCount < 2) {
+    throw new HttpError('菜谱有效用料至少需要2项', 409, 409);
+  }
+  if (recipe.stepCount < 1) {
+    throw new HttpError('菜谱至少需要1个制作步骤', 409, 409);
+  }
+};
+
+const getRecipePublicationReadiness = async (value: unknown) => {
+  const existing = await prisma.recipe.findFirst({
+    where: { ...buildPublicIdWhere(value), deletedAt: null },
+    select: {
+      id: true,
+      sourceType: true,
+      auditStatus: true,
+      status: true,
+      coverFileId: true,
+      _count: {
+        select: {
+          ingredients: { where: { deletedAt: null } },
+          steps: { where: { deletedAt: null } }
+        }
+      }
+    }
+  });
+  if (!existing) throw new HttpError('not found', 404, 404);
+  return {
+    id: existing.id,
+    readiness: {
+      sourceType: existing.sourceType,
+      auditStatus: existing.auditStatus,
+      status: existing.status,
+      coverFileId: existing.coverFileId,
+      ingredientCount: existing._count.ingredients,
+      stepCount: existing._count.steps
+    }
+  };
+};
+
 adminRecipesRouter.get('/', requireAdminAuth, async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
@@ -258,6 +317,16 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
     await lockActiveMediaFiles(tx, [coverFileId, videoFileId, ...imageFileIds, ...steps.map((step) => step.mediaFileId)]);
     const existing = await tx.recipe.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
     if (!existing) throw new HttpError('not found', 404, 404);
+    if (parsed.data.isPublish) {
+      assertImportedRecipeCanPublish({
+        sourceType: existing.sourceType,
+        auditStatus: existing.auditStatus,
+        status: parsed.data.status,
+        coverFileId,
+        ingredientCount: ingredients.length,
+        stepCount: steps.length
+      });
+    }
     const id = existing.id;
     await tx.recipeStep.deleteMany({ where: { recipeId: id } });
     await tx.recipeIngredient.deleteMany({ where: { recipeId: id } });
@@ -299,14 +368,15 @@ adminRecipesRouter.patch('/:id/publish', requireAdminAuth, async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
-  const existing = await getExistingRecipe(req.params.id);
+  const existing = await getRecipePublicationReadiness(req.params.id);
   if (parsed.data.isPublish === false) {
     const offline = await prisma.recipe.update({ where: { id: existing.id }, data: { isPublish: false } });
     res.json(ok(serializeRecipe(offline)));
     return;
   }
-  if (existing.auditStatus !== 'APPROVED') throw new HttpError('菜谱审核通过后才能发布', 422, 422);
-  if (existing.status !== 'ACTIVE') throw new HttpError('菜谱启用后才能发布', 422, 422);
+  assertImportedRecipeCanPublish(existing.readiness);
+  if (existing.readiness.auditStatus !== 'APPROVED') throw new HttpError('菜谱审核通过后才能发布', 422, 422);
+  if (existing.readiness.status !== 'ACTIVE') throw new HttpError('菜谱启用后才能发布', 422, 422);
 
   const updated = await prisma.recipe.update({
     where: { id: existing.id },
