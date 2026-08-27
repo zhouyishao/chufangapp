@@ -166,6 +166,36 @@ export const restoreRedactedResourceImportUrl = (
   try {
     const incomingUrl = new URL(incoming);
     const existingUrl = new URL(existing);
+    if (
+      !['http:', 'https:'].includes(incomingUrl.protocol) ||
+      !['http:', 'https:'].includes(existingUrl.protocol) ||
+      incomingUrl.origin !== existingUrl.origin
+    ) {
+      return incoming;
+    }
+
+    const incomingSegments = incomingUrl.pathname.split('/');
+    const existingSegments = existingUrl.pathname.split('/');
+    if (incomingSegments.length === existingSegments.length) {
+      const knownPathSecrets = getKnownSecretValues(options)
+        .filter((secret) => secret.length >= MIN_PATH_SECRET_LENGTH);
+      let restoredPathSegment = false;
+      const restoredSegments = incomingSegments.map((segment, index) => {
+        let incomingValue = segment;
+        let existingValue = existingSegments[index] ?? '';
+        try {
+          incomingValue = decodeURIComponent(segment);
+          existingValue = decodeURIComponent(existingValue);
+        } catch {
+          return segment;
+        }
+        if (incomingValue !== '***' || !knownPathSecrets.includes(existingValue)) return segment;
+        restoredPathSegment = true;
+        return existingSegments[index] ?? segment;
+      });
+      if (restoredPathSegment) incomingUrl.pathname = restoredSegments.join('/');
+    }
+
     incomingUrl.searchParams.forEach((value, key) => {
       const existingValue = existingUrl.searchParams.get(key);
       if (value === '***' && isSensitiveResourceImportKey(key, options) && existingValue !== null) {

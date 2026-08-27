@@ -7,6 +7,7 @@ import {
   resolveProviderAppKey,
   serializeProvider
 } from '../routes/admin/resource-api-providers';
+import { getProviderCredentialSanitizationOptions } from '../services/resource-import/provider-client';
 
 test('provider serialization keeps application keys and encrypted secrets server-side', () => {
   const serialized = serializeProvider({
@@ -130,4 +131,113 @@ test('provider serialization redacts a long application key used as a complete e
 
   assert.equal(serialized.endpointUrl, 'https://provider.test/api/***/recipes');
   assert.doesNotMatch(JSON.stringify(serialized), /real-path-api-key/);
+});
+
+test('redacted endpoint path placeholders round-trip only at the matching safe URL position', () => {
+  const existingEndpoint = 'https://provider.test/api/real-path-api-key/recipes?client_id=real-path-api-key';
+  const options = getProviderCredentialSanitizationOptions({
+    appKey: 'real-path-api-key',
+    defaultParams: { __appKeyParam: 'client_id' }
+  });
+  const serialized = serializeProvider({
+    id: 4,
+    providerCode: 'path_roundtrip_provider',
+    resourceType: 'INGREDIENT',
+    appKey: 'real-path-api-key',
+    encryptedSecret: null,
+    endpointUrl: existingEndpoint,
+    defaultHeaders: null,
+    defaultParams: { __appKeyParam: 'client_id' },
+    lastSyncedAt: null,
+    lastTestedAt: null,
+    createdAt: new Date('2026-08-25T00:00:00.000Z'),
+    updatedAt: new Date('2026-08-25T00:00:00.000Z'),
+    _count: { importBatches: 0 }
+  });
+
+  assert.equal(serialized.endpointUrl, 'https://provider.test/api/***/recipes?client_id=***');
+  assert.equal(resolveProviderEndpointUrl(serialized.endpointUrl, existingEndpoint, options), existingEndpoint);
+  assert.equal(
+    resolveProviderEndpointUrl(
+      'https://provider.test/api/%2A%2A%2A/recipes?client_id=***',
+      existingEndpoint,
+      options
+    ),
+    existingEndpoint
+  );
+  assert.equal(
+    resolveProviderEndpointUrl(
+      'https://attacker.test/api/***/recipes?client_id=***',
+      existingEndpoint,
+      options
+    ),
+    'https://attacker.test/api/***/recipes?client_id=***'
+  );
+  assert.equal(
+    resolveProviderEndpointUrl(
+      'https://provider.test/***/api/recipes?client_id=***',
+      existingEndpoint,
+      options
+    ),
+    'https://provider.test/***/api/recipes?client_id=real-path-api-key'
+  );
+});
+
+test('redacted source URL arrays round-trip by index without replacing ordinary business placeholders', () => {
+  const existingParams = {
+    __appKeyParam: 'client_id',
+    __sourceUrls: [
+      'https://dataset.test/api/real-path-api-key/recipes.json?client_id=real-path-api-key&page=1',
+      'https://dataset.test/public/recipes.json?page=2'
+    ],
+    note: '原有业务说明',
+    labels: ['原有占位文本']
+  };
+  const options = getProviderCredentialSanitizationOptions({
+    appKey: 'real-path-api-key',
+    defaultParams: existingParams
+  });
+  const serialized = serializeProvider({
+    id: 5,
+    providerCode: 'dataset_roundtrip_provider',
+    resourceType: 'INGREDIENT',
+    appKey: 'real-path-api-key',
+    encryptedSecret: null,
+    endpointUrl: 'https://dataset.test/index.json',
+    defaultHeaders: null,
+    defaultParams: existingParams,
+    lastSyncedAt: null,
+    lastTestedAt: null,
+    createdAt: new Date('2026-08-25T00:00:00.000Z'),
+    updatedAt: new Date('2026-08-25T00:00:00.000Z'),
+    _count: { importBatches: 0 }
+  });
+  const serializedParams = serialized.defaultParams as Record<string, unknown>;
+
+  assert.doesNotMatch(JSON.stringify(serializedParams), /real-path-api-key/);
+  assert.deepEqual(serializedParams.__sourceUrls, [
+    'https://dataset.test/api/***/recipes.json?client_id=***&page=1',
+    'https://dataset.test/public/recipes.json?page=2'
+  ]);
+
+  const resolved = resolveProviderJsonConfig({
+    ...serializedParams,
+    note: '***',
+    labels: ['***'],
+    __sourceUrls: [
+      ...serializedParams.__sourceUrls as string[],
+      'https://dataset.test/api/***/new.json?client_id=***'
+    ]
+  }, existingParams, options);
+
+  assert.deepEqual(resolved, {
+    ...existingParams,
+    note: '***',
+    labels: ['***'],
+    __sourceUrls: [
+      existingParams.__sourceUrls[0],
+      existingParams.__sourceUrls[1],
+      'https://dataset.test/api/***/new.json?client_id=***'
+    ]
+  });
 });

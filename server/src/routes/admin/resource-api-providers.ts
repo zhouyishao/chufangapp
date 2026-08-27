@@ -32,6 +32,8 @@ import {
 } from '../../services/resource-import/recipe-provider-policy';
 import { evaluateStagedResourceCandidate } from '../../services/resource-import/governed-staging';
 import {
+  type ResourceImportSanitizationOptions,
+  isSensitiveResourceImportKey,
   sanitizeResourceImportError,
   sanitizeResourceImportUrl,
   sanitizeResourceImportValue,
@@ -84,26 +86,55 @@ export const resolveProviderAppKey = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const mergeRedactedProviderConfig = (
+const mergeRedactedProviderValue = (
+  incoming: unknown,
+  existing: unknown,
+  options: ResourceImportSanitizationOptions,
+  sensitiveContext: boolean
+): unknown => {
+  if (incoming === '***' && sensitiveContext && existing !== undefined) return existing;
+  if (Array.isArray(incoming)) {
+    const existingItems = Array.isArray(existing) ? existing : [];
+    return incoming.map((item, index) => mergeRedactedProviderValue(
+      item,
+      existingItems[index],
+      options,
+      sensitiveContext
+    ));
+  }
+  if (isRecord(incoming)) {
+    const existingRecord = isRecord(existing) ? existing : {};
+    return Object.fromEntries(Object.entries(incoming).map(([key, value]) => [
+      key,
+      mergeRedactedProviderValue(
+        value,
+        existingRecord[key],
+        options,
+        sensitiveContext || isSensitiveResourceImportKey(key, options)
+      )
+    ]));
+  }
+  if (typeof incoming === 'string' && typeof existing === 'string') {
+    return restoreRedactedResourceImportUrl(incoming, existing, options);
+  }
+  return incoming;
+};
+
+export const mergeRedactedProviderConfig = (
   incoming: Record<string, unknown>,
   existing: Record<string, unknown>,
-  options = {}
-): Record<string, unknown> => Object.fromEntries(
-  Object.entries(incoming).map(([key, value]) => {
-    const existingValue = existing[key];
-    if (value === '***' && existingValue !== undefined) return [key, existingValue];
-    if (isRecord(value) && isRecord(existingValue)) return [key, mergeRedactedProviderConfig(value, existingValue, options)];
-    if (typeof value === 'string' && typeof existingValue === 'string') {
-      return [key, restoreRedactedResourceImportUrl(value, existingValue, options)];
-    }
-    return [key, value];
-  })
-);
+  options: ResourceImportSanitizationOptions = {}
+): Record<string, unknown> => mergeRedactedProviderValue(
+  incoming,
+  existing,
+  options,
+  false
+) as Record<string, unknown>;
 
 export const resolveProviderJsonConfig = (
   incoming: Record<string, unknown> | null | undefined,
   existing: unknown,
-  options = {}
+  options: ResourceImportSanitizationOptions = {}
 ): Record<string, unknown> | null => {
   const existingConfig = isRecord(existing) ? existing : null;
   if (incoming === undefined) return existingConfig;
@@ -111,7 +142,11 @@ export const resolveProviderJsonConfig = (
   return mergeRedactedProviderConfig(incoming, existingConfig ?? {}, options);
 };
 
-export const resolveProviderEndpointUrl = (incoming: string, existing: string, options = {}) =>
+export const resolveProviderEndpointUrl = (
+  incoming: string,
+  existing: string,
+  options: ResourceImportSanitizationOptions = {}
+) =>
   restoreRedactedResourceImportUrl(incoming, existing, options);
 
 export const serializeProvider = (provider: any) => {
