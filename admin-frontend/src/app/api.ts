@@ -1,9 +1,15 @@
 import { clearAdminUser, clearToken, loadToken } from './storage';
 import type {
   ApiResponse,
+  CategorySummary,
   Ingredient,
   IngredientCategory,
   AdminUserActivityItem,
+  AdminOperationLogItem,
+  AdminAccountItem,
+  AdminPermissionGroup,
+  AdminProfileResult,
+  AdminRoleItem,
   AdminUserListItem,
   AdminResourceItem,
   LoginResult,
@@ -197,6 +203,54 @@ export const login = async (username: string, password: string) => {
   });
 };
 
+export const getAdminProfile = () => request<AdminProfileResult>('/auth/profile');
+
+export type AdminCreatePayload = { username: string; nickname: string; password: string; roleId: number; status: AdminAccountItem['status'] };
+export type AdminUpdatePayload = { nickname: string; roleId: number; status: AdminAccountItem['status'] };
+export type AdminRoleCreatePayload = { code: string; name: string; description: string | null; status: AdminRoleItem['status'] };
+export type AdminRoleUpdatePayload = Omit<AdminRoleCreatePayload, 'code'>;
+
+export const listAdmins = async (params: { page?: number; pageSize?: number; q?: string; roleId?: number; status?: AdminAccountItem['status'] } = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim()); setParam(qs, 'roleId', params.roleId); setParam(qs, 'status', params.status);
+  return request<PageResult<AdminAccountItem>>(`/admins?${qs.toString()}`);
+};
+export const createAdmin = (payload: AdminCreatePayload) => request<AdminAccountItem>('/admins', { method: 'POST', body: JSON.stringify(payload) });
+export const updateAdmin = (id: number, payload: AdminUpdatePayload) => request<AdminAccountItem>(`/admins/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const resetAdminPassword = (id: number, password: string) => request<{ id: number; passwordReset: true }>(`/admins/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) });
+export const setAdminStatus = (id: number, status: AdminAccountItem['status']) => request<AdminAccountItem>(`/admins/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const deleteAdmin = (id: number) => request<{ id: number; deleted: true }>(`/admins/${id}`, { method: 'DELETE' });
+
+export const listRoles = async (params: { page?: number; pageSize?: number; q?: string; status?: AdminRoleItem['status'] } = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 10);
+  setParam(qs, 'q', params.q?.trim()); setParam(qs, 'status', params.status);
+  return request<PageResult<AdminRoleItem>>(`/roles?${qs.toString()}`);
+};
+export const createRole = (payload: AdminRoleCreatePayload) => request<AdminRoleItem>('/roles', { method: 'POST', body: JSON.stringify(payload) });
+export const updateRole = (id: number, payload: AdminRoleUpdatePayload) => request<AdminRoleItem>(`/roles/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const replaceRolePermissions = (id: number, permissionIds: number[]) => request<AdminRoleItem>(`/roles/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ permissionIds }) });
+export const setRoleStatus = (id: number, status: AdminRoleItem['status']) => request<AdminRoleItem>(`/roles/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const deleteRole = (id: number) => request<{ id: number; deleted: true }>(`/roles/${id}`, { method: 'DELETE' });
+export const listAdminPermissions = () => request<AdminPermissionGroup[]>('/permissions');
+
+export const listAdminOperationLogs = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  module?: string;
+  action?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'module', params.module);
+  setParam(qs, 'action', params.action);
+  setParam(qs, 'startDate', params.startDate);
+  setParam(qs, 'endDate', params.endDate);
+  return request<PageResult<AdminOperationLogItem>>(`/operation-logs?${qs.toString()}`);
+};
+
 export const listUsers = async (params: {
   page?: number;
   pageSize?: number;
@@ -280,23 +334,44 @@ export const listUserRecentViews = async (params: {
   return request<PageResult<AdminUserActivityItem>>(`/users/recent-views?${qs.toString()}`);
 };
 
+export const listUserBehavior = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  eventType?: import('./types').AdminUserBehaviorEventType | 'all';
+  startDate?: string;
+  endDate?: string;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'eventType', params.eventType);
+  setParam(qs, 'startDate', params.startDate);
+  setParam(qs, 'endDate', params.endDate);
+  return request<import('./types').AdminUserBehaviorResult>(`/users/behavior?${qs.toString()}`);
+};
+
 export const listCategories = async (params: {
   page?: number;
   pageSize?: number;
   q?: string;
   status?: IngredientCategory['status'];
   type?: IngredientCategory['type'];
+  level?: 1 | 2;
+  isPublish?: boolean;
 } = {}) => {
   const qs = createPageQuery(params.page, params.pageSize, 20);
   setParam(qs, 'type', params.type);
   setParam(qs, 'q', params.q?.trim());
   setParam(qs, 'status', params.status);
-  return request<PageResult<IngredientCategory>>(`/categories?${qs.toString()}`);
+  setParam(qs, 'level', params.level);
+  setParam(qs, 'isPublish', params.isPublish);
+  return request<PageResult<IngredientCategory> & { summary: CategorySummary }>(`/categories?${qs.toString()}`);
 };
 
 export const createCategory = async (payload: {
   name: string;
   type: IngredientCategory['type'];
+  parentId: string | null;
   sort: number;
   status: IngredientCategory['status'];
   isPublish: boolean;
@@ -312,6 +387,7 @@ export const updateCategory = async (
   payload: {
     name: string;
     type: IngredientCategory['type'];
+    parentId: string | null;
     sort: number;
     status: IngredientCategory['status'];
     isPublish: boolean;
@@ -319,6 +395,17 @@ export const updateCategory = async (
 ) => {
   return request<IngredientCategory>(`/categories/${id}`, {
     method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+};
+
+export const reorderCategories = async (payload: {
+  type: IngredientCategory['type'];
+  parentId: string | null;
+  orderedIds: string[];
+}) => {
+  return request<IngredientCategory[]>('/categories/reorder', {
+    method: 'PATCH',
     body: JSON.stringify(payload)
   });
 };
@@ -452,6 +539,8 @@ type IngredientWritePayload = {
   name: string;
   coverUrl: string | null;
   coverFileId?: number | null;
+  transparentImage?: string | null;
+  transparentImageFileId?: number | null;
   categoryId: string | null;
   seasonMonth: string | null;
   nutrition: string | null;
@@ -821,6 +910,8 @@ export type Beverage = {
   code?: string;
   name: string;
   coverImage: string | null;
+  transparentImage: string | null;
+  transparentImageFileId?: number | null;
   categoryId: string | null;
   category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;
   beverageType: string | null;
@@ -857,6 +948,8 @@ export type Beverage = {
 export type BeverageWritePayload = {
   name: string;
   coverImage: string | null;
+  transparentImage?: string | null;
+  transparentImageFileId?: number | null;
   categoryId: string | null;
   beverageType: string | null;
   isAlcoholic: boolean;
@@ -1134,11 +1227,102 @@ export const createContentModule = async (navId: string, payload: ContentModuleP
 export const updateContentModule = async (navId: string, moduleId: number, payload: ContentModulePayload) =>
   request<ContentModule>(`/home/top-navs/${navId}/modules/${moduleId}`, { method: 'PUT', body: JSON.stringify(payload) });
 
+export const reorderContentModules = async (navId: string, items: { id: number; sortOrder: number }[]) =>
+  request<ContentModule[]>(`/home/top-navs/${navId}/modules/reorder`, {
+    method: 'PATCH',
+    body: JSON.stringify({ items })
+  });
+
 export const updateContentModuleStatus = async (navId: string, moduleId: number, status: ContentModuleStatus) =>
   request<ContentModule>(`/home/top-navs/${navId}/modules/${moduleId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 
 export const deleteContentModule = async (navId: string, moduleId: number) =>
   request<boolean>(`/home/top-navs/${navId}/modules/${moduleId}`, { method: 'DELETE' });
+
+export type PurchaseListStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+
+export type PurchaseListSummary = {
+  scopeKey: string;
+  scopeType: 'FAMILY' | 'USER';
+  scopeId: number;
+  name: string;
+  familyName: string | null;
+  creators: string[];
+  itemCount: number;
+  checkedCount: number;
+  status: PurchaseListStatus;
+  estimatedAmount: number;
+  missingPriceCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseListItem = {
+  id: number;
+  name: string;
+  amountText: string | null;
+  quantity: number;
+  unit: string | null;
+  checked: boolean;
+  checkedAt: string | null;
+  recipeId: number | null;
+  recipeName: string | null;
+  ingredientId: number | null;
+  currentPrice: number | null;
+  priceUnit: string | null;
+  creator: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const listPurchaseLists = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: PurchaseListStatus;
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'status', params.status);
+  return request<PageResult<PurchaseListSummary>>(`/purchase-lists?${qs.toString()}`);
+};
+
+export const getPurchaseListDetail = async (item: Pick<PurchaseListSummary, 'scopeType' | 'scopeId'>) =>
+  request<{ summary: PurchaseListSummary; items: PurchaseListItem[] }>(
+    `/purchase-lists/${item.scopeType.toLowerCase()}/${item.scopeId}`
+  );
+
+export type SearchLogItem = {
+  id: number;
+  keyword: string;
+  searchCount: number;
+  resultCount: number;
+  createdAt: string;
+  updatedAt: string;
+  user: { id: number; nickname: string | null; phone: string | null };
+};
+
+export type SearchLogOverview = {
+  totalRecords: number;
+  totalSearches: number;
+  noResultSearches: number;
+  noResultRate: number;
+  topKeywords: Array<{ keyword: string; searchCount: number; latestResultCount: number; updatedAt: string | null }>;
+};
+
+export const getSearchLogOverview = async () => request<SearchLogOverview>('/search-logs/overview');
+
+export const listSearchLogs = async (params: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  resultType?: 'WITH_RESULTS' | 'NO_RESULTS';
+} = {}) => {
+  const qs = createPageQuery(params.page, params.pageSize, 20);
+  setParam(qs, 'q', params.q?.trim());
+  setParam(qs, 'resultType', params.resultType);
+  return request<PageResult<SearchLogItem>>(`/search-logs?${qs.toString()}`);
+};
 
 export type FamilyUserSummary = {
   id: string;

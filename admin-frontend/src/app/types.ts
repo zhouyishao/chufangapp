@@ -9,15 +9,64 @@ export type PageResult<T> = {
   total: number;
 };
 
+export type AdminRoleSummary = {
+  id: number;
+  code: string;
+  name: string;
+  isSystem: boolean;
+};
+
 export type AdminUser = {
   id: number;
   username: string;
   nickname: string | null;
+  lastLoginAt: string | null;
+  role: AdminRoleSummary;
+  permissions: string[];
 };
 
 export type LoginResult = {
   token: string;
-  admin: AdminUser;
+  admin: Omit<AdminUser, 'role' | 'permissions'>;
+  role: AdminRoleSummary;
+  permissions: string[];
+};
+
+export type AdminProfileResult = Omit<LoginResult, 'token'>;
+
+export type AdminAccountItem = {
+  id: number;
+  username: string;
+  nickname: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  lastLoginAt: string | null;
+  createdAt: string;
+  role: AdminRoleSummary | null;
+};
+
+export type AdminRoleItem = AdminRoleSummary & {
+  description: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  adminCount: number;
+  permissionCount: number | null;
+  permissionIds: number[];
+  updatedAt: string;
+};
+
+export type AdminPermissionItem = {
+  id: number;
+  key: string;
+  name: string;
+  module: string;
+  action: string;
+  sort: number;
+  description: string | null;
+};
+
+export type AdminPermissionGroup = {
+  module: string;
+  moduleName: string;
+  permissions: AdminPermissionItem[];
 };
 
 export type IngredientCategory = {
@@ -26,13 +75,32 @@ export type IngredientCategory = {
   code?: string;
   type: 'RECIPE' | 'INGREDIENT' | 'SEASONING' | 'FRUIT' | 'COCKTAIL' | 'BEVERAGE';
   name: string;
+  parentId: string | null;
+  parent?: { id: string; legacyId?: number; name: string } | null;
   sort: number;
   status: 'ACTIVE' | 'DISABLED';
   isPublish: boolean;
   isRecommend: boolean;
+  level: 1 | 2;
+  childCount: number;
+  directContentCount: number;
+  descendantContentCount: number;
+  publicContentCount: number;
+  canChangeType: boolean;
   relatedCount?: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CategorySummary = {
+  total: number;
+  firstLevel: number;
+  secondLevel: number;
+  active: number;
+  disabled: number;
+  published: number;
+  hidden: number;
+  emptyPublic: number;
 };
 
 export type Ingredient = {
@@ -42,6 +110,8 @@ export type Ingredient = {
   name: string;
   cover: string | null;
   coverFileId?: number | null;
+  transparentImage: string | null;
+  transparentImageFileId?: number | null;
   categoryId: string | null;
   category?: { id: string; legacyId?: number; code?: string; name: string; type: IngredientCategory['type'] } | null;
   seasonMonth: string | null;
@@ -172,6 +242,7 @@ export type AdminUserListItem = {
   birthday: string | null;
   region: string | null;
   status: 'ACTIVE' | 'DISABLED';
+  hasPassword: boolean;
   registerSource: 'WECHAT' | 'PHONE';
   joinedFamilyCount: number;
   createdFamilyCount: number;
@@ -204,6 +275,36 @@ export type AdminUserActivityItem = {
   isPublish: boolean | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AdminUserBehaviorEventType = 'VIEW' | 'FAVORITE' | 'SEARCH' | 'BASKET_ADD';
+
+export type AdminUserBehaviorEvent = {
+  id: string;
+  eventType: AdminUserBehaviorEventType;
+  user: {
+    id: number;
+    code: string;
+    name: string | null;
+    phone: string | null;
+    avatar: string | null;
+  };
+  target: {
+    type: string;
+    id: string | number;
+    title: string;
+  };
+  detail: string | null;
+  eventTime: string;
+};
+
+export type AdminUserBehaviorResult = PageResult<AdminUserBehaviorEvent> & {
+  summary: {
+    views: number;
+    favorites: number;
+    searches: number;
+    basketAdds: number;
+  };
 };
 
 export type ResourceAppItem = {
@@ -290,6 +391,20 @@ export type ResourceLogItem = {
   durationMs: number;
   ip: string | null;
   errorMessage: string | null;
+  createdAt: string;
+};
+
+export type AdminOperationLogItem = {
+  id: number;
+  admin: { id: number; username: string; nickname: string | null } | null;
+  module: string | null;
+  action: string | null;
+  method: string | null;
+  path: string | null;
+  ip: string | null;
+  responseCode: number | null;
+  responseMessage: string | null;
+  detail: Record<string, unknown> | null;
   createdAt: string;
 };
 

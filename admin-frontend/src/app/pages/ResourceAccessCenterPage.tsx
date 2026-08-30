@@ -8,6 +8,7 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import { buildResourceImportWorkbook } from '../resource-import-template';
 import { getResourceSourceScopeLabel } from '../utils/resource-source';
 import {
   listResourceApiProviders,
@@ -137,7 +138,6 @@ export const ResourceAccessCenterPage = () => {
   const [saveLoading, setSaveLoading] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const selectedProviderFilter = typeof selectedProviderId === 'number' ? selectedProviderId : undefined;
 
   const refresh = async () => {
     setLoading(true);
@@ -151,7 +151,6 @@ export const ResourceAccessCenterPage = () => {
         q: appliedQ.trim() || undefined,
         status: statusFilter || undefined,
         batchId: batchIdFilter,
-        providerId: selectedProviderFilter,
         resourceType: resourceTypeFilter || undefined,
         categoryName: categoryNameFilter || undefined
       });
@@ -199,7 +198,6 @@ export const ResourceAccessCenterPage = () => {
     try {
       const data = await listImportItemCategories({
         batchId: batchIdFilter,
-        providerId: selectedProviderFilter,
         resourceType: resourceTypeFilter || undefined,
         q: appliedQ.trim() || undefined
       });
@@ -213,11 +211,11 @@ export const ResourceAccessCenterPage = () => {
 
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, selectedProviderFilter, resourceTypeFilter, categoryNameFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, resourceTypeFilter, categoryNameFilter]);
 
   useEffect(() => {
     void refreshCategories();
-  }, [batchIdFilter, selectedProviderFilter, resourceTypeFilter, appliedQ]);
+  }, [batchIdFilter, resourceTypeFilter, appliedQ]);
 
   useEffect(() => {
     void refreshProviders();
@@ -330,63 +328,7 @@ export const ResourceAccessCenterPage = () => {
   };
 
   const downloadTemplate = (type: ResourceType) => {
-    let headers: string[] = [];
-    let example: Record<string, any> = {};
-
-    if (type === 'RECIPE') {
-      headers = [
-        '名称', '分类', '副标题', '描述', '耗时', '难度', '份量', '卡路里', '口味', '场景', '技巧', '用料', '步骤'
-      ];
-      example = {
-        '名称': '西红柿炒鸡蛋 (必填)',
-        '分类': '家常菜',
-        '副标题': '经典下饭菜，酸甜适口',
-        '描述': '这是一道最经典的家常菜，富含维生素，营养丰富。',
-        '耗时': 15,
-        '难度': '简单',
-        '份量': 2,
-        '卡路里': 200,
-        '口味': '酸甜',
-        '场景': '午餐/晚餐',
-        '技巧': '鸡蛋液里加一点水能让炒蛋更嫩。',
-        '用料': '西红柿 2个, 鸡蛋 3个, 盐 适量, 糖 5克',
-        '步骤': '1. 西红柿洗净切块，鸡蛋打散。\n2. 锅中倒油，鸡蛋炒熟盛出。\n3. 锅中留底油，下西红柿炒出沙，倒入炒好的蛋和调料翻炒均匀。'
-      };
-    } else if (type === 'BEVERAGE') {
-      headers = [
-        '名称', '分类', '图片', '酒水类型', '是否含酒精', '酒精浓度', '描述'
-      ];
-      example = {
-        '名称': '莫吉托 (必填)',
-        '分类': '鸡尾酒',
-        '图片': 'https://example.com/mojito.jpg',
-        '酒水类型': '鸡尾酒',
-        '是否含酒精': '是',
-        '酒精浓度': 12,
-        '描述': '清爽的薄荷和青柠味，是夏日消暑的经典鸡尾酒。'
-      };
-    } else {
-      headers = [
-        '名称', '分类', '图片', '时令月份', '营养成分', '挑选技巧', '储存方法', '食用禁忌', '价格', '计价单位', '价格来源'
-      ];
-      example = {
-        '名称': type === 'FRUIT' ? '红富士苹果 (必填)' : type === 'SEASONING' ? '酿造生抽 (必填)' : '小油菜 (必填)',
-        '分类': type === 'FRUIT' ? '温带水果' : type === 'SEASONING' ? '酱油调味' : '绿叶蔬菜',
-        '图片': 'https://example.com/item.jpg',
-        '时令月份': '9,10,11',
-        '营养成分': '富含维生素和膳食纤维',
-        '挑选技巧': '选择色泽鲜亮，无虫眼，叶片挺拔的。',
-        '储存方法': '冷藏保鲜，常温避光。',
-        '食用禁忌': '无特殊食用禁忌。',
-        '价格': 4.5,
-        '计价单位': '斤',
-        '价格来源': '农贸市场平均价'
-      };
-    }
-
-    const worksheet = XLSX.utils.json_to_sheet([example], { header: headers });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '导入模板');
+    const { workbook, fileName } = buildResourceImportWorkbook(type);
 
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const blobData = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -394,14 +336,7 @@ export const ResourceAccessCenterPage = () => {
     const url = window.URL.createObjectURL(blobData);
     const link = document.createElement('a');
     link.href = url;
-    const typeNames: Record<ResourceType, string> = {
-      RECIPE: '菜谱',
-      INGREDIENT: '食材',
-      FRUIT: '水果',
-      SEASONING: '调料',
-      BEVERAGE: '酒水'
-    };
-    link.setAttribute('download', `${typeNames[type]}导入模板.xlsx`);
+    link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

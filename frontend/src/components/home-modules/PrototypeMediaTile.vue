@@ -1,10 +1,10 @@
 <template>
-  <view :class="className">
+  <view :class="[className, { 'is-media-fallback': !mediaSource || failed }]">
     <image
-      v-if="item?.cover && !failed"
+      v-if="mediaSource && !failed"
       class="prototype-media-image"
-      :src="item.cover"
-      mode="aspectFill"
+      :src="mediaSource"
+      :mode="usesCompactImage ? 'aspectFit' : 'aspectFill'"
       lazy-load
       @error="handleError"
     />
@@ -27,9 +27,13 @@ const emit = defineEmits<{
 
 const failed = ref(false);
 const itemInitial = computed(() => (props.item?.name || props.item?.title || '').trim().slice(0, 1));
+const mediaSource = computed(() =>
+  props.item?.transparentImage || props.item?.displayImage || props.item?.cover || ''
+);
+const usesCompactImage = computed(() => Boolean(props.item?.transparentImage));
 
 watch(
-  () => props.item?.cover,
+  mediaSource,
   () => {
     failed.value = false;
   }

@@ -8,6 +8,7 @@ import { FilterPanel } from '../components/FilterPanel';
 import { ImagePreview } from '../components/ImagePreview';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 
 /** 从 description 字段提取可读文本（可能是纯文本或 JSON） */
@@ -94,9 +95,9 @@ export const BeveragesPage = () => {
       title: '操作',
       render: (item) => (
         <div className="flex min-w-[160px] justify-end gap-3">
-          <Button variant="ghost" onClick={() => navigate(`/content/beverages/${item.id}/edit`)}>编辑</Button>
-          <Button variant="ghost" onClick={async () => { item.status === 'ACTIVE' ? await disableBeverage(item.id) : await enableBeverage(item.id); await refresh(); }}>{item.status === 'ACTIVE' ? '停用' : '启用'}</Button>
-          <Button variant="danger" onClick={async () => { if (window.confirm(`确认删除「${item.name}」？`)) { await deleteBeverage(item.id); await refresh(); } }}>删除</Button>
+          <PermissionGate permission="content:beverage:update"><Button variant="ghost" onClick={() => navigate(`/content/beverages/${item.id}/edit`)}>编辑</Button></PermissionGate>
+          <PermissionGate permission="content:beverage:publish"><Button variant="ghost" onClick={async () => { item.status === 'ACTIVE' ? await disableBeverage(item.id) : await enableBeverage(item.id); await refresh(); }}>{item.status === 'ACTIVE' ? '停用' : '启用'}</Button></PermissionGate>
+          <PermissionGate permission="content:beverage:delete"><Button variant="danger" onClick={async () => { if (window.confirm(`确认删除「${item.name}」？`)) { await deleteBeverage(item.id); await refresh(); } }}>删除</Button></PermissionGate>
         </div>
       )
     }
@@ -107,7 +108,7 @@ export const BeveragesPage = () => {
       <PageHeader
         title="酒水管理"
         description="管理平台酒水信息，支持新增、编辑、删除、启用/停用与批量操作。"
-        actions={<Button onClick={() => navigate('/content/beverages/create')}>新增酒水</Button>}
+        actions={<PermissionGate permission="content:beverage:create"><Button onClick={() => navigate('/content/beverages/create')}>新增酒水</Button></PermissionGate>}
       />
       {error ? <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       <FilterPanel>

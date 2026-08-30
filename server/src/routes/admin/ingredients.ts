@@ -6,6 +6,7 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
+import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
 
@@ -21,8 +22,10 @@ const listQuerySchema = z.object({
 
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  cover: z.string().trim().max(255).nullable().optional(),
+  cover: optionalContentMediaUrl(),
   coverFileId: z.coerce.number().int().positive().nullable().optional(),
+  transparentImage: z.string().trim().max(255).nullable().optional(),
+  transparentImageFileId: z.coerce.number().int().positive().nullable().optional(),
   categoryId: z.union([z.coerce.number().int(), z.string().trim()]).nullable().optional(),
   seasonMonth: z.string().trim().max(64).nullable().optional(),
   nutrition: z.string().trim().nullable().optional(),
@@ -133,11 +136,12 @@ adminIngredientsRouter.post('/', requireAdminAuth, async (req, res) => {
   try {
     const created = await prisma.$transaction(async (tx) => {
       const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
+      const transparentImageFileId = await resolveActiveFileId(tx, parsed.data.transparentImageFileId, parsed.data.transparentImage);
       const selectionMediaFileId = await resolveActiveFileId(tx, parsed.data.selectionMediaFileId, parsed.data.selectionMedia);
       const detailImageFileIds = await resolveActiveFileIds(tx, parsed.data.detailImageFileIds, parsed.data.detailImages);
-      await lockActiveMediaFiles(tx, [coverFileId, selectionMediaFileId, ...detailImageFileIds]);
+      await lockActiveMediaFiles(tx, [coverFileId, transparentImageFileId, selectionMediaFileId, ...detailImageFileIds]);
       return tx.ingredient.create({
-        data: { ...payload, categoryId, coverFileId, selectionMediaFileId, detailImageFileIds, bizId: createBusinessId('ingredient'), code: nextCodeFromItems('ingredient', codes), sortOrder: parsed.data.sort },
+        data: { ...payload, categoryId, coverFileId, transparentImageFileId, selectionMediaFileId, detailImageFileIds, bizId: createBusinessId('ingredient'), code: nextCodeFromItems('ingredient', codes), sortOrder: parsed.data.sort },
         include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
       });
     });
@@ -157,16 +161,28 @@ adminIngredientsRouter.put('/:id', requireAdminAuth, async (req, res) => {
   if (!existing) throw new HttpError('not found', 404, 404);
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const { categoryId: _categoryId, ...payload } = parsed.data;
+  const shouldUpdateTransparentImage = parsed.data.transparentImage !== undefined || parsed.data.transparentImageFileId !== undefined;
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
       const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
+      const transparentImageFileId = shouldUpdateTransparentImage
+        ? await resolveActiveFileId(tx, parsed.data.transparentImageFileId, parsed.data.transparentImage)
+        : existing.transparentImageFileId;
       const selectionMediaFileId = await resolveActiveFileId(tx, parsed.data.selectionMediaFileId, parsed.data.selectionMedia);
       const detailImageFileIds = await resolveActiveFileIds(tx, parsed.data.detailImageFileIds, parsed.data.detailImages);
-      await lockActiveMediaFiles(tx, [coverFileId, selectionMediaFileId, ...detailImageFileIds]);
+      await lockActiveMediaFiles(tx, [coverFileId, shouldUpdateTransparentImage ? transparentImageFileId : null, selectionMediaFileId, ...detailImageFileIds]);
       return tx.ingredient.update({
         where: { id: existing.id },
-        data: { ...payload, categoryId, coverFileId, selectionMediaFileId, detailImageFileIds, sortOrder: parsed.data.sort },
+        data: {
+          ...payload,
+          categoryId,
+          coverFileId,
+          ...(shouldUpdateTransparentImage ? { transparentImageFileId } : {}),
+          selectionMediaFileId,
+          detailImageFileIds,
+          sortOrder: parsed.data.sort
+        },
         include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
       });
     });

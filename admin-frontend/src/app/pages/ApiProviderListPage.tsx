@@ -13,6 +13,7 @@ import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 import type { ResourceApiProviderItem } from '../types';
 
@@ -176,18 +177,18 @@ export const ApiProviderListPage = () => {
       title: '操作',
       render: (item) => (
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => navigate(`/resources/api-providers/${item.id}/edit`)}>
+          <PermissionGate permission="resource:manage"><Button variant="ghost" onClick={() => navigate(`/resources/api-providers/${item.id}/edit`)}>
             编辑
-          </Button>
-          <Button variant="ghost" onClick={() => void handleTest(item)} disabled={testingId === item.id}>
+          </Button></PermissionGate>
+          <PermissionGate permission="resource:manage"><Button variant="ghost" onClick={() => void handleTest(item)} disabled={testingId === item.id}>
             {testingId === item.id ? '测试中...' : '测试'}
-          </Button>
-          <Button variant="ghost" onClick={() => void handleSync(item)} disabled={syncingId === item.id}>
+          </Button></PermissionGate>
+          <PermissionGate permission="resource:import"><Button variant="ghost" onClick={() => void handleSync(item)} disabled={syncingId === item.id}>
             {syncingId === item.id ? '同步中...' : '同步'}
-          </Button>
-          <Button variant="danger" onClick={() => setDeleting(item)}>
+          </Button></PermissionGate>
+          <PermissionGate permission="resource:manage"><Button variant="danger" onClick={() => setDeleting(item)}>
             删除
-          </Button>
+          </Button></PermissionGate>
         </div>
       )
     }

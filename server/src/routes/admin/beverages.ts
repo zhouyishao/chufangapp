@@ -6,6 +6,7 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
+import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
 
@@ -23,8 +24,10 @@ const listQuerySchema = z.object({
 
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  coverImage: z.string().trim().max(255).nullable().optional(),
+  coverImage: optionalContentMediaUrl(),
   coverFileId: z.coerce.number().int().positive().nullable().optional(),
+  transparentImage: z.string().trim().max(255).nullable().optional(),
+  transparentImageFileId: z.coerce.number().int().positive().nullable().optional(),
   galleryFileIds: z.array(z.coerce.number().int().positive()).nullable().optional(),
   videoFileId: z.coerce.number().int().positive().nullable().optional(),
   categoryId: z.union([z.coerce.number().int(), z.string().trim()]).nullable().optional(),
@@ -141,12 +144,14 @@ adminBeveragesRouter.post('/', requireAdminAuth, async (req, res) => {
   const codes = await prisma.beverage.findMany({ select: { code: true } });
   const created = await prisma.$transaction(async (tx) => {
     const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.coverImage);
+    const transparentImageFileId = await resolveActiveFileId(tx, parsed.data.transparentImageFileId, parsed.data.transparentImage);
     const galleryFileIds = await resolveActiveFileIds(tx, parsed.data.galleryFileIds, []);
-    await lockActiveMediaFiles(tx, [coverFileId, parsed.data.videoFileId, ...galleryFileIds, ...(steps ?? []).map((step) => step.mediaFileId)]);
+    await lockActiveMediaFiles(tx, [coverFileId, transparentImageFileId, parsed.data.videoFileId, ...galleryFileIds, ...(steps ?? []).map((step) => step.mediaFileId)]);
     return tx.beverage.create({
       data: {
         ...payload,
         coverFileId,
+        transparentImageFileId,
         galleryFileIds,
         categoryId,
         bizId: createBusinessId('beverage'),
@@ -173,10 +178,14 @@ adminBeveragesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const existing = await getExistingBeverage(req.params.id);
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const { categoryId: _categoryId, ingredientsV2, tools, steps, ...payload } = parsed.data;
+  const shouldUpdateTransparentImage = parsed.data.transparentImage !== undefined || parsed.data.transparentImageFileId !== undefined;
   const updated = await prisma.$transaction(async (tx) => {
     const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.coverImage);
+    const transparentImageFileId = shouldUpdateTransparentImage
+      ? await resolveActiveFileId(tx, parsed.data.transparentImageFileId, parsed.data.transparentImage)
+      : existing.transparentImageFileId;
     const galleryFileIds = await resolveActiveFileIds(tx, parsed.data.galleryFileIds, []);
-    await lockActiveMediaFiles(tx, [coverFileId, parsed.data.videoFileId, ...galleryFileIds, ...(steps ?? []).map((step) => step.mediaFileId)]);
+    await lockActiveMediaFiles(tx, [coverFileId, shouldUpdateTransparentImage ? transparentImageFileId : null, parsed.data.videoFileId, ...galleryFileIds, ...(steps ?? []).map((step) => step.mediaFileId)]);
     if (ingredientsV2) await tx.beverageIngredient.deleteMany({ where: { beverageId: existing.id } });
     if (tools) await tx.beverageTool.deleteMany({ where: { beverageId: existing.id } });
     if (steps) await tx.beverageStep.deleteMany({ where: { beverageId: existing.id } });
@@ -185,6 +194,7 @@ adminBeveragesRouter.put('/:id', requireAdminAuth, async (req, res) => {
       data: {
         ...payload,
         coverFileId,
+        ...(shouldUpdateTransparentImage ? { transparentImageFileId } : {}),
         galleryFileIds,
         categoryId,
         sortOrder: parsed.data.sortOrder ?? parsed.data.sort,

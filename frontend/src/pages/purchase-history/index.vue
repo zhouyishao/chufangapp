@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { loadBasketItems, type BasketItem } from '../../services/basket';
@@ -104,6 +104,13 @@ type PurchaseHistoryGroup = {
 const loading = ref(false);
 const error = ref('');
 const needsLogin = ref(false);
+
+const guardPrivatePage = () => {
+  if (loadAuthUser()) return true;
+  uni.reLaunch({ url: '/pages/phone-login/index' });
+  return false;
+};
+guardPrivatePage();
 const items = ref<HistoryItem[]>([]);
 
 const formatDateKey = (value: string) => {
@@ -194,6 +201,7 @@ const openPurchaseDetail = (dateKey: string) => {
 };
 
 const loadPurchaseHistory = async () => {
+  if (!guardPrivatePage()) return;
   loading.value = true;
   error.value = '';
   needsLogin.value = false;
@@ -223,10 +231,16 @@ const loadPurchaseHistory = async () => {
 };
 
 onShow(() => {
+  if (!guardPrivatePage()) return;
   void loadPurchaseHistory();
 });
 
+onLoad(() => {
+  if (!guardPrivatePage()) return;
+});
+
 onMounted(() => {
+  if (!guardPrivatePage()) return;
   void loadPurchaseHistory();
 });
 </script>

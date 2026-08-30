@@ -1,4 +1,4 @@
-import { createSSRApp } from 'vue';
+import { createApp as createClientApp, createSSRApp } from 'vue';
 import App from './App.vue';
 import './styles/global.scss';
 
@@ -7,7 +7,7 @@ export function createApp() {
     document.documentElement.classList.add('safe-area-preview');
   }
 
-  const app = createSSRApp(App);
+  const app = typeof window !== 'undefined' ? createClientApp(App) : createSSRApp(App);
   return {
     app
   };

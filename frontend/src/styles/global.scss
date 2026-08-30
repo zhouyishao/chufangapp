@@ -45,6 +45,7 @@ page {
   --app-text-secondary: var(--text-placeholder);
   --app-text-tertiary: rgba(183, 174, 161, 0.72);
   --app-border: #e9e2d6;
+  --app-border-strong: #d9d1c5;
   --app-primary: var(--text-brand);
   --app-accent: var(--text-brand);
   --app-accent-warm: var(--text-warm);
@@ -58,6 +59,7 @@ page {
   --app-danger: #e5735f;
   --app-info: #6a8fb7;
   --app-shadow: 0 8rpx 40rpx rgba(0, 0, 0, 0.04);
+  --shadow-floating: 0 16rpx 48rpx rgba(47, 47, 47, 0.1);
   --app-radius-card: 40rpx;
   --app-radius-button: 28rpx;
   --app-radius-input: 32rpx;
@@ -77,6 +79,9 @@ page {
   --radius-sm: 18rpx;
   --radius-md: 24rpx;
   --radius-lg: 32rpx;
+  --radius-pill: 999rpx;
+  --motion-fast: 180ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --touch-target: 88rpx;
   --z-page: 1;
   --z-sticky: 20;

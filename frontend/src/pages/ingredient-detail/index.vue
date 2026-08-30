@@ -238,9 +238,7 @@ interface Ingredient {
     label: string;
   };
   basicInfo: BasicInfo[];
-  nutrition: string;
-  selectTips: string;
-  storageTips: string;
+  guides: Record<TipsTabId, GuideItem[]>;
   relatedRecipes: RelatedRecipe[];
 }
 
@@ -266,9 +264,7 @@ const ingredient = ref<Ingredient>({
     label: '时令'
   },
   basicInfo: [],
-  nutrition: '',
-  selectTips: '',
-  storageTips: '',
+  guides: { select: [], storage: [], usage: [] },
   relatedRecipes: []
 });
 
@@ -282,6 +278,20 @@ const previewRouteOptions = ref<Record<string, string | undefined>>({});
 const normalizeTextBlock = (value: unknown) => {
   if (typeof value !== 'string') return '';
   return value.trim();
+};
+
+const fallbackGuideItems = (value: unknown, label: string): GuideItem[] => {
+  const content = normalizeTextBlock(value);
+  if (!content || /^[\[{]/u.test(content)) return [];
+  return content
+    .split(/\n+|(?<=[。！？；])/u)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((description, index) => ({
+      title: `${label}要点${index ? ` ${index + 1}` : ''}`,
+      description
+    }));
 };
 
 const normalizeRelatedRecipes = (value: unknown): RelatedRecipe[] => {
@@ -310,7 +320,7 @@ const loadRemoteIngredient = async (id: string | number) => {
   try {
     const data = getDetailPreviewFixture('ingredient', id, previewRouteOptions.value) ?? await getIngredient(id);
     currentIngredientId.value = data.id;
-    const seasonText = data.seasonMonth?.trim() || '';
+    const seasonText = data.season?.label?.trim() || data.seasonMonth?.trim() || '暂无';
     ingredient.value = {
       id: String(data.id),
       name: data.name,
@@ -318,17 +328,19 @@ const loadRemoteIngredient = async (id: string | number) => {
       image: data.cover ?? '',
       seasonTag: {
         type: 'success',
-        label: seasonText ? '当季' : '常备'
+        label: data.season?.isInSeason ? '当季' : '常备'
       },
       basicInfo: [
         { label: '类别', value: data.category?.name ?? '未分类' },
-        { label: '季节', value: seasonText || '暂无' },
+        { label: '季节', value: seasonText },
         { label: '价格', value: data.currentPrice ? `¥${data.currentPrice}/${data.priceUnit ?? '斤'}` : '待补充' },
         { label: '更新时间', value: data.updatedAt?.slice(0, 10) ?? '—' }
       ],
-      nutrition: normalizeTextBlock(data.nutrition),
-      selectTips: normalizeTextBlock(data.selectionTips),
-      storageTips: normalizeTextBlock(data.storageMethod),
+      guides: {
+        select: data.selectionGuide?.length ? data.selectionGuide : fallbackGuideItems(data.selectionTips, '挑选'),
+        storage: data.storageGuide?.length ? data.storageGuide : fallbackGuideItems(data.storageMethod, '保存'),
+        usage: data.eatingGuide?.length ? data.eatingGuide : fallbackGuideItems(data.nutrition, '食用')
+      },
       relatedRecipes: normalizeRelatedRecipes(data.relatedRecipes)
     };
     void recordIngredientViewHistory(data.id);
@@ -414,15 +426,6 @@ const pricePointItems = computed(() => {
 const priceLinePoints = computed(() => {
   return pricePointItems.value.map((point) => `${point.x},${point.y}`).join(' ');
 });
-const activeTipsContent = computed(() => {
-  if (activeTipsTab.value === 'usage') {
-    return ingredient.value.nutrition;
-  }
-  if (activeTipsTab.value === 'storage') {
-    return ingredient.value.storageTips;
-  }
-  return ingredient.value.selectTips;
-});
 const detailInfoItems = computed(() => {
   const valueOf = (label: string) => ingredient.value.basicInfo.find((item) => item.label === label)?.value;
   return [
@@ -440,30 +443,7 @@ const detailInfoItems = computed(() => {
     }
   ];
 });
-const activeGuideItems = computed<GuideItem[]>(() => {
-  const content = activeTipsContent.value.trim();
-  if (!content) return [];
-
-  const parts = content
-    .split(/\n+|(?<=[。！？；])/u)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
-
-  return parts.map((part, index) => {
-    const separator = part.match(/^(.{2,10})[：:]\s*(.+)$/u);
-    if (separator) {
-      return {
-        title: separator[1] ?? `${tipsTabs.find((tab) => tab.id === activeTipsTab.value)?.label ?? '指南'}要点`,
-        description: separator[2] ?? ''
-      };
-    }
-    return {
-      title: `${tipsTabs.find((tab) => tab.id === activeTipsTab.value)?.label ?? '指南'}要点${parts.length > 1 ? ` ${index + 1}` : ''}`,
-      description: part
-    };
-  });
-});
+const activeGuideItems = computed<GuideItem[]>(() => ingredient.value.guides[activeTipsTab.value] ?? []);
 const ingredientBasketItemId = computed(() => getIngredientBasketItemId(ingredient.value.id));
 const isInBasket = computed(() => basketItemIds.value.includes(ingredientBasketItemId.value));
 const basketItems = ref<BasketItem[]>([]);
@@ -1505,7 +1485,13 @@ const formatPriceDate = (date: string) => date.slice(5).replace('-', '/');
 }
 
 .content {
+  position: relative;
+  z-index: 2;
+  margin-top: -32rpx;
   padding: 0 40rpx;
+  border-radius: 32rpx 32rpx 0 0;
+  background: var(--app-bg);
+  box-shadow: 0 -8rpx 24rpx rgba(47, 47, 47, 0.035);
 }
 
 .detail-state,

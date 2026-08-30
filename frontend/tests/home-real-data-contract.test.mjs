@@ -59,7 +59,8 @@ test('home module media uses a compiled uni-app component and grid media cannot 
   assert.match(source, /import PrototypeMediaTile from ['"]\.\/PrototypeMediaTile\.vue['"]/);
   assert.match(source, /<PrototypeMediaTile/);
   assert.doesNotMatch(source, /h\(['"](?:image|view|text)['"]/);
-  assert.match(mediaSource, /<image[\s\S]*:src="item\.cover"/);
+  assert.match(mediaSource, /<image[\s\S]*:src="mediaSource"/);
+  assert.match(mediaSource, /props\.item\?\.transparentImage\s*\|\|\s*props\.item\?\.displayImage\s*\|\|\s*props\.item\?\.cover/);
   assert.doesNotMatch(
     source,
     /\.recipe-card__media-inner,\s*\n\.grid-card__media,\s*\n\.compact-row__media\s*\{[\s\S]*?height:\s*100%/

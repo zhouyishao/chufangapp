@@ -13,7 +13,7 @@ test('家庭头像使用独立上传用途并支持替换失败清理', async ()
   assert.match(page, /enqueuePendingFileCleanup/);
   assert.match(page, /handlePendingFileCleanupFailure/);
   assert.match(page, /deleteUploadedFile/);
-  assert.match(page, /更换头像/);
+  assert.match(page, /更换家庭头像/);
   assert.match(upload, /UploadPurpose = 'avatar' \| 'family-avatar'/);
 });
 

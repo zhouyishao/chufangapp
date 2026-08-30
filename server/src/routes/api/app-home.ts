@@ -23,6 +23,21 @@ const serializeNav = (item: Awaited<ReturnType<typeof prisma.homeTopNav.findMany
   contentRule: item.contentRule ?? null
 });
 
+const dedupeModuleItems = <T extends { items: unknown[] }>(modules: T[]) => {
+  const seenContentIds = new Set<string>();
+  return modules.map((module) => ({
+    ...module,
+    items: module.items.filter((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const record = item as { id?: unknown; type?: unknown };
+      const identity = `${String(record.type ?? '')}:${String(record.id ?? '')}`;
+      if (!record.id || seenContentIds.has(identity)) return false;
+      seenContentIds.add(identity);
+      return true;
+    })
+  }));
+};
+
 const publicRecipeWhere = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true, auditStatus: 'APPROVED' as const };
 
 const channelTitle: Record<string, string> = {
@@ -145,7 +160,7 @@ apiAppHomeRouter.get('/top-navs/:navId/modules', async (req, res) => {
   // 内容模块的类型由运营人员显式配置。频道只决定展示位置，不再强制覆盖模块类型，
   // 因此菜谱频道也可以有食材灵感、饮品搭配等跨类型模块。
   const sourceModules = modules.length ? modules : [fallbackModule(nav)];
-  const resolved = await Promise.all(sourceModules.map(serializeModuleForApp));
+  const resolved = dedupeModuleItems(await Promise.all(sourceModules.map(serializeModuleForApp)));
   const hasResolvedItems = resolved.some((module) => module.items.length > 0);
   if (hasResolvedItems || modules.length === 0) {
     res.json(ok(resolved));

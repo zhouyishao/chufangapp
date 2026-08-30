@@ -14,6 +14,7 @@ import {
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { TransparentImageUpload } from '../components/TransparentImageUpload';
 import type { IngredientCategory } from '../types';
 
 export type MixStepItem = {
@@ -37,6 +38,7 @@ export type BeveragePriceRecord = {
 export type Draft = {
   name: string;
   coverImage: string | null;
+  transparentImage: string | null;
   categoryId: string | null;
   beverageType: string; // 白酒, 红酒, 啤酒, 鸡尾酒, 茶饮, 果汁, 咖啡, 乳饮, 其他
   isAlcoholic: boolean;
@@ -129,6 +131,7 @@ const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const emptyDraft: Draft = {
   name: '',
   coverImage: null,
+  transparentImage: null,
   categoryId: null,
   beverageType: '其他',
   isAlcoholic: false,
@@ -248,6 +251,7 @@ const serializeDraftToPayload = (draft: Draft, extra: BeverageExtra) => {
   return {
     name: draft.name.trim(),
     coverImage: draft.coverImage,
+    transparentImage: draft.transparentImage,
     categoryId: draft.categoryId,
     beverageType: draft.beverageType,
     isAlcoholic: draft.isAlcoholic,
@@ -294,6 +298,7 @@ const deserializePayloadToDraft = (beverage: Beverage): { draft: Draft; extra: B
   const draft: Draft = {
     name: beverage.name,
     coverImage: beverage.coverImage,
+    transparentImage: beverage.transparentImage,
     categoryId: beverage.categoryId,
     beverageType: beverage.beverageType ?? '其他',
     isAlcoholic: beverage.isAlcoholic,
@@ -999,6 +1004,12 @@ export const BeverageFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
                     </button>
                   )}
                 </div>
+
+                <TransparentImageUpload
+                  value={draft.transparentImage}
+                  onChange={(transparentImage) => setDraft((d) => ({ ...d, transparentImage }))}
+                  onError={setError}
+                />
 
                 <div>
                   <div className="flex items-center justify-between mb-2">

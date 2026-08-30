@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 
 type Draft = { name: string; scope: TagItem['scope']; sort: number; status: TagItem['status']; isPublish: boolean };
@@ -162,7 +163,7 @@ export const TagsPage = () => {
             <h1 className="text-3xl font-semibold tracking-tight text-[#2f2f2f]">标签管理</h1>
             <p className="mt-2 text-sm text-[#8c8c8c]">统一管理口味、难度、场景、人群、做法、时令、营养等标签，支持标签类型、适用对象和状态管理。</p>
           </div>
-          <Button onClick={openCreate} className="bg-[#2f6f2f] hover:bg-[#235623]">＋ 新增标签</Button>
+          <PermissionGate permission="taxonomy:create"><Button onClick={openCreate} className="bg-[#2f6f2f] hover:bg-[#235623]">＋ 新增标签</Button></PermissionGate>
         </div>
 
         {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
@@ -241,9 +242,9 @@ export const TagsPage = () => {
                     <td className="sticky right-0 z-10 whitespace-nowrap border-b border-[#f1ece4] bg-white px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]">
                       <div className="flex items-center gap-4 text-sm">
                         <button type="button" onClick={() => openDetail(item)} className="text-[#6f8b62] hover:text-[#2f6f2f]">查看</button>
-                        <button type="button" onClick={() => openEdit(item)} className="text-[#6f8b62] hover:text-[#2f6f2f]">编辑</button>
-                        <button type="button" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')} className="text-[#c27b48] hover:text-[#a35f2f]">{item.status === 'ACTIVE' ? '停用' : '启用'}</button>
-                        <button type="button" onClick={() => setDeleting(item)} className="text-red-500 hover:text-red-600">删除</button>
+                        <PermissionGate permission="taxonomy:update"><button type="button" onClick={() => openEdit(item)} className="text-[#6f8b62] hover:text-[#2f6f2f]">编辑</button></PermissionGate>
+                        <PermissionGate permission="taxonomy:status"><button type="button" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')} className="text-[#c27b48] hover:text-[#a35f2f]">{item.status === 'ACTIVE' ? '停用' : '启用'}</button></PermissionGate>
+                        <PermissionGate permission="taxonomy:delete"><button type="button" onClick={() => setDeleting(item)} className="text-red-500 hover:text-red-600">删除</button></PermissionGate>
                       </div>
                     </td>
                   </tr>

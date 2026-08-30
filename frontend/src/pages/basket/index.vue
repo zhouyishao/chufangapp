@@ -10,10 +10,10 @@
             @tap="toggleFamilySelector"
           >
             <text class="family-selector__name">{{ basketScopeName }}</text>
-            <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="22rpx" />
+            <app-icon :class="['family-selector__arrow', { 'is-open': isFamilySelectorVisible }]" name="chevron-down" size="14px" />
           </button>
           <button class="scan-button" aria-label="扫一扫加入家庭" @tap="goToScan">
-            <app-icon name="scan" size="44rpx" />
+            <app-icon name="scan" size="24px" />
           </button>
         </view>
         <text class="basket-summary">{{ basketSummaryText }}</text>
@@ -305,7 +305,7 @@
             <text class="price-panel__title">记录本次价格</text>
             <text class="price-panel__desc">采购完成后记录价格，之后可在食材详情查看走势。</text>
           </view>
-          <text class="price-panel__close" @tap="closePricePanel">×</text>
+          <button class="price-panel__close" aria-label="关闭价格记录" @tap="closePricePanel">×</button>
         </view>
         <view class="price-list">
           <view v-for="item in priceInputs" :key="item.id" class="price-row">
@@ -992,14 +992,14 @@ onShow(() => {
 <style scoped lang="scss">
 .basket-page {
   min-height: 100vh;
-  padding: 0 40rpx calc(184rpx + var(--app-safe-area-bottom));
+  padding: 0 40rpx calc(344rpx + var(--app-safe-area-bottom));
   background: var(--app-bg);
 }
 
 .basket-shell {
-  max-width: 750rpx;
+  max-width: 100%;
   margin: 0 auto;
-  padding-top: calc(var(--app-safe-area-top) + 16px);
+  padding-top: calc(var(--app-safe-area-top) + 12px);
 }
 
 .mode-button::after,
@@ -1022,8 +1022,8 @@ onShow(() => {
 .basket-heading {
   display: flex;
   flex-wrap: wrap;
-  gap: 8rpx;
-  margin: 2rpx 0 16rpx;
+  gap: 2px;
+  margin: 0 0 8rpx;
 }
 
 .basket-heading__top {
@@ -1031,11 +1031,12 @@ onShow(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 20rpx;
+  gap: 10px;
 }
 
 .basket-summary {
   flex: 0 0 100%;
+  margin-top: 0;
   min-width: 0;
   overflow: hidden;
   color: var(--text-tertiary);
@@ -1098,7 +1099,7 @@ onShow(() => {
 .family-selector {
   display: inline-flex;
   align-items: center;
-  gap: 8rpx;
+  gap: 4px;
   max-width: 100%;
   min-width: 0;
   margin: 0;
@@ -1111,7 +1112,7 @@ onShow(() => {
 
 .family-selector__name {
   display: block;
-  max-width: 390rpx;
+  max-width: 240px;
   overflow: hidden;
   color: var(--app-text);
   font-size: var(--font-size-page-title);
@@ -1126,12 +1127,12 @@ onShow(() => {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 88rpx;
-  height: 88rpx;
+  width: 44px;
+  height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 20rpx;
+  border-radius: 12px;
   background: transparent;
   color: var(--app-primary);
 }
@@ -1324,10 +1325,10 @@ onShow(() => {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0;
-  margin-bottom: 4rpx;
+  margin-bottom: 0;
   padding: 0;
-  border: 1rpx solid rgba(122, 139, 111, 0.34);
-  border-radius: 22rpx;
+  border: 1px solid rgba(122, 139, 111, 0.34);
+  border-radius: 12px;
   background: rgba(255, 253, 252, 0.72);
   overflow: hidden;
 }
@@ -1336,10 +1337,13 @@ onShow(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
   min-height: 88rpx;
+  margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 20rpx;
+  border-radius: 0;
   background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-caption);
@@ -1354,17 +1358,17 @@ onShow(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10rpx;
-  min-height: 480rpx;
-  padding: 48rpx 32rpx;
+  gap: 8px;
+  min-height: 240px;
+  padding: 32px 16px;
   text-align: center;
 }
 
 .basket-state__spinner {
-  width: 42rpx;
-  height: 42rpx;
-  margin-bottom: 8rpx;
-  border: 4rpx solid rgba(122, 139, 111, 0.16);
+  width: 24px;
+  height: 24px;
+  margin-bottom: 4px;
+  border: 2px solid rgba(122, 139, 111, 0.16);
   border-top-color: var(--app-primary);
   border-radius: 50%;
   animation: basket-spin 900ms linear infinite;
@@ -1383,18 +1387,19 @@ onShow(() => {
 }
 
 .basket-state__desc {
-  max-width: 500rpx;
+  max-width: 280px;
   color: var(--text-tertiary);
   font-size: var(--font-size-caption);
   line-height: var(--line-caption);
 }
 
 .basket-state__retry {
-  min-width: 190rpx;
-  min-height: 88rpx;
-  margin-top: 14rpx;
+  min-width: 112px;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0 20px;
   border: 0;
-  border-radius: 28rpx;
+  border-radius: 22px;
   background: var(--app-accent);
   color: var(--text-white);
   font-size: var(--font-size-caption);
@@ -1415,6 +1420,14 @@ onShow(() => {
   background: var(--app-accent);
   color: var(--text-white);
   box-shadow: none;
+}
+
+.mode-button:first-child.is-active {
+  border-radius: 20rpx 0 0 20rpx;
+}
+
+.mode-button:last-child.is-active {
+  border-radius: 0 20rpx 20rpx 0;
 }
 
 .content,
@@ -1718,20 +1731,27 @@ onShow(() => {
 }
 
 .basket-complete-action {
+  position: fixed;
+  bottom: calc(var(--app-safe-area-bottom) + 88px);
+  left: 50%;
+  z-index: 29;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
-  min-height: 96rpx;
-  margin-top: 24rpx;
-  padding: 0 30rpx;
+  width: calc(100% - 40px);
+  max-width: 353px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 18px;
   border: 0;
-  border-radius: 26rpx;
+  border-radius: 24px;
   background: var(--app-accent);
+  box-shadow: 0 10rpx 30rpx rgba(82, 95, 74, 0.18);
   color: var(--text-white);
   font-size: var(--font-size-caption);
   font-weight: var(--font-semibold);
   line-height: var(--line-caption);
+  transform: translateX(-50%);
 }
 
 .basket-complete-action:disabled {
@@ -2109,6 +2129,16 @@ onShow(() => {
 }
 
 .price-panel__close {
+  display: flex;
+  flex: 0 0 88rpx;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  margin: -12rpx -10rpx 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--app-text-secondary);
   font-size: var(--font-size-detail-title);
   line-height: var(--line-detail-title);
@@ -2123,10 +2153,11 @@ onShow(() => {
 
 .price-row {
   display: grid;
-  grid-template-columns: 1fr 240rpx;
+  grid-template-columns: minmax(0, 1fr) 260rpx;
   align-items: center;
-  gap: 18rpx;
-  padding: 18rpx;
+  gap: 14rpx;
+  min-height: 98rpx;
+  padding: 16rpx 18rpx;
   border-radius: 24rpx;
   background: #eee8df;
 }
@@ -2141,7 +2172,10 @@ onShow(() => {
 .price-row__field {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  width: 100%;
   height: 62rpx;
+  gap: 6rpx;
   padding: 0 18rpx;
   border-radius: 22rpx;
   background: #fffdfc;
@@ -2160,9 +2194,11 @@ onShow(() => {
   color: var(--app-text);
   font-size: var(--font-size-caption);
   font-weight: var(--font-medium);
+  text-align: right;
 }
 
 .save-price-button {
+  height: 88rpx;
   margin-top: 24rpx;
   background: var(--app-accent);
   color: var(--text-white);

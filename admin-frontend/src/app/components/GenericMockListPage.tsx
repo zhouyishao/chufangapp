@@ -1,6 +1,5 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import { Button } from './Button';
-import { ConfirmModal } from './ConfirmModal';
 import { Drawer } from './Drawer';
 import { Input } from './Input';
 import { StatusTag } from './StatusTag';
@@ -46,20 +45,23 @@ export interface GenericMockListPageProps<T> {
   }[];
 }
 
-export const GenericMockListPage = <T extends { id: string | number; status?: string; [key: string]: any }>({
+const formatUnknownDate = (value: unknown) => {
+  if (!(typeof value === 'string' || typeof value === 'number' || value instanceof Date)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
+};
+
+export const GenericMockListPage = <T extends { id: string | number; status?: string } & Record<string, unknown>>({
   title,
   description,
   primaryLabel,
   initialItems,
   columns,
   filters = [],
-  fields = [],
-  defaultNewItem = {},
   searchPlaceholder = '请输入搜索内容',
   searchField = 'name' as keyof T,
   stats = []
 }: GenericMockListPageProps<T>) => {
-  const [items, setItems] = useState<T[]>(initialItems);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,15 +75,10 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
   });
 
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<Partial<T> | null>(null);
-  const [deletingItem, setDeletingItem] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   // Apply actual filtering locally
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    return initialItems.filter((item) => {
       // Search query
       if (appliedSearchQuery) {
         const val = String(item[searchField] || '').toLowerCase();
@@ -100,7 +97,7 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
       }
       return true;
     });
-  }, [items, appliedSearchQuery, filterValues, searchField]);
+  }, [initialItems, appliedSearchQuery, filterValues, searchField]);
 
   // Pagination calculations
   const total = filteredItems.length;
@@ -129,90 +126,6 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
     setFilterValues(resetFilters);
   };
 
-  const openCreate = () => {
-    setEditingItem({ ...defaultNewItem } as Partial<T>);
-    setError(null);
-    setDrawerOpen(true);
-  };
-
-  const openEdit = (item: T, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setEditingItem({ ...item });
-    setError(null);
-    setDrawerOpen(true);
-  };
-
-  const updateEditingItem = (key: string, value: any) => {
-    setEditingItem((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        [key]: value
-      } as unknown as Partial<T>;
-    });
-  };
-
-  const handleSave = () => {
-    if (!editingItem) return;
-
-    // Save validation checking
-    const missingFields = fields
-      .filter((f) => f.required && !String(editingItem[f.key] ?? '').trim())
-      .map((f) => f.label);
-
-    if (missingFields.length > 0) {
-      setError(`以下必填项未填写: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setError(null);
-    if (editingItem.id) {
-      // Update
-      setItems((prev) => prev.map((u) => (u.id === editingItem.id ? (editingItem as unknown as T) : u)));
-      setNotice('更新成功');
-    } else {
-      // Create
-      const newItem = {
-        ...editingItem,
-        id: String(Date.now()),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as unknown as T;
-      setItems((prev) => [newItem, ...prev]);
-      setNotice('新增成功');
-    }
-
-    setDrawerOpen(false);
-    setEditingItem(null);
-    setTimeout(() => setNotice(null), 3000);
-  };
-
-  const handleToggleStatus = (item: T, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const nextStatus = item.status === '启用' || item.status === 'ACTIVE'
-      ? (item.status === '启用' ? '禁用' : 'DISABLED')
-      : (item.status === '禁用' ? '启用' : 'ACTIVE');
-
-    setItems((prev) =>
-      prev.map((u) => (u.id === item.id ? { ...u, status: nextStatus } : u))
-    );
-    setNotice('状态修改成功');
-    setTimeout(() => setNotice(null), 3000);
-  };
-
-  const openDelete = (item: T, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setDeletingItem(item);
-  };
-
-  const handleDelete = () => {
-    if (!deletingItem) return;
-    setItems((prev) => prev.filter((u) => u.id !== deletingItem.id));
-    setDeletingItem(null);
-    setNotice('删除成功');
-    setTimeout(() => setNotice(null), 3000);
-  };
-
   return (
     <section className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -220,15 +133,14 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
           <h1 className="text-3xl font-semibold tracking-tight text-[#2f2f2f]">{title}</h1>
           <p className="mt-2 text-sm text-[#8c8c8c]">{description}</p>
         </div>
-        {fields.length > 0 && (
-          <Button onClick={openCreate} className="bg-[#2f6f2f] hover:bg-[#235623]">
-            ＋ 新增{primaryLabel}
-          </Button>
-        )}
+        <span className="shrink-0 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+          演示数据 · 只读
+        </span>
       </div>
 
-      {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-      {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        此页面尚未接入真实后端，当前内容仅用于展示字段与布局。新增、编辑、状态切换和删除均已禁用，不能作为运营数据使用。
+      </div>
 
       {/* Filters section */}
       {(filters.length > 0 || searchField) && (
@@ -368,33 +280,6 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
                         >
                           查看
                         </button>
-                        {fields.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={(e) => openEdit(item, e)}
-                            className="text-[#6f8b62] hover:text-[#2f6f2f] font-semibold"
-                          >
-                            编辑
-                          </button>
-                        )}
-                        {item.status !== undefined && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleStatus(item, e)}
-                            className="text-[#c27b48] hover:text-[#a35f2f] font-semibold"
-                          >
-                            {item.status === 'ACTIVE' || item.status === '启用' ? '禁用' : '启用'}
-                          </button>
-                        )}
-                        {fields.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={(e) => openDelete(item, e)}
-                            className="text-red-500 hover:text-red-600 font-semibold"
-                          >
-                            删除
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -442,75 +327,6 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
         </div>
       </div>
 
-      {/* Edit Drawer */}
-      <Drawer
-        title={editingItem?.id ? `编辑${primaryLabel}` : `新增${primaryLabel}`}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        widthClassName="max-w-xl"
-      >
-        <div className="space-y-4">
-          {fields.map((field) => (
-            <div key={field.key} className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-[#2f2f2f]">
-                {field.label} {field.required ? '*' : ''}
-              </span>
-              {field.type === 'textarea' ? (
-                <textarea
-                  value={String(editingItem?.[field.key] ?? '')}
-                  onChange={(e) => updateEditingItem(field.key, e.target.value)}
-                  className="min-h-24 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#7a8b6f]"
-                />
-              ) : field.type === 'select' ? (
-                <select
-                  value={String(editingItem?.[field.key] ?? '')}
-                  onChange={(e) => updateEditingItem(field.key, e.target.value)}
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]"
-                >
-                  <option value="">请选择</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              ) : field.type === 'checkbox' ? (
-                <label className="flex items-center gap-2 py-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(editingItem?.[field.key])}
-                    onChange={(e) => updateEditingItem(field.key, e.target.checked)}
-                    className="h-4 w-4 rounded border-zinc-300 accent-[#7a8b6f]"
-                  />
-                  <span className="text-sm text-zinc-700">在 App 中启用</span>
-                </label>
-              ) : (
-                <Input
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  value={editingItem?.[field.key] === null ? '' : String(editingItem?.[field.key] ?? '')}
-                  onChange={(e) =>
-                    updateEditingItem(
-                      field.key,
-                      field.type === 'number' ? Number(e.target.value) : e.target.value
-                    )
-                  }
-                  className="h-10 rounded-xl"
-                />
-              )}
-            </div>
-          ))}
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-[#f5f1ea]">
-            <Button variant="ghost" onClick={() => setDrawerOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={handleSave} className="bg-[#2f6f2f] hover:bg-[#235623]">
-              保存
-            </Button>
-          </div>
-        </div>
-      </Drawer>
-
       {/* Details Drawer */}
       <Drawer
         title={`${primaryLabel}详情`}
@@ -545,19 +361,19 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
                     </div>
                   </div>
                 )}
-                {selectedItem.createdAt && (
+                {formatUnknownDate(selectedItem.createdAt) && (
                   <div>
                     <span className="text-xs text-[#8c8c8c]">创建时间</span>
                     <div className="mt-1 text-sm text-[#2f2f2f]">
-                      {new Date(selectedItem.createdAt).toLocaleString()}
+                      {formatUnknownDate(selectedItem.createdAt)}
                     </div>
                   </div>
                 )}
-                {selectedItem.updatedAt && (
+                {formatUnknownDate(selectedItem.updatedAt) && (
                   <div>
                     <span className="text-xs text-[#8c8c8c]">更新时间</span>
                     <div className="mt-1 text-sm text-[#2f2f2f]">
-                      {new Date(selectedItem.updatedAt).toLocaleString()}
+                      {formatUnknownDate(selectedItem.updatedAt)}
                     </div>
                   </div>
                 )}
@@ -567,30 +383,11 @@ export const GenericMockListPage = <T extends { id: string | number; status?: st
               <Button variant="ghost" onClick={() => setSelectedItem(null)}>
                 关闭
               </Button>
-              {fields.length > 0 && (
-                <Button onClick={() => {
-                  const item = selectedItem;
-                  setSelectedItem(null);
-                  openEdit(item);
-                }} className="bg-[#7a8b6f] hover:bg-[#68775f]">
-                  编辑
-                </Button>
-              )}
             </div>
           </div>
         )}
       </Drawer>
 
-      {/* Delete confirmation modal */}
-      <ConfirmModal
-        title={`确认删除${primaryLabel}`}
-        open={Boolean(deletingItem)}
-        onClose={() => setDeletingItem(null)}
-        description={deletingItem ? `确定要删除 ${primaryLabel}「${deletingItem.name || deletingItem.title || deletingItem.id}」吗？该操作不可撤销。` : null}
-        confirmText="确认删除"
-        danger
-        onConfirm={handleDelete}
-      />
     </section>
   );
 };

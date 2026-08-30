@@ -27,3 +27,17 @@ test('我的菜谱卡片只通过整卡进入详情', () => {
   assert.match(source, /@tap="openMyRecipe\(recipe\.id\)"/);
   assert.doesNotMatch(source, /mine-recipe-card__more|mine-recipe-card--more/);
 });
+
+test('家庭名称按原型在当前页展开家庭下拉，而不是直接跳页', () => {
+  assert.match(source, /class="family-name-button"[^>]*@tap="toggleFamilyMenu"/);
+  assert.match(source, /v-if="isFamilyMenuVisible"[^>]*class="family-dropdown"/);
+  assert.match(source, /v-for="family in familyOptions"/);
+  assert.match(source, /@tap="selectFamily\(family\.id\)"/);
+  assert.match(source, /saveActiveFamilyId/);
+  assert.match(source, /管理家庭/);
+});
+
+test('家庭入口保持列表到详情再到成员的二三级层级', () => {
+  assert.match(source, /const goToCurrentFamily = \(\) => navigateTo\('\/pages\/family\/index'\)/);
+  assert.doesNotMatch(source, /const goToCurrentFamily[\s\S]*?pages\/family-manage\/index/);
+});

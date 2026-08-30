@@ -322,7 +322,7 @@ export type ApiRecipeDetail = ApiRecipeListItem & {
   calories: number | null;
   tips: string | null;
   steps: { id: number; sortIndex: number; title: string | null; description: string; image: string | null }[];
-  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null; ingredient?: { cover: string | null } | null }[];
+  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null; ingredient?: { cover: string | null; transparentImage: string | null } | null }[];
   beverages?: {
     recommendReason: string | null;
     sortOrder: number;
@@ -366,11 +366,26 @@ export type ApiIngredientListItem = {
   id: number;
   name: string;
   cover: string | null;
+  transparentImage: string | null;
+  displayImage: string | null;
   seasonMonth: string | null;
+  season: ApiIngredientSeasonPresentation;
   currentPrice: number | null;
   priceUnit: string | null;
   updatedAt: string;
   category?: { id: number; name: string; type: 'INGREDIENT' } | null;
+};
+
+export type ApiIngredientGuideItem = {
+  title: string;
+  description: string;
+};
+
+export type ApiIngredientSeasonPresentation = {
+  startMonth: number | null;
+  endMonth: number | null;
+  label: string;
+  isInSeason: boolean;
 };
 
 export type ApiIngredientDetail = ApiIngredientListItem & {
@@ -383,6 +398,9 @@ export type ApiIngredientDetail = ApiIngredientListItem & {
   relatedRecipes: unknown;
   priceSource: string | null;
   priceDate: string | null;
+  selectionGuide: ApiIngredientGuideItem[];
+  storageGuide: ApiIngredientGuideItem[];
+  eatingGuide: ApiIngredientGuideItem[];
 };
 
 export type ApiBeverageDetail = {
@@ -391,6 +409,7 @@ export type ApiBeverageDetail = {
   code?: string | null;
   name: string;
   coverImage: string | null;
+  transparentImage: string | null;
   categoryId: number | null;
   beverageType: string | null;
   isAlcoholic: boolean;
@@ -426,7 +445,15 @@ export const listIngredients = async (params: { page: number; pageSize: number; 
   const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
   if (params.q) qs.set('q', params.q);
   const data = await request<PageResult<ApiIngredientListItem>>(`/ingredients?${qs.toString()}`);
-  return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) })) };
+  return {
+    ...data,
+    list: data.list.map((item) => ({
+      ...item,
+      cover: resolveAssetUrl(item.cover),
+      transparentImage: item.transparentImage ? resolveAssetUrl(item.transparentImage, '') : null,
+      displayImage: item.displayImage ? resolveAssetUrl(item.displayImage, '') : null
+    }))
+  };
 };
 
 export const getIngredient = async (id: string | number) => {
@@ -434,6 +461,8 @@ export const getIngredient = async (id: string | number) => {
   return {
     ...data,
     cover: resolveAssetUrl(data.cover),
+    transparentImage: data.transparentImage ? resolveAssetUrl(data.transparentImage, '') : null,
+    displayImage: data.displayImage ? resolveAssetUrl(data.displayImage, '') : null,
     detailImages: Array.isArray(data.detailImages) ? data.detailImages.map((url) => resolveAssetUrl(url, data.cover ?? undefined)) : []
   };
 };
@@ -442,7 +471,8 @@ export const getBeverage = async (id: string) => {
   const data = await request<ApiBeverageDetail>(`/beverages/${encodeURIComponent(id)}`);
   return {
     ...data,
-    coverImage: resolveAssetUrl(data.coverImage)
+    coverImage: resolveAssetUrl(data.coverImage),
+    transparentImage: data.transparentImage ? resolveAssetUrl(data.transparentImage, '') : null
   };
 };
 
@@ -579,15 +609,14 @@ export type ApiMobileAuthSession = {
 };
 
 export const loginMobileAuth = async (payload: {
-  phone?: string;
-  openid?: string;
-  nickname?: string;
-  avatar?: string;
+  phone: string;
+  password: string;
 }) => {
   return request<ApiMobileAuthSession>('/mobile/auth/login', {
     method: 'POST',
     data: payload,
-    auth: false
+    auth: false,
+    handleAuthExpired: false
   });
 };
 
@@ -701,6 +730,7 @@ export type ApiSearchHistory = {
   id: number;
   userId: number;
   keyword: string;
+  searchCount: number;
   resultCount: number;
   createdAt: string;
   updatedAt: string;
@@ -1122,6 +1152,8 @@ export type HomeModuleItem = {
   title?: string;
   name?: string;
   cover: string | null;
+  transparentImage?: string | null;
+  displayImage?: string | null;
   subtitle?: string | null;
   buttonText?: string | null;
   jumpType?: string | null;
@@ -1163,7 +1195,9 @@ export const getHomeModules = async (navId: string, categoryId?: string) => {
     ...mod,
     items: mod.items.map((item) => ({
       ...item,
-      cover: item.cover ? resolveAssetUrl(item.cover) : null
+      cover: item.cover ? resolveAssetUrl(item.cover) : null,
+      transparentImage: item.transparentImage ? resolveAssetUrl(item.transparentImage, '') : null,
+      displayImage: item.displayImage ? resolveAssetUrl(item.displayImage, '') : null
     }))
   }));
 };

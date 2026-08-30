@@ -8,29 +8,29 @@
       <view class="topbar-spacer" />
     </view>
 
-    <view class="profile-hero glass-card">
+    <view class="profile-card">
       <button
-        class="avatar-stage"
+        class="profile-avatar-row"
         :disabled="isLoading || isSaving || isUploading"
         aria-label="更换头像"
         @tap="chooseAvatar"
       >
-        <image class="avatar" :src="draft.avatarUrl" mode="aspectFill" />
-        <text class="avatar-action">{{ isUploading ? `${uploadProgress}%` : '更换' }}</text>
+        <view class="profile-avatar-copy">
+          <text class="field-label">头像</text>
+          <text class="avatar-spec">JPG、PNG、WebP · 512×512 以上 · 不超过 5MB</text>
+        </view>
+        <view class="profile-avatar-control">
+          <image class="avatar" :src="draft.avatarUrl" mode="aspectFill" />
+          <app-icon name="chevron-right" size="28rpx" />
+        </view>
       </button>
-      <text class="preview-name">{{ draft.nickname || '未设置昵称' }}</text>
-      <text class="preview-bio">{{ draft.bio || '填写一句自己的厨房签名' }}</text>
-      <text class="avatar-spec">JPG、PNG 或 WebP，至少 512×512，最大 5MB</text>
       <view v-if="isUploading || uploadError" class="upload-status" aria-live="polite">
         <text v-if="isUploading" class="upload-status__text">头像上传中 {{ uploadProgress }}%</text>
         <text v-else class="upload-status__error">{{ uploadError }}</text>
         <button v-if="isUploading" class="upload-status__button" @tap="cancelAvatarUpload">取消</button>
         <button v-else class="upload-status__button" @tap="retryAvatarUpload">重试</button>
       </view>
-    </view>
-
-    <view class="form-card glass-card">
-      <view class="form-row">
+      <view class="profile-field-row">
         <text class="field-label">昵称</text>
         <input
           v-model="draft.nickname"
@@ -41,7 +41,7 @@
         />
       </view>
 
-      <view class="form-row">
+      <view class="profile-field-row profile-field-row--bio">
         <view class="row-copy">
           <text class="field-label">个性签名</text>
           <text class="field-count">{{ bioCount }}/40</text>
@@ -377,10 +377,10 @@ onUnload(() => {
 }
 
 .back-button {
-  border-radius: 50%;
-  background: var(--app-surface-strong);
+  border-radius: var(--app-radius-button);
+  background: transparent;
   color: var(--app-text);
-  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 
 .back-button::after {
@@ -389,11 +389,7 @@ onUnload(() => {
 
 .page-title,
 .field-label,
-.field-desc,
-.field-count,
-.preview-name,
-.preview-bio,
-.avatar-action {
+.field-count {
   display: block;
 }
 
@@ -409,86 +405,73 @@ onUnload(() => {
   height: var(--touch-target);
 }
 
-.profile-hero {
+.profile-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 44rpx 34rpx 38rpx;
+  overflow: hidden;
   border-radius: var(--app-radius-card);
-  background: #fffdfc;
+  border: 1rpx solid var(--app-border);
+  background: var(--app-surface-strong);
 }
 
-.avatar-stage {
-  position: relative;
-  display: block;
-  width: 150rpx;
-  height: 150rpx;
-  margin-bottom: 24rpx;
-  padding: 0;
+.profile-avatar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 164rpx;
+  padding: 22rpx 26rpx;
   border: 0;
-  border-radius: 50%;
+  border-radius: 0;
   background: transparent;
+  color: var(--app-text);
+  text-align: left;
 }
 
-.avatar-stage::after,
+.profile-avatar-row::after,
 .upload-status__button::after {
   border: 0;
 }
 
+.profile-avatar-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding-right: 24rpx;
+  gap: 8rpx;
+}
+
+.profile-avatar-control {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: var(--app-text-tertiary);
+  gap: 14rpx;
+}
+
 .avatar {
-  width: 150rpx;
-  height: 150rpx;
-  border: 6rpx solid #fffdfc;
-  border-radius: 50%;
-  background: #e9e2d6;
-  box-shadow: 0 18rpx 44rpx rgba(0, 0, 0, 0.06);
-}
-
-.avatar-action {
-  position: absolute;
-  right: -10rpx;
-  bottom: 2rpx;
-  padding: 8rpx 14rpx;
-  border-radius: var(--app-radius-button);
-  background: var(--app-accent);
-  color: var(--text-white);
-  font-size: var(--font-size-tabbar);
-  font-weight: var(--font-semibold);
-}
-
-.preview-name {
-  max-width: 100%;
-  color: var(--app-text);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-card-title);
-  text-align: center;
-}
-
-.preview-bio {
-  max-width: 520rpx;
-  margin-top: 12rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-  text-align: center;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 28rpx;
+  background: var(--app-muted);
+  object-fit: cover;
 }
 
 .avatar-spec {
   display: block;
-  margin-top: 18rpx;
   color: var(--app-text-tertiary);
   font-size: var(--font-size-caption);
   line-height: var(--line-body-sm);
-  text-align: center;
 }
 
 .upload-status {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 72rpx;
-  margin-top: 14rpx;
+  justify-content: space-between;
+  min-height: 64rpx;
+  padding: 0 26rpx 16rpx;
   gap: 12rpx;
 }
 
@@ -515,27 +498,26 @@ onUnload(() => {
   font-weight: var(--font-medium);
 }
 
-.form-card {
-  margin-top: 22rpx;
-  padding: 26rpx 26rpx 28rpx;
-  border-radius: var(--app-radius-card);
-  background: #fffdfc;
-}
-
-.form-row {
-  padding-top: 0;
-}
-
-.form-row + .form-row {
-  margin-top: 24rpx;
+.profile-field-row {
+  display: flex;
+  align-items: center;
+  min-height: 104rpx;
+  margin: 0 26rpx;
+  padding: 16rpx 0;
   border-top: 1rpx solid var(--app-border);
+}
+
+.profile-field-row--bio {
+  align-items: flex-start;
+  min-height: 136rpx;
 }
 
 .row-copy {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20rpx;
+  flex-shrink: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6rpx;
 }
 
 .field-label {
@@ -552,30 +534,32 @@ onUnload(() => {
 }
 
 .text-input {
-  width: 100%;
-  height: 92rpx;
-  margin-top: 16rpx;
-  padding: 0 26rpx;
+  flex: 1;
+  min-width: 0;
+  height: 72rpx;
+  margin-left: 28rpx;
+  padding: 0;
   border: 0;
-  border-radius: 28rpx;
-  background: #e9e2d6;
+  background: transparent;
   color: var(--app-text);
   font-size: var(--font-size-body-sm);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-regular);
+  text-align: right;
 }
 
 .text-area {
-  width: 100%;
-  min-height: 176rpx;
-  margin-top: 16rpx;
-  padding: 22rpx 26rpx;
+  flex: 1;
+  min-width: 0;
+  min-height: 104rpx;
+  margin-left: 28rpx;
+  padding: 0;
   border: 0;
-  border-radius: 28rpx;
-  background: #e9e2d6;
+  background: transparent;
   color: var(--app-text);
   font-size: var(--font-size-body-sm);
-  font-weight: var(--font-semibold);
+  font-weight: var(--font-regular);
   line-height: var(--line-body-sm);
+  text-align: right;
 }
 
 .actions {

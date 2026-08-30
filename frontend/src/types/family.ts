@@ -1,4 +1,4 @@
-export type FamilyMemberRole = '管理员' | '成员';
+export type FamilyMemberRole = '创建者' | '管理员' | '成员';
 
 export interface FamilyMember {
   id: string;

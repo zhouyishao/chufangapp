@@ -13,6 +13,7 @@ import {
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { TransparentImageUpload } from '../components/TransparentImageUpload';
 import type { Ingredient, IngredientCategory } from '../types';
 
 export type PriceRecordItem = {
@@ -41,6 +42,7 @@ export type Draft = {
 
   // 2. 封面与图片
   coverImage: string | null;
+  transparentImage: string | null;
   imageList: string[];
   imageDescription: string | null;
   videoUrl: string | null;
@@ -100,6 +102,7 @@ const emptyDraft: Draft = {
   description: null,
 
   coverImage: null,
+  transparentImage: null,
   imageList: [],
   imageDescription: null,
   videoUrl: null,
@@ -210,6 +213,7 @@ const serializeDraftToPayload = (draft: Draft) => {
   return {
     name: draft.seasoningName.trim(),
     coverUrl: draft.coverImage,
+    transparentImage: draft.transparentImage,
     categoryId: draft.categoryId,
     seasonMonth: null,
     nutrition: '',
@@ -273,6 +277,7 @@ const deserializePayloadToDraft = (ingredient: Ingredient): Draft => {
     description: selectionTipsObj.description ?? (ingredient.nutrition && !ingredient.nutrition.startsWith('{') ? ingredient.nutrition : null),
 
     coverImage: ingredient.cover,
+    transparentImage: ingredient.transparentImage,
     imageList: Array.isArray(ingredient.detailImages) ? ingredient.detailImages : [],
     imageDescription: tabooObj.imageDescription ?? null,
     videoUrl: ingredient.selectionMedia ?? null,
@@ -814,6 +819,12 @@ export const SeasoningFormPage = ({ mode }: Props) => {
                     </button>
                   )}
                 </div>
+
+                <TransparentImageUpload
+                  value={draft.transparentImage}
+                  onChange={(transparentImage) => setDraft((d) => ({ ...d, transparentImage }))}
+                  onError={setError}
+                />
 
                 {/* 图片集 */}
                 <div>

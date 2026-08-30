@@ -144,14 +144,16 @@ export const serializeModuleForApp = async (mod: {
       } else if (isIngredientType) {
         const ingredient = await prisma.ingredient.findFirst({
           where: { ...buildPublicIdWhere(item.id), deletedAt: null, status: 'ACTIVE', isPublish: true },
-          select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+          select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
         });
         if (ingredient) {
           resolvedItems.push({
             id: getPublicId('ingredient', ingredient),
             type: mod.contentType.toLowerCase(),
             name: ingredient.name,
-            cover: ingredient.cover,
+            cover: ingredient.transparentImage ?? ingredient.cover,
+            transparentImage: ingredient.transparentImage,
+            displayImage: ingredient.transparentImage ?? ingredient.cover,
             currentPrice: ingredient.currentPrice,
             priceUnit: ingredient.priceUnit,
             sortOrder: item.sortOrder
@@ -202,13 +204,15 @@ export const serializeModuleForApp = async (mod: {
         where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: sourceCategoryId },
         orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+        select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
       });
       resolvedItems = ingredients.map((ing, i) => ({
         id: getPublicId('ingredient', ing),
         type: mod.contentType.toLowerCase(),
         name: ing.name,
-        cover: ing.cover,
+        cover: ing.transparentImage ?? ing.cover,
+        transparentImage: ing.transparentImage,
+        displayImage: ing.transparentImage ?? ing.cover,
         currentPrice: ing.currentPrice,
         priceUnit: ing.priceUnit,
         sortOrder: i
@@ -257,13 +261,15 @@ export const serializeModuleForApp = async (mod: {
         where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: sourceCategoryId },
         orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+        select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
       });
       resolvedItems = ingredients.map((ing, i) => ({
         id: getPublicId('ingredient', ing),
         type: mod.contentType.toLowerCase(),
         name: ing.name,
-        cover: ing.cover,
+        cover: ing.transparentImage ?? ing.cover,
+        transparentImage: ing.transparentImage,
+        displayImage: ing.transparentImage ?? ing.cover,
         currentPrice: ing.currentPrice,
         priceUnit: ing.priceUnit,
         sortOrder: i
@@ -336,13 +342,15 @@ export const serializeModuleForApp = async (mod: {
         },
         orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+        select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
       });
       resolvedItems = ingredients.map((ing, i) => ({
         id: getPublicId('ingredient', ing),
         type: mod.contentType.toLowerCase(),
         name: ing.name,
-        cover: ing.cover,
+        cover: ing.transparentImage ?? ing.cover,
+        transparentImage: ing.transparentImage,
+        displayImage: ing.transparentImage ?? ing.cover,
         currentPrice: ing.currentPrice,
         priceUnit: ing.priceUnit,
         sortOrder: i
@@ -400,7 +408,7 @@ export const serializeModuleForApp = async (mod: {
         },
         orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, bizId: true, code: true, name: true, cover: true, currentPrice: true, priceUnit: true, seasonMonth: true }
+        select: { id: true, bizId: true, code: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true, seasonMonth: true }
       });
       resolvedItems = ingredients.map((ingredient, index) => ({
         id: getPublicId('ingredient', ingredient),
@@ -408,7 +416,9 @@ export const serializeModuleForApp = async (mod: {
         type: mod.contentType.toLowerCase(),
         name: ingredient.name,
         title: ingredient.name,
-        cover: ingredient.cover,
+        cover: ingredient.transparentImage ?? ingredient.cover,
+        transparentImage: ingredient.transparentImage,
+        displayImage: ingredient.transparentImage ?? ingredient.cover,
         currentPrice: ingredient.currentPrice,
         priceUnit: ingredient.priceUnit,
         seasonMonth: ingredient.seasonMonth,

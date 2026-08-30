@@ -72,21 +72,30 @@ const goLegal = (type: 'terms' | 'privacy') => {
 }
 
 .topbar {
+  display: flex;
+  min-height: 72rpx;
+  align-items: center;
+  justify-content: flex-start;
   margin-bottom: 18rpx;
 }
 
 .back-button {
   display: flex;
+  flex: 0 0 72rpx;
   align-items: center;
   justify-content: center;
   width: 72rpx;
   height: 72rpx;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   border: 0;
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
   font-size: var(--font-size-card-title);
   font-weight: var(--font-medium);
+  line-height: 1;
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -161,25 +170,40 @@ const goLegal = (type: 'terms' | 'privacy') => {
   margin-top: 22rpx;
 }
 
-.primary-button,
-.secondary-button {
+.primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 88rpx;
+  margin: 0;
+  padding: 0 24rpx;
+  box-sizing: border-box;
   border: 0;
   border-radius: var(--app-radius-button);
+  line-height: var(--line-list-title);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-semibold);
-}
-
-.primary-button {
   background: var(--app-accent);
   color: var(--text-white);
 }
 
 .secondary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 88rpx;
   margin-top: 16rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
 }
 
 .agreement {

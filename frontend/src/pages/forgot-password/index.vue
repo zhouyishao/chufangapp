@@ -8,39 +8,11 @@
     </view>
 
     <view class="form-card glass-card">
-      <text class="step-label">{{ stepLabel }}</text>
-      <text class="title">{{ title }}</text>
-      <text class="desc">{{ desc }}</text>
+      <text class="eyebrow">密码重置</text>
+      <text class="title">自助找回暂未开放</text>
+      <text class="desc">当前未接入短信验证码。请联系管理员重置密码，之后使用手机号和新密码登录。</text>
+      <button class="primary-button" @tap="goToPhoneLogin">返回账号登录</button>
 
-      <view v-if="step === 'phone'" class="field">
-        <text class="field-label">手机号</text>
-        <input v-model="phone" class="input" type="number" maxlength="11" placeholder="请输入手机号" />
-        <button class="primary-button" @tap="sendCode">发送验证码</button>
-      </view>
-
-      <view v-else-if="step === 'code'" class="code-section">
-        <text class="phone-tip">验证码已发送至 {{ maskedPhone }}</text>
-        <input
-          v-model="code"
-          class="code-input"
-          type="number"
-          maxlength="6"
-          focus
-          placeholder="000000"
-          @input="handleCodeInput"
-        />
-        <text class="code-help">填写 6 位验证码后自动验证</text>
-      </view>
-
-      <view v-else class="field">
-        <text class="field-label">新密码</text>
-        <input v-model="password" class="input" password placeholder="至少 6 位" />
-        <view class="field">
-          <text class="field-label">确认新密码</text>
-          <input v-model="confirmPassword" class="input" password placeholder="再次输入新密码" />
-        </view>
-        <button class="primary-button" @tap="resetPassword">保存新密码</button>
-      </view>
       <view class="agreement">
         <button class="text-button" @tap="goLegal('terms')">服务协议</button>
         <text>与</text>
@@ -51,101 +23,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import AppIcon from '../../components/app/app-icon.vue';
-import { isValidPassword, isValidPhone, maskPhone, resetAuthPassword } from '../../services/auth';
-
-type ResetStep = 'phone' | 'code' | 'password';
-
-const step = ref<ResetStep>('phone');
-const phone = ref('');
-const code = ref('');
-const password = ref('');
-const confirmPassword = ref('');
-
-const stepLabel = computed(() => {
-  if (step.value === 'phone') {
-    return '1/3 验证手机号';
-  }
-  if (step.value === 'code') {
-    return '2/3 输入验证码';
-  }
-  return '3/3 修改密码';
-});
-
-const title = computed(() => {
-  if (step.value === 'phone') {
-    return '输入手机号';
-  }
-  if (step.value === 'code') {
-    return '验证身份';
-  }
-  return '设置新密码';
-});
-
-const desc = computed(() => {
-  if (step.value === 'phone') {
-    return '先验证手机号，再修改登录密码。';
-  }
-  if (step.value === 'code') {
-    return '验证码验证通过后，可以重新设置密码。';
-  }
-  return '新密码保存后，可用手机号和新密码登录。';
-});
-
-const maskedPhone = computed(() => maskPhone(phone.value));
 
 const goBack = () => {
-  if (step.value === 'password') {
-    step.value = 'code';
-    return;
-  }
-  if (step.value === 'code') {
-    step.value = 'phone';
-    return;
-  }
   if (getCurrentPages().length <= 1) {
     uni.reLaunch({ url: '/pages/phone-login/index' });
     return;
   }
-
   uni.navigateBack();
 };
 
-const sendCode = async () => {
-  if (!isValidPhone(phone.value)) {
-    uni.showToast({ title: '请输入正确手机号', icon: 'none' });
-    return;
-  }
-
-  code.value = '';
-  step.value = 'code';
-  uni.showToast({ title: '验证码已发送', icon: 'none' });
-};
-
-const handleCodeInput = () => {
-  if (code.value.trim().length < 6) {
-    return;
-  }
-
-  step.value = 'password';
-};
-
-const resetPassword = async () => {
-  if (!isValidPassword(password.value)) {
-    uni.showToast({ title: '密码至少 6 位', icon: 'none' });
-    return;
-  }
-  if (password.value !== confirmPassword.value) {
-    uni.showToast({ title: '两次密码不一致', icon: 'none' });
-    return;
-  }
-
-  resetAuthPassword(phone.value, password.value);
-  uni.showToast({ title: '密码已修改', icon: 'success' });
-  setTimeout(() => {
-    uni.reLaunch({ url: '/pages/phone-login/index' });
-  }, 350);
+const goToPhoneLogin = () => {
+  uni.reLaunch({ url: '/pages/phone-login/index' });
 };
 
 const goLegal = (type: 'terms' | 'privacy') => {
@@ -155,7 +44,7 @@ const goLegal = (type: 'terms' | 'privacy') => {
 
 <style scoped lang="scss">
 .auth-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: calc(var(--app-safe-area-top) + 22rpx) 30rpx 60rpx;
   background: var(--app-bg);
 }
@@ -173,13 +62,14 @@ const goLegal = (type: 'terms' | 'privacy') => {
   justify-content: center;
   width: 72rpx;
   height: 72rpx;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   border: 0;
   border-radius: 50%;
-  background: #fffdfc;
+  background: var(--app-surface-strong);
   color: var(--app-text);
-  font-size: var(--font-size-card-title);
-  font-weight: var(--font-medium);
-  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
+  line-height: 1;
 }
 
 .top-title {
@@ -190,8 +80,58 @@ const goLegal = (type: 'terms' | 'privacy') => {
 }
 
 .back-button::after,
-.primary-button::after {
+.primary-button::after,
+.text-button::after {
   border: 0;
+}
+
+.form-card {
+  padding: 40rpx 34rpx 30rpx;
+}
+
+.eyebrow,
+.title,
+.desc {
+  display: block;
+}
+
+.eyebrow {
+  color: var(--app-accent);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-semibold);
+}
+
+.title {
+  margin-top: 14rpx;
+  color: var(--app-text);
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-page-title);
+}
+
+.desc {
+  margin-top: 18rpx;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-body);
+}
+
+.primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 88rpx;
+  margin-top: 42rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--app-radius-button);
+  background: var(--app-accent);
+  color: var(--text-white);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
 }
 
 .agreement {
@@ -204,106 +144,18 @@ const goLegal = (type: 'terms' | 'privacy') => {
 }
 
 .text-button {
-  min-height: 72rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 64rpx;
+  margin: 0;
+  padding: 0 8rpx;
+  box-sizing: border-box;
   border: 0;
   background: transparent;
   color: var(--app-text-secondary);
   font-size: var(--font-size-tag);
-}
-
-.text-button::after {
-  border: 0;
-}
-
-.form-card {
-  padding: 34rpx;
-}
-
-.step-label,
-.title,
-.desc,
-.field-label,
-.phone-tip,
-.code-help {
-  display: block;
-}
-
-.step-label {
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tabbar);
   font-weight: var(--font-medium);
-}
-
-.title {
-  margin-top: 14rpx;
-  color: var(--app-text);
-  font-size: var(--font-size-detail-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-detail-title);
-}
-
-.desc {
-  margin-top: 14rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-}
-
-.field,
-.code-section {
-  margin-top: 28rpx;
-}
-
-.field-label {
-  margin-bottom: 12rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-medium);
-}
-
-.input {
-  height: 82rpx;
-  padding: 0 24rpx;
-  border-radius: 28rpx;
-  background: #e9e2d6;
-  color: var(--app-text);
-  font-size: var(--font-size-body-sm);
-}
-
-.primary-button {
-  width: 100%;
-  height: 88rpx;
-  margin-top: 34rpx;
-  border: 0;
-  border-radius: var(--app-radius-button);
-  background: var(--app-accent);
-  color: var(--text-white);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-semibold);
-}
-
-.phone-tip {
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-}
-
-.code-input {
-  width: 100%;
-  height: 112rpx;
-  margin-top: 24rpx;
-  border-radius: 32rpx;
-  background: #e9e2d6;
-  color: var(--app-text);
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-semibold);
-  letter-spacing: 12rpx;
-  text-align: center;
-}
-
-.code-help {
-  margin-top: 16rpx;
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tabbar);
-  text-align: center;
+  line-height: var(--line-list-title);
 }
 </style>

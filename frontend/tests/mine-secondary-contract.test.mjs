@@ -29,6 +29,16 @@ test('家庭列表提供创建和扫码加入两个入口，并区分加载错�
   assert.match(source, /v-else-if="!families\.length"/);
   assert.match(source, /family\.avatar/);
   assert.match(source, /family-card__avatar/);
+  assert.match(source, /pages\/family-manage\/index\?id=/);
+});
+
+test('家庭详情进入成员三级页，备注只表示成员称呼', async () => {
+  const manage = await read('../src/pages/family-manage/index.vue');
+  const member = await read('../src/pages/family-member/index.vue');
+  assert.match(manage, /pages\/family-member\/index\?familyId=/);
+  assert.match(member, /设置备注名/);
+  assert.match(member, /例如：妈妈|例如：爸爸|家人称呼/);
+  assert.doesNotMatch(member, /例如：负责买菜/);
 });
 
 test('我的菜谱页面不再展示已否决的草稿功能', async () => {

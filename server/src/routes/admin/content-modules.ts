@@ -46,6 +46,13 @@ const statusSchema = z.object({
   status: z.enum(moduleStatuses)
 });
 
+const reorderSchema = z.object({
+  items: z.array(z.object({
+    id: z.coerce.number().int().positive(),
+    sortOrder: z.coerce.number().int().min(1).max(999)
+  })).min(1)
+});
+
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -157,6 +164,42 @@ adminContentModulesRouter.get('/', requireAdminAuth, async (req, res) => {
     pageSize
   };
   res.json(ok(data));
+});
+
+adminContentModulesRouter.patch('/reorder', requireAdminAuth, async (req, res) => {
+  const nav = await getExistingNav(String(req.params.navId));
+  const parsed = reorderSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError('排序参数错误', 400, 400);
+
+  const existingModules = await prisma.contentModule.findMany({
+    where: { navId: nav.id },
+    select: { id: true }
+  });
+  const submittedIds = new Set(parsed.data.items.map((item) => item.id));
+  const submittedOrders = new Set(parsed.data.items.map((item) => item.sortOrder));
+  const expectedOrders = parsed.data.items.map((_, index) => index + 1);
+  const isCompleteList = submittedIds.size === existingModules.length
+    && parsed.data.items.length === existingModules.length
+    && existingModules.every((item) => submittedIds.has(item.id));
+  const isCompleteSequence = submittedOrders.size === expectedOrders.length
+    && expectedOrders.every((sortOrder) => submittedOrders.has(sortOrder));
+
+  if (!isCompleteList || !isCompleteSequence) {
+    throw new HttpError('请提交当前频道现有模块完整列表，并使用从 1 开始的连续排序值', 422, 422);
+  }
+
+  const reordered = await prisma.$transaction(async (tx) => {
+    await Promise.all(parsed.data.items.map((item) => tx.contentModule.update({
+      where: { id: item.id },
+      data: { sortOrder: item.sortOrder }
+    })));
+    return tx.contentModule.findMany({
+      where: { navId: nav.id },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
+    });
+  });
+
+  res.json(ok(reordered.map(serializeModule)));
 });
 
 adminContentModulesRouter.get('/:moduleId', requireAdminAuth, async (req, res) => {

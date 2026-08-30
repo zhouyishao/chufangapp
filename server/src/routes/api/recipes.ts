@@ -137,7 +137,7 @@ apiRecipesRouter.get('/:id', async (req, res) => {
       ingredients: {
         where: { deletedAt: null },
         orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }],
-        include: { ingredient: { select: { cover: true } } }
+        include: { ingredient: { select: { cover: true, transparentImage: true } } }
       },
       beverages: {
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],

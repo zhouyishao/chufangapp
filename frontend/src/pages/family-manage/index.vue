@@ -1,155 +1,97 @@
 <template>
-  <view class="app-page family-detail-page">
-    <view class="topbar">
-      <button class="nav-button" @tap="goBack">
+  <view class="app-page family-manage-page">
+    <view class="safe-top-spacer" aria-hidden="true" />
+    <view class="page-topbar">
+      <button class="topbar-button" aria-label="返回家庭管理" @tap="goBack">
         <app-icon name="arrow-left" size="26rpx" />
       </button>
-      <button class="nav-button" @tap="goToInvite">
-        <app-icon name="plus" size="26rpx" />
-      </button>
+      <text class="topbar-title">家庭成员</text>
+      <button v-if="canRenameFamily" class="topbar-action" @tap="openEdit">编辑</button>
+      <view v-else class="topbar-spacer" />
     </view>
 
-    <view v-if="hasFamilies" class="title-block" @tap="toggleFamilySelect">
-      <view class="family-avatar-wrap" @tap.stop="chooseFamilyAvatar">
-        <image v-if="currentFamily.avatar" class="family-avatar" :src="currentFamily.avatar" mode="aspectFill" />
-        <view v-else class="family-avatar family-avatar--empty">＋</view>
-        <text class="family-avatar-action">更换头像</text>
-      </view>
-      <view class="title-row">
-        <text class="family-title">{{ currentFamily.name }}</text>
-        <app-icon :class="['title-arrow', { 'is-open': isFamilySelectVisible }]" name="chevron-down" size="22rpx" />
-      </view>
-      <text class="family-subtitle">
-        {{ currentFamily.members.length }} 位成员 · {{ currentFamily.commonRecipes }} 道常做菜
-      </text>
-    </view>
-
-    <view v-else class="title-block">
-      <text class="family-title">家庭管理</text>
-      <text class="family-subtitle">创建家庭后，可以共享菜篮子、偏好和常做菜。</text>
-    </view>
-
-    <view v-if="isLoading" class="state-card glass-card">
+    <view v-if="isLoading" class="state-panel">
       <text class="state-title">正在加载家庭</text>
-      <text class="state-desc">正在同步家庭成员和偏好设置。</text>
     </view>
-
-    <view v-else-if="errorMessage" class="state-card glass-card">
-      <text class="state-title">家庭加载失败</text>
-      <text class="state-desc">{{ errorMessage }}</text>
-      <button class="primary-button state-button" @tap="retryLoadFamilies">重试</button>
+    <view v-else-if="errorMessage" class="state-panel">
+      <text class="state-title">家庭暂时没有加载出来</text>
+      <text class="state-copy">{{ errorMessage }}</text>
+      <button class="primary-action state-action" @tap="retryLoadFamilies">重新加载</button>
     </view>
-
-    <view v-else-if="!hasFamilies" class="state-card glass-card">
+    <view v-else-if="!hasFamilies" class="state-panel">
       <text class="state-title">还没有家庭</text>
-      <text class="state-desc">先创建一个家庭，再邀请家人一起维护菜篮子和口味偏好。</text>
-      <button class="primary-button state-button" @tap="goToCreateFamily">创建家庭</button>
+      <text class="state-copy">请返回家庭管理，创建或加入一个家庭。</text>
+      <button class="primary-action state-action" @tap="goToCreateFamily">创建家庭</button>
     </view>
 
-    <view v-if="hasFamilies && isFamilySelectVisible" class="select-mask" @tap="closeFamilySelect">
-      <view class="select-sheet glass-card" @tap.stop>
-        <text class="sheet-title">切换家庭</text>
-        <view class="sheet-list">
-          <view
-            v-for="family in families"
-            :key="family.id"
-            :class="['sheet-item', { 'is-active': family.id === currentFamily.id }]"
-            @tap="selectFamily(family.id)"
-          >
-            <view>
-              <text class="sheet-item__name">{{ family.name }}</text>
-              <text class="sheet-item__desc">{{ family.members.length }} 位成员</text>
-            </view>
-            <app-icon v-if="family.id === currentFamily.id" class="sheet-item__check" name="check" size="20rpx" />
-          </view>
+    <template v-else>
+      <view class="family-member-summary">
+        <view class="summary-copy-block">
+          <text class="summary-title">{{ currentFamily.members.length }} 位成员</text>
+          <text class="summary-copy">我的身份：{{ currentRole }}</text>
         </view>
+        <button class="family-code-entry" @tap="goToInvite">
+          <app-icon name="qr-code" size="24rpx" />
+          <text>家庭码</text>
+        </button>
       </view>
-    </view>
 
-    <template v-if="hasFamilies">
-    <view class="section glass-card">
-      <text class="section-label">家庭成员（{{ currentFamily.members.length }}）</text>
-      <view class="cell-list">
-        <view
+      <view class="family-member-directory">
+        <button
           v-for="member in currentFamily.members"
           :key="member.id"
-          class="cell"
+          class="member-row"
           @tap="openMember(member.id)"
         >
-          <image class="cell-avatar" :src="member.avatar" mode="aspectFill" />
-          <view class="cell-main">
-            <text class="cell-title">{{ formatMemberTitle(member) }}</text>
-            <text class="cell-subtitle">{{ member.role }}</text>
+          <image v-if="member.avatar" class="member-avatar" :src="member.avatar" mode="aspectFill" />
+          <view v-else :class="['member-avatar', 'member-avatar--empty', { 'is-self': isCurrentUserMember(member) }]">
+            {{ formatMemberName(member).slice(0, 1) }}
           </view>
-          <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
-        </view>
-
-        <view class="cell cell--invite" @tap="goToInvite">
-          <view class="cell-icon">
-            <app-icon name="plus" size="22rpx" />
+          <view class="member-copy">
+            <text class="member-name">{{ formatMemberName(member) }}{{ isCurrentUserMember(member) ? '（我）' : '' }}</text>
+            <text class="member-note">{{ member.note ? `账号昵称：${member.name}` : '未设置备注名' }}</text>
           </view>
-          <view class="cell-main">
-            <text class="cell-title">邀请家人</text>
-            <text class="cell-subtitle">二维码或链接加入当前家庭</text>
-          </view>
-          <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
-        </view>
+          <text class="member-role">{{ member.role }}</text>
+          <app-icon class="row-chevron" name="chevron-right" size="20rpx" />
+        </button>
       </view>
-    </view>
 
-    <view class="section glass-card">
-      <text class="section-label">家庭</text>
-      <view class="cell-list">
-        <view class="cell" @tap="openEdit('name')">
-          <text class="cell-left">家庭名称</text>
-          <view class="cell-right">
-            <text class="cell-value">{{ currentFamily.name }}</text>
-            <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
-          </view>
-        </view>
-        <view class="cell" @tap="goToPreferences">
-          <text class="cell-left">家庭偏好</text>
-          <view class="cell-right">
-            <text class="cell-value">{{ currentFamily.rules || '未设置' }}</text>
-            <app-icon class="cell-arrow" name="chevron-right" size="22rpx" />
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view class="action-section glass-card">
-      <button class="danger-button danger-button--soft" :disabled="isLeaving" @tap="confirmLeaveFamily">
-        {{ isLeaving ? '退出中...' : '退出家庭' }}
+      <button v-if="canManageMembers" class="invite-action" @tap="goToInvite">
+        <app-icon name="plus" size="22rpx" />
+        <text>邀请新成员</text>
       </button>
-    </view>
 
-    <view v-if="isEditPanelVisible" class="edit-mask" @tap="closeEdit">
-      <view class="edit-panel glass-card" @tap.stop>
-        <view class="edit-head">
-          <text class="edit-title">{{ editTitle }}</text>
-          <text class="edit-close" @tap="closeEdit">×</text>
+      <view class="family-danger-zone">
+        <button v-if="currentRole !== '创建者'" class="danger-action" :disabled="isLeaving" @tap="confirmLeaveFamily">
+          {{ isLeaving ? '退出中…' : '退出家庭' }}
+        </button>
+      </view>
+    </template>
+
+    <view v-if="isEditPanelVisible" class="sheet-mask" @tap="closeEdit">
+      <view class="edit-sheet" @tap.stop>
+        <view class="sheet-handle" aria-hidden="true" />
+        <text class="sheet-eyebrow">家庭资料</text>
+        <text class="sheet-title">编辑家庭资料</text>
+        <button class="sheet-avatar-editor" :disabled="isUploadingAvatar" @tap="chooseFamilyAvatar">
+          <image v-if="currentFamily.avatar" class="sheet-family-avatar" :src="currentFamily.avatar" mode="aspectFill" />
+          <view v-else class="sheet-family-avatar sheet-family-avatar--empty">{{ currentFamily.name.slice(0, 1) }}</view>
+          <view class="sheet-avatar-copy">
+            <text>{{ isUploadingAvatar ? '上传中…' : '更换家庭头像' }}</text>
+            <text>JPG/PNG/WebP，至少 512×512，不超过 5MB</text>
+          </view>
+          <app-icon name="chevron-right" size="20rpx" />
+        </button>
+        <view class="name-field">
+          <text>家庭名称</text>
+          <input v-model="editValue" maxlength="12" placeholder="例如：周家" confirm-type="done" />
+          <text class="name-field__hint">家庭成员都会看到这个名称</text>
         </view>
-        <textarea
-          v-if="editingField === 'rules'"
-          v-model="editValue"
-          class="edit-textarea"
-          :placeholder="editPlaceholder"
-          maxlength="80"
-        />
-        <input
-          v-else
-          v-model="editValue"
-          class="edit-input"
-          :placeholder="editPlaceholder"
-          confirm-type="done"
-        />
-        <view class="edit-actions">
-          <button class="ghost-button" @tap="closeEdit">取消</button>
-          <button class="primary-button" :disabled="isSaving" @tap="saveEdit">{{ isSaving ? '保存中...' : '保存' }}</button>
-        </view>
+        <button class="primary-action" :disabled="isSaving" @tap="saveEdit">
+          {{ isSaving ? '保存中…' : '保存名称' }}
+        </button>
       </view>
     </view>
-    </template>
   </view>
 </template>
 
@@ -166,7 +108,7 @@ import {
   saveActiveFamilyId,
   updateFamily
 } from '../../services/family';
-import type { FamilyProfile } from '../../types/family';
+import type { FamilyMember, FamilyProfile } from '../../types/family';
 import {
   enqueuePendingFileCleanup,
   handlePendingFileCleanupFailure,
@@ -175,10 +117,7 @@ import {
   uploadAvatarFile
 } from '../../services/file-upload';
 
-type EditField = 'name' | 'rules';
-type RefreshOptions = {
-  showLoading?: boolean;
-};
+type RefreshOptions = { showLoading?: boolean };
 
 const families = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
@@ -187,66 +126,37 @@ const hasLoaded = ref(false);
 const isSaving = ref(false);
 const isLeaving = ref(false);
 const errorMessage = ref('');
-const isFamilySelectVisible = ref(false);
 const isEditPanelVisible = ref(false);
 const isUploadingAvatar = ref(false);
-const editingField = ref<EditField>('name');
 const editValue = ref('');
 
 const emptyFamily: FamilyProfile = {
-  id: '',
-  name: '家庭管理',
-  description: '',
-  commonRecipes: 0,
-  pendingItems: 0,
-  members: [],
-  avatar: '',
-  avatarFileId: null
+  id: '', name: '', description: '', commonRecipes: 0, pendingItems: 0,
+  members: [], avatar: '', avatarFileId: null
 };
 
-const currentFamily = computed<FamilyProfile>(() => {
-  return families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? emptyFamily;
-});
-
+const currentFamily = computed<FamilyProfile>(() =>
+  families.value.find((family) => family.id === activeFamilyId.value) ?? families.value[0] ?? emptyFamily
+);
 const hasFamilies = computed(() => families.value.length > 0 && Boolean(currentFamily.value.id));
-const editTitle = computed(() => (editingField.value === 'name' ? '家庭名称' : '家庭规矩'));
-const editPlaceholder = computed(() => (editingField.value === 'name' ? '例如：周末小家' : '例如：少油少盐，晚餐不吃太辣'));
+const currentMember = computed(() => currentFamily.value.members.find(isCurrentUserMember));
+const currentRole = computed(() => currentMember.value?.role ?? '成员');
+const canRenameFamily = computed(() => currentRole.value === '创建者');
+const canManageMembers = computed(() => currentRole.value === '创建者' || currentRole.value === '管理员');
 
-const goBack = () => {
-  uni.navigateBack();
-};
-
-const toggleFamilySelect = () => {
-  isFamilySelectVisible.value = !isFamilySelectVisible.value;
-};
-
-const closeFamilySelect = () => {
-  isFamilySelectVisible.value = false;
-};
-
-const selectFamily = (familyId: string) => {
-  activeFamilyId.value = familyId;
-  saveActiveFamilyId(familyId);
-  closeFamilySelect();
-};
-
-const requireCurrentFamilyId = () => {
-  const familyId = currentFamily.value.id;
-  if (!familyId) {
-    uni.showToast({ title: '请先创建家庭', icon: 'none' });
-    return '';
-  }
-  return familyId;
-};
-
-const isCurrentUserMember = (member: { userId?: number; accountId?: string }) => {
+function isCurrentUserMember(member: Pick<FamilyMember, 'userId' | 'accountId'>) {
   const currentUser = loadAuthUser();
   if (!currentUser) return false;
   return member.userId === currentUser.id || member.accountId === currentUser.phone;
-};
+}
 
-const formatMemberTitle = (member: { name: string; userId?: number; accountId?: string }) => {
-  return isCurrentUserMember(member) ? `${member.name}（我）` : member.name;
+const formatMemberName = (member: FamilyMember) => member.note || member.name;
+const goBack = () => uni.navigateBack();
+
+const requireCurrentFamilyId = () => {
+  if (currentFamily.value.id) return currentFamily.value.id;
+  uni.showToast({ title: '请先创建家庭', icon: 'none' });
+  return '';
 };
 
 const openMember = (memberId: string) => {
@@ -259,49 +169,26 @@ const openMember = (memberId: string) => {
 
 const goToInvite = () => {
   const familyId = requireCurrentFamilyId();
-  if (!familyId) return;
-  uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(familyId)}` });
+  if (familyId) uni.navigateTo({ url: `/pages/family-invite/index?familyId=${encodeURIComponent(familyId)}` });
 };
 
-const goToPreferences = () => {
-  const familyId = requireCurrentFamilyId();
-  if (!familyId) return;
-  uni.navigateTo({ url: `/pages/family-preferences/index?familyId=${encodeURIComponent(familyId)}` });
-};
-
-const goToCreateFamily = () => {
-  uni.navigateTo({ url: '/pages/family-create/index' });
-};
-
-const openEdit = (field: EditField) => {
+const goToCreateFamily = () => uni.navigateTo({ url: '/pages/family-create/index' });
+const openEdit = () => {
   if (!requireCurrentFamilyId()) return;
-  editingField.value = field;
-  editValue.value = field === 'name' ? currentFamily.value.name : currentFamily.value.rules ?? '';
+  editValue.value = currentFamily.value.name;
   isEditPanelVisible.value = true;
 };
-
-const closeEdit = () => {
-  isEditPanelVisible.value = false;
-};
+const closeEdit = () => { isEditPanelVisible.value = false; };
 
 const saveEdit = async () => {
-  if (isSaving.value || !requireCurrentFamilyId()) return;
-  const trimmedValue = editValue.value.trim();
-  if (editingField.value === 'name' && !trimmedValue) {
-    uni.showToast({ title: '请填写家庭名称', icon: 'none' });
-    return;
-  }
-
-  const nextFamily: FamilyProfile = {
-    ...currentFamily.value,
-    name: editingField.value === 'name' ? trimmedValue : currentFamily.value.name,
-    rules: editingField.value === 'rules' ? trimmedValue : currentFamily.value.rules
-  };
+  const name = editValue.value.trim();
+  if (!name) return uni.showToast({ title: '请填写家庭名称', icon: 'none' });
+  if (isSaving.value) return;
   isSaving.value = true;
   try {
-    families.value = await updateFamily(nextFamily);
+    families.value = await updateFamily({ ...currentFamily.value, name });
     closeEdit();
-    uni.showToast({ title: '已保存', icon: 'success' });
+    uni.showToast({ title: '名称已更新', icon: 'success' });
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' });
   } finally {
@@ -312,9 +199,7 @@ const saveEdit = async () => {
 const chooseFamilyAvatar = () => {
   if (!currentFamily.value.id || isUploadingAvatar.value) return;
   uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['album', 'camera'],
+    count: 1, sizeType: ['compressed'], sourceType: ['album', 'camera'],
     success: ({ tempFilePaths }) => {
       const filePath = tempFilePaths?.[0];
       if (filePath) void uploadFamilyAvatar(filePath);
@@ -328,14 +213,9 @@ const uploadFamilyAvatar = async (filePath: string) => {
   const owner = loadAuthUser();
   let uploadedFileId: number | null = null;
   try {
-    const uploaded = await uploadAvatarFile(filePath, {
-      onProgress: (progress) => {
-        if (progress === 100) uni.showToast({ title: '头像上传完成', icon: 'none', duration: 700 });
-      }
-    }, 'family-avatar').promise;
+    const uploaded = await uploadAvatarFile(filePath, {}, 'family-avatar').promise;
     uploadedFileId = uploaded.id;
-    const nextFamily = { ...previous, avatar: uploaded.url, avatarFileId: uploaded.id };
-    families.value = await updateFamily(nextFamily);
+    families.value = await updateFamily({ ...previous, avatar: uploaded.url, avatarFileId: uploaded.id });
     uploadedFileId = null;
     uni.showToast({ title: '家庭头像已更新', icon: 'success' });
   } catch (error) {
@@ -354,50 +234,35 @@ const uploadFamilyAvatar = async (filePath: string) => {
   }
 };
 
-const getFamilyIdFromLocation = () => {
-  if (typeof window === 'undefined') return '';
-  const hash = window.location.hash;
-  const queryText = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-  return new URLSearchParams(queryText).get('id') ?? '';
-};
-
-const resolveActiveFamilyId = (requestedFamilyId = '') => {
-  const storedFamilyId = loadActiveFamilyId();
-  if (requestedFamilyId && families.value.some((family) => family.id === requestedFamilyId)) {
-    return requestedFamilyId;
-  }
-  if (storedFamilyId && families.value.some((family) => family.id === storedFamilyId)) {
-    return storedFamilyId;
-  }
+const resolveActiveFamilyId = (requestedId = '') => {
+  const stored = loadActiveFamilyId();
+  if (requestedId && families.value.some(({ id }) => id === requestedId)) return requestedId;
+  if (stored && families.value.some(({ id }) => id === stored)) return stored;
   return families.value[0]?.id ?? '';
 };
 
 const refreshFamilyPage = async (familyId = '', options: RefreshOptions = {}) => {
-  const shouldShowLoading = options.showLoading ?? !hasLoaded.value;
-  if (shouldShowLoading) {
-    isLoading.value = true;
-  }
+  if (options.showLoading ?? !hasLoaded.value) isLoading.value = true;
   errorMessage.value = '';
   try {
     families.value = await loadFamilies();
-    const nextFamilyId = resolveActiveFamilyId(familyId.trim());
-    activeFamilyId.value = nextFamilyId;
-    if (nextFamilyId) {
-      saveActiveFamilyId(nextFamilyId);
-    }
+    activeFamilyId.value = resolveActiveFamilyId(familyId);
+    if (activeFamilyId.value) saveActiveFamilyId(activeFamilyId.value);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '家庭加载失败';
     families.value = [];
-    activeFamilyId.value = '';
   } finally {
     isLoading.value = false;
     hasLoaded.value = true;
   }
 };
 
-const retryLoadFamilies = () => {
-  void refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: true });
+const getFamilyIdFromLocation = () => {
+  if (typeof window === 'undefined') return '';
+  const query = window.location.hash.split('?')[1] ?? '';
+  return new URLSearchParams(query).get('id') ?? '';
 };
+const retryLoadFamilies = () => void refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: true });
 
 const confirmLeaveFamily = () => {
   const familyId = requireCurrentFamilyId();
@@ -406,484 +271,82 @@ const confirmLeaveFamily = () => {
     uni.showToast({ title: '请先设置其他管理员', icon: 'none' });
     return;
   }
-
   uni.showModal({
-    title: '退出家庭',
-    content: `确认退出「${currentFamily.value.name}」吗？退出后将看不到该家庭的菜篮子和共享菜谱。`,
-    confirmText: '退出',
-    confirmColor: '#e5735f',
-    success: async (result) => {
-      if (!result.confirm) {
-        return;
-      }
-
+    title: '退出家庭', content: `确认退出「${currentFamily.value.name}」吗？`,
+    confirmText: '退出', confirmColor: '#C86F4A',
+    success: async ({ confirm }) => {
+      if (!confirm) return;
       isLeaving.value = true;
       try {
-        families.value = await leaveFamilyAsCurrentUser(familyId);
-        activeFamilyId.value = loadActiveFamilyId();
+        await leaveFamilyAsCurrentUser(familyId);
         uni.showToast({ title: '已退出家庭', icon: 'none' });
         uni.navigateBack();
       } catch (error) {
         uni.showToast({ title: error instanceof Error ? error.message : '退出失败', icon: 'none' });
-      } finally {
-        isLeaving.value = false;
-      }
+      } finally { isLeaving.value = false; }
     }
   });
 };
 
-onLoad(async (options) => {
-  const familyId = typeof options?.id === 'string' ? options.id : '';
-  await refreshFamilyPage(familyId, { showLoading: true });
-});
-
-onMounted(() => {
-  if (!hasLoaded.value) {
-    void refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: true });
-  }
-});
-
-onShow(async () => {
-  if (hasLoaded.value) {
-    await refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: false });
-  }
-});
+onLoad((options) => void refreshFamilyPage(typeof options?.id === 'string' ? options.id : '', { showLoading: true }));
+onMounted(() => { if (!hasLoaded.value) void refreshFamilyPage(getFamilyIdFromLocation(), { showLoading: true }); });
+onShow(() => { if (hasLoaded.value) void refreshFamilyPage(getFamilyIdFromLocation()); });
 </script>
 
 <style scoped lang="scss">
-.family-detail-page {
-  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
-}
+.family-manage-page { padding-right: 40rpx; padding-bottom: calc(80rpx + var(--app-safe-area-bottom)); padding-left: 40rpx; }
+.safe-top-spacer { height: calc(var(--app-safe-area-top) + 8rpx); }
+.page-topbar { position: sticky; z-index: var(--z-sticky); top: 0; display: grid; grid-template-columns: 128rpx 1fr 128rpx; align-items: center; min-height: 112rpx; margin-bottom: 48rpx; border-bottom: 1rpx solid var(--app-border); background: rgba(245, 241, 234, .92); backdrop-filter: blur(18px); }
+.topbar-button, .topbar-action, .family-code-entry, .member-row, .invite-action, .danger-action, .sheet-avatar-editor, .primary-action { border: 0; }
+.topbar-button::after, .topbar-action::after, .family-code-entry::after, .member-row::after, .invite-action::after, .danger-action::after, .sheet-avatar-editor::after, .primary-action::after { border: 0; }
+.topbar-button { display: flex; align-items: center; justify-content: center; width: 88rpx; height: 88rpx; padding: 0; border-radius: 50%; background: transparent; color: var(--app-text); }
+.topbar-title { color: var(--app-text); font-size: var(--font-size-section-title); font-weight: var(--font-semibold); line-height: var(--line-section-title); text-align: center; }
+.topbar-action { min-height: 88rpx; padding: 0; background: transparent; color: var(--app-primary); font-size: var(--font-size-body); line-height: var(--line-body); }
+.topbar-spacer { width: 128rpx; height: 88rpx; }
+.summary-title, .summary-copy, .member-name, .member-note { display: block; }
+.family-member-summary { display: flex; align-items: center; justify-content: space-between; min-height: 116rpx; margin-bottom: 24rpx; padding: 20rpx 28rpx; border: 1rpx solid var(--app-border); border-radius: 26rpx; background: var(--app-surface); }
+.summary-copy-block { min-width: 0; }
+.summary-title { color: var(--app-text); font-size: var(--font-size-card-title); font-weight: var(--font-semibold); line-height: var(--line-card-title); }
+.summary-copy { margin-top: 4rpx; color: var(--text-tertiary); font-size: var(--font-size-caption); line-height: var(--line-caption); }
+.family-code-entry { display: flex; align-items: center; gap: 8rpx; min-height: 88rpx; margin: 0; padding: 0 20rpx; border-radius: 22rpx; background: var(--app-primary-soft); color: var(--app-primary); font-size: var(--font-size-caption); font-weight: var(--font-medium); }
+.family-member-directory { overflow: hidden; border: 1rpx solid var(--app-border); border-radius: 30rpx; background: var(--app-surface); }
+.member-row { display: grid; grid-template-columns: 80rpx minmax(0, 1fr) auto 28rpx; align-items: center; gap: 22rpx; width: 100%; min-height: 140rpx; margin: 0; padding: 22rpx 28rpx; border-radius: 0; background: transparent; text-align: left; }
+.member-row + .member-row { border-top: 1rpx solid var(--app-border); }
+.member-avatar { width: 80rpx; height: 80rpx; border-radius: 20rpx; background: var(--app-surface-strong); }
+.member-avatar--empty { display: flex; align-items: center; justify-content: center; border: 1rpx solid var(--app-border); color: var(--text-tertiary); font-size: var(--font-size-card-title); font-weight: var(--font-semibold); }
+.member-avatar--empty.is-self { border-color: transparent; background: var(--app-primary); color: var(--text-white); }
+.member-copy { min-width: 0; }
+.member-name { overflow: hidden; color: var(--app-text); font-size: var(--font-size-list-title); font-weight: var(--font-medium); line-height: var(--line-list-title); text-overflow: ellipsis; white-space: nowrap; }
+.member-note { margin-top: 4rpx; overflow: hidden; color: var(--text-tertiary); font-size: var(--font-size-caption); line-height: var(--line-caption); text-overflow: ellipsis; white-space: nowrap; }
+.member-role { color: var(--text-tertiary); font-size: var(--font-size-tag); line-height: var(--line-tag); }
+.row-chevron { color: var(--text-placeholder); }
+.invite-action { display: flex; align-items: center; justify-content: center; gap: 8rpx; width: 100%; min-height: 92rpx; margin-top: 32rpx; border-radius: 20rpx; background: var(--app-primary); color: var(--text-white); font-size: var(--font-size-body); font-weight: var(--font-semibold); }
+.family-danger-zone { display: flex; justify-content: center; gap: 36rpx; margin-top: 36rpx; }
+.danger-action { min-height: 88rpx; margin: 0; padding: 0 24rpx; background: transparent; color: var(--app-warning); font-size: var(--font-size-body); }
+.state-panel { margin-top: 32rpx; padding: 36rpx 24rpx; text-align: center; }
+.state-title, .state-copy { display: block; }
+.state-title { color: var(--app-text); font-size: var(--font-size-card-title); font-weight: var(--font-semibold); }
+.state-copy { margin-top: 10rpx; color: var(--text-tertiary); font-size: var(--font-size-caption); }
+.state-action { margin-top: 24rpx; }
+.sheet-mask { position: fixed; z-index: var(--z-sheet); inset: 0; display: flex; align-items: flex-end; background: rgba(47, 47, 47, .22); }
+.edit-sheet { width: 100%; padding: 16rpx 32rpx calc(32rpx + var(--app-safe-area-bottom)); border-radius: 36rpx 36rpx 0 0; background: var(--app-surface-strong); }
+.sheet-handle { width: 72rpx; height: 8rpx; margin: 0 auto 24rpx; border-radius: var(--radius-pill); background: var(--app-border); }
+.sheet-eyebrow { display: block; color: var(--app-primary); font-size: var(--font-size-tag); line-height: var(--line-tag); }
+.sheet-title { display: block; margin-top: 6rpx; color: var(--app-text); font-size: var(--font-size-page-title); font-weight: var(--font-semibold); line-height: var(--line-page-title); }
+.sheet-avatar-editor { display: grid; grid-template-columns: 96rpx minmax(0, 1fr) 28rpx; align-items: center; gap: 20rpx; width: 100%; min-height: 128rpx; margin: 24rpx 0 0; padding: 16rpx 20rpx; border: 1rpx solid var(--app-border); border-radius: 24rpx; background: var(--app-background); text-align: left; }
+.sheet-family-avatar { width: 96rpx; height: 96rpx; border-radius: 22rpx; background: var(--app-surface); }
+.sheet-family-avatar--empty { display: flex; align-items: center; justify-content: center; color: var(--app-primary); font-size: var(--font-size-section-title); font-weight: var(--font-semibold); }
+.sheet-avatar-copy text { display: block; color: var(--app-text); font-size: var(--font-size-body-sm); line-height: var(--line-body-sm); }
+.sheet-avatar-copy text + text { margin-top: 4rpx; color: var(--text-tertiary); font-size: var(--font-size-tag); line-height: var(--line-tag); }
+.name-field { display: block; margin-top: 28rpx; }
+.name-field > text, .name-field__hint { display: block; }
+.name-field > text { color: var(--text-tertiary); font-size: var(--font-size-caption); }
+.name-field input { height: 92rpx; margin-top: 10rpx; padding: 0 22rpx; border: 1rpx solid var(--app-border); border-radius: var(--app-radius-button); background: var(--app-background); color: var(--app-text); font-size: var(--font-size-body); }
+.name-field__hint { margin-top: 8rpx; color: var(--text-tertiary); font-size: var(--font-size-tag); }
+.primary-action { width: 100%; min-height: 88rpx; margin-top: 28rpx; border-radius: var(--app-radius-button); background: var(--app-primary); color: var(--text-white); font-size: var(--font-size-body); font-weight: var(--font-semibold); }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: calc(-32rpx + var(--app-safe-area-top));
-}
-
-.nav-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 74rpx;
-  height: 74rpx;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 253, 252, 0.92);
-  color: var(--app-text);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-medium);
-  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
-}
-
-.nav-button::after,
-.ghost-button::after,
-.primary-button::after,
-.danger-button::after {
-  border: 0;
-}
-
-.title-block {
-  margin-top: 18rpx;
-}
-
-.family-avatar-wrap {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 14rpx;
-  width: fit-content;
-  margin-bottom: 14rpx;
-}
-
-.family-avatar {
-  width: 112rpx;
-  height: 112rpx;
-  border-radius: 30rpx;
-  background: var(--app-surface-strong);
-}
-
-.family-avatar--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-text-secondary);
-  font-size: 46rpx;
-}
-
-.family-avatar-action {
-  color: var(--app-accent);
-  font-size: var(--font-size-tag);
-}
-
-.title-row {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.family-title {
-  display: block;
-  color: var(--app-text);
-  font-size: var(--font-size-page-title);
-  font-weight: var(--font-semibold);
-  letter-spacing: 0;
-}
-
-.title-arrow {
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-body);
-  transform: translateY(4rpx);
-  transition: transform 160ms ease;
-}
-
-.title-arrow.is-open {
-  transform: translateY(4rpx) rotate(180deg);
-}
-
-.family-subtitle {
-  display: block;
-  margin-top: 10rpx;
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-semibold);
-}
-
-.section {
-  margin-top: 22rpx;
-  padding: 26rpx;
-  border-radius: var(--app-radius-card);
-  background: rgba(255, 253, 252, 0.92);
-}
-
-.action-section {
-  display: grid;
-  gap: 14rpx;
-  margin-top: 22rpx;
-  padding: 20rpx;
-  border-radius: var(--app-radius-card);
-  background: rgba(255, 253, 252, 0.92);
-}
-
-.danger-button {
-  width: 100%;
-  height: 82rpx;
-  border: 0;
-  border-radius: var(--app-radius-button);
-  background: rgba(229, 115, 95, 0.12);
-  color: var(--app-danger);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-semibold);
-}
-
-.danger-button[disabled],
-.primary-button[disabled] {
-  opacity: 0.58;
-}
-
-.state-card {
-  margin-top: 26rpx;
-  padding: 34rpx 30rpx;
-  border-radius: var(--app-radius-card);
-  background: rgba(255, 253, 252, 0.92);
-}
-
-.state-title,
-.state-desc {
-  display: block;
-}
-
-.state-title {
-  color: var(--app-text);
-  font-size: var(--font-size-card-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-card-title);
-}
-
-.state-desc {
-  margin-top: 10rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-body-sm);
-}
-
-.state-button {
-  width: 100%;
-  margin-top: 28rpx;
-}
-
-.danger-button--soft {
-  background: #e9e2d6;
-  color: var(--app-text);
-}
-
-.section-label {
-  display: block;
-  margin-bottom: 18rpx;
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-medium);
-}
-
-.cell-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6rpx;
-}
-
-.cell {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  min-height: 106rpx;
-  padding: 18rpx 12rpx;
-  border-radius: 28rpx;
-  background: rgba(255, 253, 252, 0.7);
-}
-
-.cell-avatar {
-  width: 78rpx;
-  height: 78rpx;
-  border-radius: 50%;
-  background: var(--app-accent-soft);
-}
-
-.cell-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.cell-title,
-.cell-subtitle,
-.cell-left,
-.cell-value {
-  display: block;
-}
-
-.cell-title,
-.cell-left {
-  color: var(--app-text);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-semibold);
-}
-
-.cell-subtitle {
-  margin-top: 6rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-}
-
-.cell-arrow {
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-detail-title);
-}
-
-.cell--invite {
-  background: rgba(245, 241, 234, 0.92);
-}
-
-.cell-icon {
-  width: 78rpx;
-  height: 78rpx;
-  border-radius: 50%;
-  background: rgba(47, 47, 47, 0.06);
-  color: var(--app-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-medium);
-}
-
-.cell-right {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.cell-value {
-  max-width: 320rpx;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-semibold);
-}
-
-.select-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: flex;
-  align-items: flex-end;
-  padding: 24rpx;
-  background: rgba(47, 47, 47, 0.28);
-  backdrop-filter: blur(10rpx);
-  -webkit-backdrop-filter: blur(10rpx);
-}
-
-.edit-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: flex;
-  align-items: flex-start;
-  padding: 260rpx 24rpx 24rpx;
-  background: rgba(47, 47, 47, 0.28);
-  backdrop-filter: blur(10rpx);
-  -webkit-backdrop-filter: blur(10rpx);
-}
-
-.select-sheet,
-.edit-panel {
-  width: 100%;
-  padding: 26rpx;
-  border-radius: var(--app-radius-card);
-}
-
-.edit-panel {
-  background: rgba(255, 253, 252, 0.96);
-}
-
-.sheet-title {
-  display: block;
-  color: var(--app-text);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-semibold);
-}
-
-.sheet-list {
-  margin-top: 18rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
-}
-
-.sheet-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18rpx 16rpx;
-  border-radius: 26rpx;
-  background: rgba(255, 253, 252, 0.72);
-}
-
-.sheet-item.is-active {
-  background: var(--app-accent-soft);
-}
-
-.sheet-item__name,
-.sheet-item__desc,
-.sheet-item__check {
-  display: block;
-}
-
-.sheet-item__name {
-  color: var(--app-text);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-semibold);
-}
-
-.sheet-item__desc {
-  margin-top: 6rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-}
-
-.sheet-item__check {
-  color: var(--app-text);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-semibold);
-}
-
-.edit-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14rpx;
-}
-
-.edit-title {
-  display: block;
-  color: var(--app-text);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-semibold);
-}
-
-.edit-close {
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-detail-title);
-  line-height: var(--line-tabbar);
-}
-
-.edit-input {
-  width: 100%;
-  height: 80rpx;
-  margin-top: 18rpx;
-  padding: 0 22rpx;
-  border: 1rpx solid var(--app-border);
-  border-radius: 24rpx;
-  background: rgba(255, 253, 252, 0.86);
-  color: var(--app-text);
-  font-size: var(--font-size-tag);
-}
-
-.edit-textarea {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  height: 190rpx;
-  margin-top: 18rpx;
-  padding: 20rpx 22rpx;
-  border: 1rpx solid var(--app-border);
-  border-radius: 24rpx;
-  background: rgba(255, 253, 252, 0.86);
-  color: var(--app-text);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-}
-
-.edit-textarea :deep(textarea),
-.edit-textarea :deep(.uni-textarea-textarea) {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--app-text);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-  resize: none;
-}
-
-.edit-actions {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12rpx;
-  margin-top: 18rpx;
-}
-
-.ghost-button,
-.primary-button {
-  height: 76rpx;
-  border: 0;
-  border-radius: var(--app-radius-button);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-semibold);
-}
-
-.ghost-button {
-  background: rgba(255, 253, 252, 0.74);
-  color: var(--app-text);
-}
-
-.primary-button {
-  background: var(--app-accent);
-  color: var(--text-white);
+@media (max-width: 375px) {
+  .member-row { grid-template-columns: 80rpx minmax(0, 1fr) 28rpx; }
+  .member-role { display: none; }
 }
 </style>

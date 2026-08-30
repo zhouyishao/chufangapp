@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { listMobileViewHistories } from '../../services/public-api';
@@ -86,6 +86,14 @@ const recentItems = ref<RecentItem[]>([]);
 const loading = ref(false);
 const error = ref('');
 const needsLogin = ref(false);
+
+const guardPrivatePage = () => {
+  if (loadAuthUser()) return true;
+  uni.reLaunch({ url: '/pages/phone-login/index' });
+  return false;
+};
+
+guardPrivatePage();
 
 const formatDateGroup = (value: string) => {
   const date = new Date(value);
@@ -149,6 +157,7 @@ const viewGroups = computed<ViewGroup[]>(() => {
 });
 
 const loadRecentViews = async () => {
+  if (!guardPrivatePage()) return;
   loading.value = true;
   error.value = '';
   needsLogin.value = false;
@@ -195,7 +204,12 @@ const goToItem = (item: RecentItem) => {
 };
 
 onShow(() => {
+  if (!guardPrivatePage()) return;
   void loadRecentViews();
+});
+
+onLoad(() => {
+  if (!guardPrivatePage()) return;
 });
 </script>
 

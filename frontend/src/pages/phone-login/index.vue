@@ -9,7 +9,7 @@
 
     <view class="form-card glass-card">
       <text class="title">欢迎回来</text>
-      <text class="desc">输入手机号完成授权登录，收藏、家庭和菜篮子会同步到后端。</text>
+      <text class="desc">输入管理员为你开通的手机号和密码，登录后同步收藏、家庭和菜篮子。</text>
 
       <view class="field">
         <text class="field-label">手机号</text>
@@ -21,7 +21,9 @@
         <input v-model="password" class="input" password placeholder="请输入密码" />
       </view>
 
-      <button class="primary-button" @tap="login">登录</button>
+      <button class="primary-button" :loading="isSubmitting" :disabled="isSubmitting" @tap="login">
+        {{ isSubmitting ? '登录中...' : '登录' }}
+      </button>
       <view class="link-row">
         <button class="text-button" @tap="goToRegister">注册账号</button>
         <button class="text-button" @tap="goToForgotPassword">忘记密码</button>
@@ -38,10 +40,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import AppIcon from '../../components/app/app-icon.vue';
-import { createAuthUser, isValidPhone, saveAuthUser, syncAuthUserWithBackend } from '../../services/auth';
+import { isValidPhone, loginAuthUser } from '../../services/auth';
 
 const phone = ref('');
 const password = ref('');
+const isSubmitting = ref(false);
 
 const goBack = () => {
   if (getCurrentPages().length <= 1) {
@@ -53,6 +56,7 @@ const goBack = () => {
 };
 
 const login = async () => {
+  if (isSubmitting.value) return;
   if (!isValidPhone(phone.value)) {
     uni.showToast({ title: '请输入正确手机号', icon: 'none' });
     return;
@@ -63,13 +67,19 @@ const login = async () => {
     return;
   }
 
-  const user = createAuthUser(phone.value);
-  const remoteUser = await syncAuthUserWithBackend(user);
-  saveAuthUser(remoteUser ?? user);
-  uni.showToast({ title: '登录成功', icon: 'success' });
-  setTimeout(() => {
-    uni.reLaunch({ url: '/pages/mine/index' });
-  }, 350);
+  isSubmitting.value = true;
+  try {
+    await loginAuthUser(phone.value, password.value);
+    uni.showToast({ title: '登录成功', icon: 'success' });
+    setTimeout(() => {
+      uni.reLaunch({ url: '/pages/mine/index' });
+    }, 350);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '登录失败，请稍后重试';
+    uni.showToast({ title: message, icon: 'none' });
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const goToRegister = () => {
@@ -105,12 +115,16 @@ const goLegal = (type: 'terms' | 'privacy') => {
   justify-content: center;
   width: 72rpx;
   height: 72rpx;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   border: 0;
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
   font-size: var(--font-size-card-title);
   font-weight: var(--font-medium);
+  line-height: 1;
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -171,15 +185,21 @@ const goLegal = (type: 'terms' | 'privacy') => {
 }
 
 .primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 88rpx;
   margin-top: 34rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
   border: 0;
   border-radius: var(--app-radius-button);
   background: var(--app-accent);
   color: var(--text-white);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
 }
 
 .link-row {
@@ -198,11 +218,18 @@ const goLegal = (type: 'terms' | 'privacy') => {
 }
 
 .text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 72rpx;
+  margin: 0;
+  padding: 0 8rpx;
+  box-sizing: border-box;
   border: 0;
   background: transparent;
   color: var(--app-text-secondary);
   font-size: var(--font-size-tag);
   font-weight: var(--font-medium);
+  line-height: var(--line-list-title);
 }
 </style>

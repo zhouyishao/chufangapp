@@ -5,11 +5,12 @@
       <button class="nav-button" @tap="goBack">
         <app-icon name="arrow-left" size="26rpx" />
       </button>
+      <text class="topbar-title">{{ token && !familyId ? '加入家庭' : '家庭码' }}</text>
       <view class="topbar__spacer" />
     </view>
 
-    <text class="page-title">{{ token ? '加入家庭' : '选择邀请方式' }}</text>
-    <text class="page-subtitle">{{ token ? '确认后加入这个家庭' : '二维码扫码邀请' }}</text>
+    <text class="page-title">{{ token && !familyId ? `加入「${family?.name || '家庭'}」` : family?.name || '家庭码' }}</text>
+    <text class="page-subtitle">{{ token && !familyId ? '确认后加入这个家庭' : '让家人扫一扫加入家庭' }}</text>
 
     <view v-if="loading" class="state-card glass-card">
       <text class="state-title">正在准备家庭码</text>
@@ -22,23 +23,27 @@
     </view>
 
     <template v-else>
-    <view class="invite-card glass-card">
+    <view class="invite-card">
       <view class="qr-wrap">
         <image v-if="qrImageUrl" class="qr-image" :src="qrImageUrl" mode="aspectFit" />
         <view v-else class="qr-loading">
           <text>二维码生成中</text>
         </view>
       </view>
-      <text class="hint">使用手机扫码加入「{{ family?.name || '家庭' }}」</text>
+      <text class="hint">扫一扫，加入「{{ family?.name || '家庭' }}」</text>
     </view>
 
-    <view class="link-card glass-card">
-      <text class="link-title">邀请链接</text>
-      <text class="link-value">{{ inviteLink }}</text>
+    <view class="invite-actions">
       <nut-button v-if="token" type="primary" block :disabled="joining" @click="joinFamily">
         {{ joining ? '加入中…' : '确认加入' }}
       </nut-button>
-      <nut-button v-else type="primary" block @click="copyLink">复制链接</nut-button>
+      <template v-else>
+        <button class="share-action primary" @tap="shareInvite">
+          <app-icon name="share" size="22rpx" />
+          <text>分享家庭码</text>
+        </button>
+        <button class="share-action secondary" @tap="copyLink">复制邀请链接</button>
+      </template>
     </view>
     </template>
   </view>
@@ -118,6 +123,13 @@ const copyLink = () => {
     success: () => {
       uni.showToast({ title: '邀请链接已复制', icon: 'none' });
     }
+  });
+};
+
+const shareInvite = () => {
+  uni.setClipboardData({
+    data: inviteLink.value,
+    success: () => uni.showToast({ title: '邀请链接已复制，可发送给家人', icon: 'none' })
   });
 };
 
@@ -233,10 +245,18 @@ onMounted(() => {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 74rpx 1fr 74rpx;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 18rpx;
+}
+
+.topbar-title {
+  color: var(--app-text);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
+  text-align: center;
 }
 
 .nav-button {
@@ -247,11 +267,11 @@ onMounted(() => {
   height: 74rpx;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 253, 252, 0.92);
+  background: transparent;
   color: var(--app-text);
   font-size: var(--font-size-section-title);
   font-weight: var(--font-medium);
-  box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 
 .nav-button::after {
@@ -272,7 +292,7 @@ onMounted(() => {
 }
 
 .page-title {
-  margin-top: 6rpx;
+  margin-top: 24rpx;
   color: var(--app-text);
   font-size: var(--font-size-hero);
   font-weight: var(--font-semibold);
@@ -280,17 +300,15 @@ onMounted(() => {
 }
 
 .page-subtitle {
-  margin-top: 14rpx;
+  margin-top: 8rpx;
   color: var(--app-text-tertiary);
   font-size: var(--font-size-tag);
   font-weight: var(--font-medium);
 }
 
 .invite-card {
-  margin-top: 28rpx;
-  padding: 28rpx;
-  border-radius: var(--app-radius-card);
-  background: rgba(255, 253, 252, 0.92);
+  margin-top: 36rpx;
+  padding: 24rpx 0;
 }
 
 .qr-wrap {
@@ -300,10 +318,11 @@ onMounted(() => {
 }
 
 .qr-image {
-  width: 320rpx;
-  height: 320rpx;
-  padding: 16rpx;
-  border-radius: 28rpx;
+  width: 360rpx;
+  height: 360rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 30rpx;
   background: #fffdfc;
   box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.04);
 }
@@ -329,27 +348,9 @@ onMounted(() => {
   line-height: var(--line-body-sm);
 }
 
-.link-card {
-  margin-top: 18rpx;
-  padding: 26rpx;
-  border-radius: var(--app-radius-card);
-  background: rgba(255, 253, 252, 0.92);
-}
-
-.link-title {
-  color: var(--app-text);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-semibold);
-}
-
-.link-value {
-  margin-top: 12rpx;
-  padding: 18rpx;
-  border-radius: 26rpx;
-  background: var(--app-accent-soft);
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tabbar);
-  line-height: var(--line-body-sm);
-  word-break: break-all;
-}
+.invite-actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 24rpx; }
+.share-action { display: flex; align-items: center; justify-content: center; gap: 10rpx; width: 100%; min-height: 88rpx; border-radius: var(--app-radius-button); font-size: var(--font-size-body); font-weight: var(--font-medium); }
+.share-action::after { border: 0; }
+.share-action.primary { border: 0; background: var(--app-primary); color: var(--text-white); }
+.share-action.secondary { border: 1rpx solid var(--app-border); background: transparent; color: var(--app-primary); }
 </style>

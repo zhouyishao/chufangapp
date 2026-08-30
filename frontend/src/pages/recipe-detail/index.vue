@@ -344,7 +344,7 @@ import ContentDetailBottomBar from '../../components/content-detail-bottom-bar.v
 import ContentDetailHero from '../../components/content-detail-hero.vue';
 import ContentDetailState from '../../components/content-detail-state.vue';
 import { detailPreviewRelatedRecipes, getDetailPreviewFixture } from '../../dev/detail-preview-fixtures';
-import { addBasketItem, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
+import { addBasketItem, addBasketItems, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
 import type { BasketItem } from '../../services/basket';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import {
@@ -362,6 +362,7 @@ import { navigateBackFromContentDetail, resolveDetailEntryOrigin } from '../../u
 
 interface Ingredient {
   id?: number | string;
+  ingredientId?: number | string;
   name: string;
   amount: string;
   cover?: string;
@@ -604,7 +605,7 @@ const enrichIngredientCovers = async (items: Ingredient[]) => {
     try {
       const result = await listIngredients({ page: 1, pageSize: 8, q: name });
       const exact = result.list.find((item) => item.name.trim() === name.trim());
-      return [name, exact?.cover || ''] as const;
+      return [name, exact?.transparentImage ?? exact?.cover ?? ''] as const;
     } catch {
       return [name, ''] as const;
     }
@@ -661,7 +662,8 @@ const loadRemoteRecipe = async (id: string) => {
     // 8. Ingredients list mapping
     const rawIngs = data.ingredients ?? (data.ingredientItems ?? []);
     const mappedIngredients = await enrichIngredientCovers(rawIngs.map((item: any) => {
-      const coverSource = item.ingredient?.cover
+      const coverSource = item.ingredient?.transparentImage
+        ?? item.ingredient?.cover
         ?? item.ingredient?.coverImage
         ?? item.cover
         ?? item.coverImage
@@ -669,6 +671,7 @@ const loadRemoteRecipe = async (id: string) => {
       const coverUrl = coverSource ? resolveAssetUrl(coverSource) : '';
       return {
         id: item.id,
+        ingredientId: item.ingredientId,
         name: item.name ?? item.ingredient?.name ?? '',
         amount: formatIngredientAmount(item),
         cover: coverUrl
@@ -865,7 +868,9 @@ const toggleCollectRecipe = async () => {
 
 const isPantrySeasoning = (name: string) => pantrySeasonings.includes(name);
 
-const getRecipeIngredientBasketId = (item: Ingredient) => `${recipe.value.id}-${item.name}`;
+const getRecipeBasketId = () => currentRecipeLegacyId.value ? String(currentRecipeLegacyId.value) : recipe.value.id;
+
+const getRecipeIngredientBasketId = (item: Ingredient) => `${getRecipeBasketId()}-${item.name}`;
 
 const isIngredientInBasket = (item: Ingredient) => basketItemIds.value.includes(getRecipeIngredientBasketId(item));
 
@@ -889,7 +894,8 @@ const addIngredientToBasket = async (item: Ingredient, showToast = true) => {
     name: item.name,
     amountText: scaledAmt,
     purchaseText: getIngredientPurchaseText(item.name),
-    checked: false
+    checked: false,
+    ingredientId: item.ingredientId ? String(item.ingredientId) : undefined
   });
   await syncBasketState();
   if (showToast) {
@@ -945,7 +951,21 @@ const toggleMainIngredientsInBasket = async () => {
       });
     } else {
       const pendingIngredients = mainIngredients.value.filter((item) => !isIngredientInBasket(item));
-      await Promise.all(pendingIngredients.map((item) => addIngredientToBasket(item, false)));
+      const nextItems = pendingIngredients.map((item) => ({
+        id: getRecipeIngredientBasketId(item),
+        recipeId: getRecipeBasketId(),
+        recipeName: recipe.value.name,
+        name: item.name,
+        amountText: scaleAmountText(item.amount, servingsScale.value),
+        purchaseText: getIngredientPurchaseText(item.name),
+        checked: false,
+        ingredientId: item.ingredientId ? String(item.ingredientId) : undefined
+      }));
+      const finalBasket = await addBasketItems(nextItems);
+      basketItems.value = finalBasket;
+      basketItemIds.value = finalBasket.map(getBasketKey);
+      const allAdded = mainIngredients.value.every((item) => basketItemIds.value.includes(getRecipeIngredientBasketId(item)));
+      if (!allAdded) throw new Error('主食材加入不完整');
       uni.showToast({
         title: pendingIngredients.length ? '主食材已全部加入菜篮子' : '主食材已在菜篮子',
         icon: pendingIngredients.length ? 'success' : 'none'

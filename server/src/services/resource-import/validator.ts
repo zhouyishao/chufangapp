@@ -235,6 +235,23 @@ const summarizeFoodNutrients = (value: unknown): string | null => {
   return entries.length > 0 ? entries.join('；') : null;
 };
 
+const summarizeFlatNutrition = (raw: Record<string, unknown>): string | null => {
+  const entries = [
+    ['热量', raw.calory, 'kcal'],
+    ['蛋白质', raw.protein, 'g'],
+    ['脂肪', raw.fat, 'g'],
+    ['碳水', raw.carbohydrate, 'g'],
+    ['膳食纤维', raw.fiber_dietary, 'g'],
+    ['钠', raw.natrium, 'mg']
+  ]
+    .map(([label, item, unit]) => {
+      const text = toText(item);
+      return text ? `${label} ${text} ${unit}` : '';
+    })
+    .filter(Boolean);
+  return entries.length > 0 ? entries.join('；') : null;
+};
+
 const normalizeUrl = (value: unknown): string | null => {
   const text = toText(value);
   return text || null;
@@ -301,24 +318,25 @@ export function normalizeResourcePayload(resourceType: ResourceImportType, rawIn
     payload.alcoholDegree = getNumber(raw, ['alcoholDegree', '酒精浓度']);
     payload.description = instructions || getText(raw, ['description', '描述']) || undefined;
     payload.drinkType = getText(raw, ['drinkType', 'drink_type', 'strCategory']) || null;
-    payload.cocktailMethod = getText(raw, ['cocktailMethod', 'cocktail_method']) || detectCocktailMethod(instructions);
-    payload.baseSpirit = getText(raw, ['baseSpirit', 'base_spirit']) || findBaseSpirit(cocktailIngredients);
-    payload.glassType = getText(raw, ['glassType', 'glass_type', 'strGlass']) || null;
+    payload.cocktailMethod = getText(raw, ['cocktailMethod', 'cocktail_method', '调制方式']) || detectCocktailMethod(instructions);
+    payload.baseSpirit = getText(raw, ['baseSpirit', 'base_spirit', '基酒']) || findBaseSpirit(cocktailIngredients);
+    payload.glassType = getText(raw, ['glassType', 'glass_type', 'strGlass', '杯型']) || null;
     payload.alcoholicType = getText(raw, ['alcoholicType', 'alcoholic_type', 'strAlcoholic']) || null;
     payload.ingredients = splitIngredients(raw.ingredients ?? raw['用料']);
     if (payload.ingredients.length === 0) payload.ingredients = cocktailIngredients;
     payload.measures = Array.isArray(raw.measures) ? raw.measures.map((item) => toText(item)).filter(Boolean) : collectNumberedMeasures(raw, 15);
     payload.garnish = getText(raw, ['garnish', '装饰']) || extractGarnish(cocktailIngredients, instructions);
     payload.instructions = instructions || null;
-    payload.flavorTags = splitTags(raw.flavorTags ?? raw.flavor_tags ?? raw.strTags);
-    payload.sceneTags = splitTags(raw.sceneTags ?? raw.scene_tags ?? raw.strIBA);
+    payload.flavorTags = splitTags(raw.flavorTags ?? raw.flavor_tags ?? raw.strTags ?? raw['风味标签']);
+    payload.sceneTags = splitTags(raw.sceneTags ?? raw.scene_tags ?? raw.strIBA ?? raw['场景标签']);
   } else {
-    payload.cover = normalizeUrl(raw.cover ?? raw.image_url ?? raw.image_front_url ?? raw['图片']) || null;
+    payload.cover = normalizeUrl(raw.cover ?? raw.thumb_image_url ?? raw.large_image_url ?? raw.image_url ?? raw.image_front_url ?? raw['图片']) || null;
     payload.categoryName = getText(raw, ['categoryName', 'category', 'classify', 'food_groups', 'categories', 'family', '分类', '分类名称']) || null;
     payload.seasonMonth = getText(raw, ['seasonMonth', '时令月份']) || null;
     payload.nutrition = getText(raw, ['nutrition', '营养成分', 'content', 'nutrient'])
       || summarizeNutrition(raw.nutriments ?? raw.nutritions)
-      || summarizeFoodNutrients(raw.foodNutrients);
+      || summarizeFoodNutrients(raw.foodNutrients)
+      || summarizeFlatNutrition(raw);
     payload.selectionTips = getText(raw, ['selectionTips', '挑选技巧']) || null;
     payload.storageMethod = getText(raw, ['storageMethod', '储存方法']) || null;
     payload.taboo = getText(raw, ['taboo', '食用禁忌']) || null;

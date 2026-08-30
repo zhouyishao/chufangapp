@@ -83,6 +83,20 @@ const mapBasketItem = (item: ApiBasketItem): BasketItem => ({
   recipeCoverUrl: item.recipe?.cover ?? null
 });
 
+const createBasketItem = async (userId: number, scopeFamilyId: string | null, item: BasketItem) => {
+  await addMobileBasketItem({
+    userId,
+    familyId: scopeFamilyId ? Number(scopeFamilyId) : null,
+    recipeId: item.recipeId && item.recipeId !== 'ingredient' ? Number(item.recipeId) : null,
+    ingredientId: item.ingredientId ? Number(item.ingredientId) : null,
+    recipeName: item.recipeName,
+    name: item.name,
+    amountText: item.amountText,
+    quantity: item.quantity ?? 1,
+    purchaseText: item.purchaseText ?? null
+  });
+};
+
 export const getIngredientBasketItemId = (ingredientId: string) => `ingredient-${ingredientId}`;
 
 export const getIngredientPurchaseText = (_name: string): string | undefined => undefined;
@@ -102,17 +116,16 @@ export const loadBasketItems = async (familyId?: string | null) => {
 export const addBasketItem = async (item: BasketItem, familyId?: string | null) => {
   const user = await requireUser();
   const scopeFamilyId = await resolveBasketFamilyId(familyId);
-  await addMobileBasketItem({
-    userId: user.id,
-    familyId: scopeFamilyId ? Number(scopeFamilyId) : null,
-    recipeId: item.recipeId && item.recipeId !== 'ingredient' ? Number(item.recipeId) : null,
-    ingredientId: item.ingredientId ? Number(item.ingredientId) : null,
-    recipeName: item.recipeName,
-    name: item.name,
-    amountText: item.amountText,
-    quantity: item.quantity ?? 1,
-    purchaseText: item.purchaseText ?? null
-  });
+  await createBasketItem(user.id, scopeFamilyId, item);
+  return loadBasketItems(scopeFamilyId);
+};
+
+export const addBasketItems = async (items: BasketItem[], familyId?: string | null) => {
+  const user = await requireUser();
+  const scopeFamilyId = await resolveBasketFamilyId(familyId);
+  for (const item of items) {
+    await createBasketItem(user.id, scopeFamilyId, item);
+  }
   return loadBasketItems(scopeFamilyId);
 };
 

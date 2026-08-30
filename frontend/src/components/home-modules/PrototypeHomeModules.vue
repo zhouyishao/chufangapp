@@ -183,7 +183,7 @@ const compactModuleKeys = new Set(['WEEKLY_HOT', 'MORE_HOME_RECIPES', 'MEAL_DRIN
 const drinkModuleKeys = new Set(['DRINK_PAIRING', 'REFRESHING_DRINKS', 'MEAL_DRINK_PAIRING', 'WINE_BASICS', 'MIXOLOGY_ENTRY']);
 const itemLabel = (item?: HomeModuleItem) => (item?.name || item?.title || '').trim();
 const supportsTextMediaFallback = (item?: HomeModuleItem) =>
-  Boolean(item && ['ingredient', 'fruit', 'seasoning', 'category'].includes(item.type));
+  Boolean(item && ['recipe', 'ingredient', 'fruit', 'seasoning', 'beverage', 'category'].includes(item.type));
 const isRenderableItem = (module: HomeModule, item?: HomeModuleItem) => {
   if (item && item.type === 'image' && item.cover?.trim()) {
     return module.displayStyle === 'LARGE_IMAGE_CAROUSEL';
@@ -524,6 +524,7 @@ const openMore = (module: HomeModule) => {
   flex: 0 0 68px;
   flex-direction: column;
   align-items: center;
+  gap: 0;
   border: 0;
   background: transparent;
 }
@@ -536,6 +537,10 @@ const openMore = (module: HomeModule) => {
   justify-content: center;
   overflow: hidden;
   border-radius: 9px;
+  background: transparent;
+}
+
+.seasonal-item__media.is-media-fallback {
   background: var(--app-muted);
 }
 

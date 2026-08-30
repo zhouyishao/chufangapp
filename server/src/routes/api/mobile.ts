@@ -14,6 +14,7 @@ import { canChangeFamilyRole, canInviteFamilyMember, canRemoveFamilyMember } fro
 import { resolveContentTarget } from '../../services/content-target';
 import { lockOwnedActiveMediaFiles } from '../../services/file-mutation';
 import { getMobileProfile, updateMobileProfile } from '../../services/mobile-profile';
+import { compareMobilePassword } from '../../services/mobile-password';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -312,31 +313,36 @@ export const apiMobileRouter = Router();
 
 apiMobileRouter.post('/auth/login', async (req, res) => {
   const schema = z.object({
-    phone: z.string().trim().max(32).optional(),
-    openid: z.string().trim().max(80).optional(),
-    nickname: z.string().trim().max(60).optional(),
-    avatar: z.string().trim().max(255).optional()
+    phone: z.string().trim().regex(/^1[3-9]\d{9}$/, '手机号格式不正确'),
+    password: z.string().min(8).max(72)
   });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success || (!parsed.data.phone && !parsed.data.openid)) throw new HttpError('参数错误', 400, 400);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
-  const user = parsed.data.phone
-    ? await prisma.user.upsert({
-        where: { phone: parsed.data.phone },
-        create: { ...parsed.data, sourceType: 'USER' },
-        update: { nickname: parsed.data.nickname, avatar: parsed.data.avatar }
-      })
-    : await prisma.user.upsert({
-        where: { openid: parsed.data.openid },
-        create: { ...parsed.data, sourceType: 'USER' },
-        update: { nickname: parsed.data.nickname, avatar: parsed.data.avatar }
-      });
+  const user = await prisma.user.findFirst({
+    where: { phone: parsed.data.phone, deletedAt: null }
+  });
+
+  if (!user) throw new HttpError('手机号或密码错误', 401, 401);
 
   if (user.status === 'DISABLED') {
     throw new HttpError('该账户已被禁用，无法登录，请联系管理员。', 403, 403);
   }
 
-  res.json(ok(buildAppAuthSession(user)));
+  if (!user.passwordHash) {
+    throw new HttpError('账号尚未设置密码，请联系管理员', 403, 403);
+  }
+
+  const passwordMatches = await compareMobilePassword(parsed.data.password, user.passwordHash);
+  if (!passwordMatches) throw new HttpError('手机号或密码错误', 401, 401);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() }
+  });
+
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  res.json(ok(buildAppAuthSession(safeUser)));
 });
 
 apiMobileRouter.get('/home', async (_req, res) => {
@@ -691,8 +697,8 @@ apiMobileRouter.get('/search', requireAppAuth, async (req, res) => {
   if (keyword) {
     await prisma.searchHistory.upsert({
       where: { userId_keyword: { userId, keyword } },
-      create: { userId, keyword, resultCount },
-      update: { resultCount, deletedAt: null, status: 'ACTIVE', updatedAt: new Date() }
+      create: { userId, keyword, searchCount: 1, resultCount },
+      update: { searchCount: { increment: 1 }, resultCount, deletedAt: null, status: 'ACTIVE', updatedAt: new Date() }
     });
   }
   res.json(ok({ recipes, ingredients }));
@@ -1297,18 +1303,17 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
     });
     if (!member) throw new HttpError('无权修改该家庭菜篮子', 403, 403);
   }
-  const existing = parsed.data.ingredientId
-    ? await prisma.purchaseListItem.findFirst({
-        where: {
-          ...buildBasketListWhere({
-            requesterUserId: userId,
-            familyId: parsed.data.familyId
-          }),
-          recipeId: parsed.data.recipeId ?? null,
-          ingredientId: parsed.data.ingredientId,
-        }
-      })
-    : null;
+  const existing = await prisma.purchaseListItem.findFirst({
+    where: {
+      ...buildBasketListWhere({
+        requesterUserId: userId,
+        familyId: parsed.data.familyId
+      }),
+      recipeId: parsed.data.recipeId ?? null,
+      ingredientId: parsed.data.ingredientId ?? null,
+      name: parsed.data.name
+    }
+  });
   const item = existing
     ? await prisma.purchaseListItem.update({
         where: { id: existing.id },

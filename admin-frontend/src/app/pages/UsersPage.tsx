@@ -16,6 +16,7 @@ import { Modal } from '../components/Modal';
 import { ImagePreview } from '../components/ImagePreview';
 import { ImageEditorUploader } from '../components/ImageEditorUploader';
 import { StatusTag } from '../components/StatusTag';
+import { PermissionGate } from '../components/PermissionGate';
 import type { AdminUserListItem, PageResult } from '../types';
 
 const initialPage: PageResult<AdminUserListItem> = {
@@ -81,6 +82,9 @@ const initialForm = {
   role: 'USER',
   source: 'ADMIN_CREATED'
 };
+
+const isValidMobilePassword = (password: string) =>
+  password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
 
 export const UsersPage = () => {
   const [keyword, setKeyword] = useState('');
@@ -259,25 +263,33 @@ export const UsersPage = () => {
       setFormError('昵称不能为空');
       return;
     }
+    if (!/^1[3-9]\d{9}$/.test(formState.phone.trim())) {
+      setFormError('请输入正确的 11 位手机号');
+      return;
+    }
+    if (drawerMode === 'create' && !formState.password) {
+      setFormError('请设置初始密码');
+      return;
+    }
+    if (formState.password && !isValidMobilePassword(formState.password)) {
+      setFormError('密码至少 8 位且必须包含字母和数字');
+      return;
+    }
 
     setSaving(true);
     setFormError(null);
 
     try {
       const payload: Record<string, any> = { ...formState };
-      // Remove password if blank or editing
-      if (drawerMode === 'edit' || !payload.password) {
+      if (!payload.password) {
         delete payload.password;
       }
-      if (!payload.phone) delete payload.phone;
       if (!payload.email) delete payload.email;
 
       if (drawerMode === 'create') {
         await createUser(payload);
         setNotice(`成功创建新用户：「${formState.nickname}」`);
       } else if (drawerMode === 'edit' && selectedUser) {
-        // delete password from payload on edit as updates to password use dedicated routes
-        delete payload.password;
         await updateUser(selectedUser.legacyId, payload);
         setNotice(`用户信息「${formState.nickname}」已更新`);
       }
@@ -299,10 +311,10 @@ export const UsersPage = () => {
           <h1 className="text-3xl font-semibold tracking-tight text-[#2f2f2f]">用户管理</h1>
           <p className="mt-2 text-sm text-[#8c8c8c]">管理时令 App 的用户账户与权限设置，支持查看活跃统计、新增/编辑档案及账号启用与注销。</p>
         </div>
-        <Button onClick={openCreateDrawer} className="h-11 bg-[#7a8b6f] hover:bg-[#6d7f63] font-semibold flex items-center gap-1.5 shadow-sm rounded-xl">
+        <PermissionGate permission="user:account:create"><Button onClick={openCreateDrawer} className="h-11 bg-[#7a8b6f] hover:bg-[#6d7f63] font-semibold flex items-center gap-1.5 shadow-sm rounded-xl">
           <Plus className="h-4.5 w-4.5" />
           新增用户
-        </Button>
+        </Button></PermissionGate>
       </div>
 
       {error ? <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div> : null}
@@ -414,7 +426,7 @@ export const UsersPage = () => {
           <table className="min-w-[1450px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead className="bg-[#fffaf3] text-xs text-[#8c8c8c] border-b border-[#eadfce]">
               <tr>
-                {['用户编码', '头像', '昵称', '手机号', '电子邮箱', '来源', '角色', '关联家庭', '收藏/浏览', '注册时间', '账号状态', '操作'].map((item) => (
+                {['用户编码', '头像', '昵称', '手机号', '电子邮箱', '来源', '角色', '关联家庭', '收藏/浏览', '登录密码', '注册时间', '账号状态', '操作'].map((item) => (
                   <th key={item} className="border-b border-[#eadfce] px-4.5 py-4 font-semibold whitespace-nowrap">{item}</th>
                 ))}
               </tr>
@@ -422,11 +434,11 @@ export const UsersPage = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="px-4.5 py-16 text-center text-[#8c8c8c]">加载中...</td>
+                  <td colSpan={13} className="px-4.5 py-16 text-center text-[#8c8c8c]">加载中...</td>
                 </tr>
               ) : data.list.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4.5 py-16 text-center text-[#8c8c8c]">暂无符合条件的用户数据</td>
+                  <td colSpan={13} className="px-4.5 py-16 text-center text-[#8c8c8c]">暂无符合条件的用户数据</td>
                 </tr>
               ) : (
                 data.list.map((item) => (
@@ -456,6 +468,9 @@ export const UsersPage = () => {
                     <td className="border-b border-[#f0e8dc] px-4.5 py-3.5 text-xs text-zinc-500">
                       收藏:{item.favoriteCount} | 历史:{item.recentViewCount}
                     </td>
+                    <td className="border-b border-[#f0e8dc] px-4.5 py-3.5">
+                      <StatusTag label={item.hasPassword ? '已设置' : '未设置'} tone={item.hasPassword ? 'green' : 'orange'} />
+                    </td>
                     <td className="border-b border-[#f0e8dc] px-4.5 py-3.5 text-zinc-400 text-xs">
                       {formatDateTime(item.createdAt)}
                     </td>
@@ -465,11 +480,11 @@ export const UsersPage = () => {
                     <td className="border-b border-[#f0e8dc] px-4.5 py-3.5">
                       <div className="flex items-center gap-3 text-sm">
                         <button type="button" className="font-bold text-[#7a8b6f] hover:underline" onClick={() => openDetailDrawer(item)}>详情</button>
-                        <button type="button" className="font-bold text-zinc-600 hover:underline" onClick={() => openEditDrawer(item)}>编辑</button>
-                        <button type="button" className={item.status === 'ACTIVE' ? 'font-bold text-red-500 hover:underline' : 'font-bold text-emerald-600 hover:underline'} onClick={() => void handleToggleStatus(item)}>
+                        <PermissionGate permission="user:account:update"><button type="button" className="font-bold text-zinc-600 hover:underline" onClick={() => openEditDrawer(item)}>编辑</button></PermissionGate>
+                        <PermissionGate permission="user:account:status"><button type="button" className={item.status === 'ACTIVE' ? 'font-bold text-red-500 hover:underline' : 'font-bold text-emerald-600 hover:underline'} onClick={() => void handleToggleStatus(item)}>
                           {item.status === 'ACTIVE' ? '禁用' : '启用'}
-                        </button>
-                        <button type="button" className="font-bold text-red-700 hover:underline" onClick={() => openDeleteModal(item)}>注销</button>
+                        </button></PermissionGate>
+                        <PermissionGate permission="user:account:delete"><button type="button" className="font-bold text-red-700 hover:underline" onClick={() => openDeleteModal(item)}>注销</button></PermissionGate>
                       </div>
                     </td>
                   </tr>
@@ -535,12 +550,13 @@ export const UsersPage = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-[#4d463f]">手机号码</span>
+              <span className="text-xs font-semibold text-[#4d463f]">手机号码 *</span>
               <Input
                 value={formState.phone}
                 onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
                 placeholder="11位手机号"
                 type="tel"
+                required
                 className="h-10 rounded-xl"
               />
             </div>
@@ -556,18 +572,19 @@ export const UsersPage = () => {
             </div>
           </div>
 
-          {drawerMode === 'create' && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-[#4d463f]">登录密码 (留空则默认为无)</span>
-              <Input
-                value={formState.password}
-                onChange={(e) => setFormState({ ...formState, password: e.target.value })}
-                placeholder="不少于 6 位密码数字/字母"
-                type="password"
-                className="h-10 rounded-xl"
-              />
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-[#4d463f]">
+              {drawerMode === 'create' ? '初始密码 *' : '重置密码（留空不修改）'}
+            </span>
+            <Input
+              value={formState.password}
+              onChange={(e) => setFormState({ ...formState, password: e.target.value })}
+              placeholder="至少 8 位，必须包含字母和数字"
+              type="password"
+              required={drawerMode === 'create'}
+              className="h-10 rounded-xl"
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">

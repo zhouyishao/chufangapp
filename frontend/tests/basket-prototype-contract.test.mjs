@@ -73,3 +73,11 @@ test('basket write operations prevent duplicate taps and reconcile after failure
   assert.match(basketSource, /void loadBasketPage\(\)/);
   assert.match(basketSource, /:aria-busy="isMutating"/);
 });
+
+test('basket keeps compact phone-sized controls inside the capped H5 canvas', () => {
+  assert.match(basketSource, /\.basket-page\s*\{[\s\S]*padding:\s*0 40rpx calc\(344rpx \+ var\(--app-safe-area-bottom\)\)/);
+  assert.match(basketSource, /\.scan-button\s*\{[\s\S]*width:\s*44px;[\s\S]*height:\s*44px;/);
+  assert.match(basketSource, /\.mode-button\s*\{[\s\S]*min-height:\s*88rpx;/);
+  assert.match(basketSource, /\.basket-state\s*\{[\s\S]*min-height:\s*240px;/);
+  assert.match(basketSource, /\.basket-state__retry\s*\{[\s\S]*min-width:\s*112px;[\s\S]*min-height:\s*44px;/);
+});

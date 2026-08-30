@@ -66,7 +66,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { onReachBottom, onShow } from '@dcloudio/uni-app';
+import { onLoad, onReachBottom, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { deleteMobileFavorite, listMobileFavorites } from '../../services/public-api';
@@ -92,6 +92,14 @@ const page = ref(1);
 const pageSize = 20;
 const hasMore = ref(false);
 const loadingMore = ref(false);
+
+const guardPrivatePage = () => {
+  if (loadAuthUser()) return true;
+  uni.reLaunch({ url: '/pages/phone-login/index' });
+  return false;
+};
+
+guardPrivatePage();
 
 const toFavoriteItem = (record: ApiMobileFavorite): FavoriteItem | null => {
   if (record.targetType === 'RECIPE' && record.recipe) {
@@ -141,6 +149,7 @@ const toFavoriteItem = (record: ApiMobileFavorite): FavoriteItem | null => {
 };
 
 const fetchFavorites = async (nextPage: number, append = false) => {
+  if (!guardPrivatePage()) return;
   if (append) loadingMore.value = true;
   else loading.value = true;
   error.value = '';
@@ -212,7 +221,12 @@ const removeFavorite = async (item: FavoriteItem) => {
 };
 
 onShow(() => {
+  if (!guardPrivatePage()) return;
   void loadFavorites();
+});
+
+onLoad(() => {
+  if (!guardPrivatePage()) return;
 });
 
 onReachBottom(() => {

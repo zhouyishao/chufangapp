@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
+import { localizeResourcePayload } from '../services/resource-import/localize';
 import { normalizeResourcePayload } from '../services/resource-import/validator';
 
 test('recipe import preserves structured steps and their media metadata', () => {
@@ -21,6 +22,34 @@ test('recipe import preserves structured steps and their media metadata', () => 
     timerSeconds: 480,
     tip: '关火后焖两分钟'
   }]);
+});
+
+test('domestic UAPI ingredient rows keep Chinese names, images, and nutrition data', () => {
+  const payload = normalizeResourcePayload('FRUIT', {
+    code: 'pingguo_junzhi',
+    name: '苹果',
+    calory: '53',
+    carbohydrate: 13.7,
+    weight: '100',
+    thumb_image_url: 'https://example.com/apple.webp'
+  });
+
+  assert.equal(payload.name, '苹果');
+  assert.equal(payload.externalId, 'pingguo_junzhi');
+  assert.equal(payload.cover, 'https://example.com/apple.webp');
+  assert.match(payload.nutrition ?? '', /热量 53 kcal/);
+  assert.match(payload.nutrition ?? '', /碳水 13\.7 g/);
+});
+
+test('legacy overseas fruit rows are localized before display and confirmation', () => {
+  const payload = localizeResourcePayload('FRUIT', {
+    name: 'Banana',
+    categoryName: 'Musaceae',
+    externalId: '1'
+  });
+
+  assert.equal(payload.name, '香蕉');
+  assert.equal(payload.categoryName, '芭蕉科');
 });
 
 test('resource confirmation imports pending rows only and keeps imported content unpublished', () => {

@@ -17,11 +17,13 @@ import {
 import { Alert, Button, Empty, Modal, Skeleton, Switch, Tag, Tooltip } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PermissionGate } from '../components/PermissionGate';
 
 import {
   listContentModules,
   listHeroBanners,
   listHomeTopNavs,
+  reorderContentModules,
   resolveAssetUrl,
   updateContentModule,
   updateContentModuleStatus,
@@ -322,12 +324,13 @@ export const HomeComposerPage = () => {
     setSaving(true);
     setError(null);
     try {
-      await Promise.all(
-        modules.map((item, index) => updateContentModule(selectedChannel.id, item.id, toModulePayload(item, index + 1)))
+      const reorderedModules = await reorderContentModules(
+        selectedChannel.id,
+        modules.map((item, index) => ({ id: item.id, sortOrder: index + 1 }))
       );
+      setModules(reorderedModules);
       setOrderDirty(false);
       setNotice('模块顺序已保存');
-      await loadChannelContent(selectedChannel);
       setPreviewRevision((current) => current + 1);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存排序失败');
@@ -530,8 +533,8 @@ export const HomeComposerPage = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Button icon={<ReloadOutlined />} onClick={() => void loadChannels()}>刷新</Button>
           <Button icon={<EyeOutlined />} onClick={openCAppPreview}>打开 C 端</Button>
-          <Button icon={<SaveOutlined />} loading={saving} disabled={!selectedChannel} onClick={() => void saveOrder()}>保存编排</Button>
-          <Button type="primary" loading={publishing} disabled={!selectedChannel} onClick={() => void publishChannel()}>发布当前频道</Button>
+          <PermissionGate permission="home:configuration:update"><Button icon={<SaveOutlined />} loading={saving} disabled={!selectedChannel} onClick={() => void saveOrder()}>保存编排</Button></PermissionGate>
+          <PermissionGate permission="home:configuration:status"><Button type="primary" loading={publishing} disabled={!selectedChannel} onClick={() => void publishChannel()}>发布当前频道</Button></PermissionGate>
         </div>
       </header>
 
@@ -552,7 +555,7 @@ export const HomeComposerPage = () => {
           <div className="flex items-center justify-between border-b border-[#e6e5e0] px-4 py-3.5">
             <div>
               <h2 className="text-[15px] font-semibold text-[#2f2f2f]">首页频道</h2>
-              <p className="mt-0.5 text-xs text-[#85877f]">固定 5 个，不允许增加或改序</p>
+              <p className="mt-0.5 text-xs text-[#85877f]">正式 C 端展示排序前 5 个；完整频道池在数据源中维护</p>
             </div>
             <Tooltip title="管理频道数据源">
               <Button type="text" shape="circle" icon={<SettingOutlined />} onClick={() => navigate('/home-ops/navigation')} />

@@ -241,6 +241,7 @@ export const TopNavPage = () => {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.84fr)] xl:items-center">
         <div className="rounded-[4px] bg-transparent py-1">
           <h1 className="text-[30px] font-semibold leading-tight tracking-tight text-[#2f2f2f]">顶部导航管理</h1>
+          <p className="mt-2 text-sm text-[#6f726b]">这里维护完整频道池及顺序；正式 C 端首页只展示排序前 5 个，其余频道可用于后续运营调整。</p>
           <p className="mt-2 text-sm leading-6 text-[#8c8c8c]">
             用于管理 App 顶部 Tab 导航，支持新增、排序、启用、停用、配置内容等操作。
           </p>

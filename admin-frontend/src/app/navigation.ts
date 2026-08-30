@@ -10,22 +10,22 @@ export const adminNavigation: AdminNavItem[] = [
   {
     label: '首页管理',
     path: '/home-ops',
-    permission: 'home:view',
+    permission: 'home:configuration:view',
     children: [
-      { label: '顶部导航管理', path: '/home-ops', permission: 'home:view' },
-      { label: '模块管理', path: '/home-ops/modules', permission: 'home:view' }
+      { label: '顶部导航管理', path: '/home-ops', permission: 'home:configuration:view' },
+      { label: '模块管理', path: '/home-ops/modules', permission: 'home:configuration:view' }
     ]
   },
   {
     label: '内容管理',
     path: '/content',
-    permission: 'content:view',
+    permission: 'content:recipe:view',
     children: [
-      { label: '菜谱管理', path: '/content/recipes', permission: 'recipe:view' },
-      { label: '食材管理', path: '/content/ingredients', permission: 'ingredient:view' },
-      { label: '水果管理', path: '/content/fruits', permission: 'ingredient:view' },
-      { label: '调料管理', path: '/content/seasonings', permission: 'ingredient:view' },
-      { label: '酒水管理', path: '/content/beverages', permission: 'beverage:view' }
+      { label: '菜谱管理', path: '/content/recipes', permission: 'content:recipe:view' },
+      { label: '食材管理', path: '/content/ingredients', permission: 'content:ingredient:view' },
+      { label: '水果管理', path: '/content/fruits', permission: 'content:ingredient:view' },
+      { label: '调料管理', path: '/content/seasonings', permission: 'content:ingredient:view' },
+      { label: '酒水管理', path: '/content/beverages', permission: 'content:beverage:view' }
     ]
   },
   {
@@ -34,8 +34,8 @@ export const adminNavigation: AdminNavItem[] = [
     permission: 'resource:view',
     children: [
       { label: '资源接入中心', path: '/resource-management/access-center', permission: 'resource:view' },
-      { label: '导入记录', path: '/resource-management/import-records', permission: 'resource:import:view' },
-      { label: 'API 接口管理', path: '/resources/api-providers', permission: 'resource:provider:view' }
+      { label: '导入记录', path: '/resource-management/import-records', permission: 'resource:view' },
+      { label: 'API 接口管理', path: '/resources/api-providers', permission: 'resource:view' }
     ]
   },
   {
@@ -44,7 +44,7 @@ export const adminNavigation: AdminNavItem[] = [
     permission: 'taxonomy:view',
     children: [
       { label: '分类管理', path: '/taxonomies/categories', permission: 'taxonomy:view' },
-      { label: '标签管理', path: '/taxonomies/tags', permission: 'tag:view' },
+      { label: '标签管理', path: '/taxonomies/tags', permission: 'taxonomy:view' },
       // 单位管理待真实数据库表接入后重新开放。
     ]
   },
@@ -54,17 +54,17 @@ export const adminNavigation: AdminNavItem[] = [
     permission: 'family:view',
     children: [
       { label: '家庭列表', path: '/families/list', permission: 'family:view' },
-      { label: '家庭成员', path: '/families/members', permission: 'family:member:view' },
-      { label: '邀请记录', path: '/families/invites', permission: 'family:member:view' }
+      { label: '家庭成员', path: '/families/members', permission: 'family:view' },
+      { label: '邀请记录', path: '/families/invites', permission: 'family:view' }
     ]
   },
   {
     label: '用户管理',
     path: '/users',
-    permission: 'user:view',
+    permission: 'user:account:view',
     children: [
-      { label: '用户列表', path: '/users', permission: 'user:view' },
-      { label: '用户投稿', path: '/users/submissions', permission: 'user:submission:view' }
+      { label: '用户列表', path: '/users', permission: 'user:account:view' },
+      { label: '用户投稿', path: '/users/submissions', permission: 'content:recipe:view' }
     ]
   },
   {
@@ -75,7 +75,7 @@ export const adminNavigation: AdminNavItem[] = [
       { label: '待审核', path: '/audits/pending', permission: 'audit:view' },
       { label: '已通过', path: '/audits/approved', permission: 'audit:view' },
       { label: '已驳回', path: '/audits/rejected', permission: 'audit:view' },
-      { label: '审核记录', path: '/audits/records', permission: 'audit:record:view' }
+      { label: '审核记录', path: '/audits/records', permission: 'audit:view' }
     ]
   },
   {
@@ -83,18 +83,18 @@ export const adminNavigation: AdminNavItem[] = [
     path: '/files',
     permission: 'file:view',
     children: [
-      { label: '上传记录', path: '/files/uploads', permission: 'file:upload:view' }
+      { label: '上传记录', path: '/files/uploads', permission: 'file:view' }
     ]
   },
   {
     label: '资源接口',
     path: '/resources',
-    permission: 'resource:app:view',
+    permission: 'resource:view',
     children: [
-      { label: '应用管理', path: '/resources/apps', permission: 'resource:app:view' },
-      { label: 'API Key 管理', path: '/resources/api-keys', permission: 'resource:key:view' },
-      { label: '接口权限', path: '/resources/permissions', permission: 'resource:permission:view' },
-      { label: '调用日志', path: '/resources/logs', permission: 'resource:log:view' }
+      { label: '应用管理', path: '/resources/apps', permission: 'resource:view' },
+      { label: 'API Key 管理', path: '/resources/api-keys', permission: 'resource:view' },
+      { label: '接口权限', path: '/resources/permissions', permission: 'resource:view' },
+      { label: '调用日志', path: '/resources/logs', permission: 'resource:view' }
     ]
   },
   {
@@ -114,7 +114,7 @@ export const adminNavigation: AdminNavItem[] = [
     permission: 'comment:view',
     children: [
       { label: '评论列表', path: '/comments', permission: 'comment:view' },
-      { label: '举报处理', path: '/comments/reports', permission: 'comment:report:view' }
+      { label: '举报处理', path: '/comments/reports', permission: 'comment:view' }
     ]
   },
   // 报表、价格预测、采购规则、AI 与搜索运营在没有真实数据源前不进入首发导航。

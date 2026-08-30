@@ -11,6 +11,7 @@ import { baseListQuerySchema, parseId } from './shared';
 import { createBusinessId, nextCodeFromItems } from '../../lib/business-id';
 import { createOfficialRecord, findDuplicateTargetId } from '../../services/resource-import/importer';
 import { evaluateResourcePayload, normalizeResourcePayload } from '../../services/resource-import/validator';
+import { localizeResourcePayload } from '../../services/resource-import/localize';
 import type { ResourceImportType } from '../../services/resource-import/types';
 
 export const adminResourcesRouter = Router();
@@ -1035,7 +1036,7 @@ adminResourcesRouter.get('/resource-imports/items', requireAdminAuth, async (req
     providerName: item.batch.provider?.providerName ?? null,
     rowIndex: item.rowIndex,
     rawData: item.rawData,
-    mappedData: item.mappedData,
+    mappedData: localizeResourcePayload(item.batch.importType, item.mappedData),
     status: item.status,
     errorMessage: item.errorMessage,
     targetId: item.targetId,
@@ -1260,7 +1261,10 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
 
   for (const item of items) {
     try {
-      const mapped = item.mappedData as Record<string, any>;
+      const mapped = localizeResourcePayload(
+        batch.importType as 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'SEASONING' | 'BEVERAGE',
+        item.mappedData as any
+      ) as Record<string, any>;
       if (!String(mapped.name ?? '').trim()) {
         throw new Error('必填项缺失: 名称为空');
       }
@@ -1278,7 +1282,8 @@ adminResourcesRouter.post('/resource-imports/confirm', requireAdminAuth, async (
         data: {
           status: 'IMPORTED',
           errorMessage: null,
-          targetId
+          targetId,
+          mappedData: mapped as Prisma.InputJsonValue
         }
       });
       newSuccessCount++;

@@ -30,10 +30,15 @@ unpackage/
 # Codex / agent artifacts
 .codex/
 .claude/
+.codex-work/
 .playwright-cli/
 .impeccable/critique/
+outputs/
 scratch/
 .worktrees/
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
 
 # Python caches
 __pycache__/

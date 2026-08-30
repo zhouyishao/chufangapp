@@ -329,6 +329,7 @@ model Admin {
   username     String  @unique @db.VarChar(32)
   passwordHash String  @map("password_hash") @db.VarChar(255)
   nickname     String? @db.VarChar(32)
+  lastLoginAt  DateTime? @map("last_login_at")
 
   roles AdminRole[]
 
@@ -350,8 +351,10 @@ model Admin {
 
 model Role {
   id          Int     @id @default(autoincrement())
+  code        String  @unique @db.VarChar(64)
   name        String  @unique @db.VarChar(50)
   description String? @db.VarChar(255)
+  isSystem    Boolean @default(false) @map("is_system")
 
   admins      AdminRole[]
   permissions RolePermission[]
@@ -377,6 +380,8 @@ model Permission {
   key         String  @unique @db.VarChar(80)
   name        String  @db.VarChar(80)
   description String? @db.VarChar(255)
+  module      String  @db.VarChar(64)
+  action      String  @db.VarChar(32)
 
   roles RolePermission[]
 
@@ -452,6 +457,7 @@ model Category {
   code  String?      @unique @db.VarChar(32)
   type  CategoryType @map("type")
   name  String       @db.VarChar(80)
+  parentId Int?      @map("parent_id")
 
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
@@ -472,8 +478,11 @@ model Category {
   recipes         Recipe[]
   recommendations Recommendation[]
   beverages       Beverage[]
+  parent          Category?   @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Category[]  @relation("CategoryHierarchy")
 
   @@unique([type, name])
+  @@index([parentId])
   @@map("categories")
 }
 
@@ -484,6 +493,8 @@ model Ingredient {
   name           String    @db.VarChar(80)
   cover          String?   @db.VarChar(255)
   coverFileId    Int?      @map("cover_file_id")
+  transparentImage       String? @map("transparent_image") @db.VarChar(255)
+  transparentImageFileId Int?    @map("transparent_image_file_id")
   categoryId     Int?      @map("category_id")
   seasonMonth    String?   @map("season_month") @db.VarChar(64)
   nutrition      String?   @db.Text
@@ -502,6 +513,7 @@ model Ingredient {
 
   category           Category?                        @relation(fields: [categoryId], references: [id])
   coverFile          File?                            @relation("IngredientCover", fields: [coverFileId], references: [id])
+  transparentImageFile File?                          @relation("IngredientTransparentImage", fields: [transparentImageFileId], references: [id])
   selectionMediaFile File?                            @relation("IngredientSelectionMedia", fields: [selectionMediaFileId], references: [id])
   ingredientTags     IngredientTag[]
   recipeIngredients  RecipeIngredient[]
@@ -798,6 +810,8 @@ model Beverage {
   name             String       @db.VarChar(120)
   coverImage       String?      @map("cover_image") @db.VarChar(255)
   coverFileId      Int?         @map("cover_file_id")
+  transparentImage       String? @map("transparent_image") @db.VarChar(255)
+  transparentImageFileId Int?    @map("transparent_image_file_id")
   galleryFileIds   Json?        @map("gallery_file_ids")
   videoFileId      Int?         @map("video_file_id")
   categoryId       Int?         @map("category_id")
@@ -823,6 +837,7 @@ model Beverage {
 
   category      Category?            @relation(fields: [categoryId], references: [id])
   coverFile     File?                @relation("BeverageCover", fields: [coverFileId], references: [id])
+  transparentImageFile File?         @relation("BeverageTransparentImage", fields: [transparentImageFileId], references: [id])
   videoFile     File?                @relation("BeverageVideo", fields: [videoFileId], references: [id])
   recipes       RecipeBeverage[]
   ingredientsV2 BeverageIngredient[]
@@ -1089,6 +1104,7 @@ model SearchHistory {
   id          Int    @id @default(autoincrement())
   userId      Int    @map("user_id")
   keyword     String @db.VarChar(80)
+  searchCount Int    @default(1) @map("search_count")
   resultCount Int    @default(0) @map("result_count")
 
   user User @relation(fields: [userId], references: [id])
@@ -1287,10 +1303,12 @@ model File {
   beverageSteps BeverageStep[]  @relation("BeverageStepMedia")
   familyAvatars Family[]        @relation("FamilyAvatar")
   ingredientCovers Ingredient[]  @relation("IngredientCover")
+  ingredientTransparentImages Ingredient[] @relation("IngredientTransparentImage")
   ingredientSelectionMedia Ingredient[] @relation("IngredientSelectionMedia")
   recipeCovers Recipe[]          @relation("RecipeCover")
   recipeVideos Recipe[]           @relation("RecipeVideo")
   beverageCovers Beverage[]       @relation("BeverageCover")
+  beverageTransparentImages Beverage[] @relation("BeverageTransparentImage")
   beverageVideos Beverage[]       @relation("BeverageVideo")
 
   createdAt   DateTime     @default(now()) @map("created_at")

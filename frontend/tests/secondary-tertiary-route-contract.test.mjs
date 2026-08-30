@@ -80,12 +80,12 @@ test('隐私共享通过独立个人口味页面进入编辑流程', async () =>
   assert.match(privacy, /pages\/personal-preferences\/index/);
 });
 
-test('家庭、采购和聚餐页面都有正式入口', async () => {
+test('家庭列表、采购和聚餐页面都有正式入口', async () => {
   const mine = await read('../src/pages/mine/index.vue');
   const settings = await read('../src/pages/settings/index.vue');
   const notifications = await read('../src/pages/notification-settings/index.vue');
 
-  assert.match(mine, /pages\/family-manage\/index/);
+  assert.match(mine, /pages\/family\/index/);
   assert.match(settings, /pages\/purchase-history\/index/);
   assert.match(notifications, /pages\/family-gathering\/index/);
 });

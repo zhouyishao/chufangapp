@@ -6,6 +6,7 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
+import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
 
@@ -44,7 +45,7 @@ const ingredientSchema = z.object({
 const upsertSchema = z.object({
   title: z.string().trim().min(1).max(120),
   subtitle: z.string().trim().max(255).nullable().optional(),
-  cover: z.string().trim().max(255).nullable().optional(),
+  cover: optionalContentMediaUrl(),
   coverFileId: z.coerce.number().int().positive().nullable().optional(),
   images: z.array(z.string().trim().max(255)).default([]),
   imageFileIds: z.array(z.coerce.number().int().positive()).nullable().optional(),

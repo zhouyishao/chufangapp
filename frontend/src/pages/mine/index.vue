@@ -20,10 +20,47 @@
 
       <section class="family-section">
         <view class="family-summary">
-          <button class="family-name-button" @tap="goToFamilies">
+          <button
+            class="family-name-button"
+            :aria-expanded="isFamilyMenuVisible"
+            @tap="toggleFamilyMenu"
+          >
             <text>{{ currentFamily.name }}</text>
-            <app-icon name="chevron-down" size="17px" />
+            <app-icon
+              :class="['family-name-chevron', { 'is-open': isFamilyMenuVisible }]"
+              name="chevron-down"
+              size="17px"
+            />
           </button>
+          <view v-if="isFamilyMenuVisible" class="family-dropdown" @tap.stop>
+            <button
+              v-for="family in familyOptions"
+              :key="family.id"
+              class="family-dropdown__item"
+              @tap="selectFamily(family.id)"
+            >
+              <view class="family-dropdown__avatar">
+                <image v-if="family.avatar" :src="family.avatar" mode="aspectFill" />
+                <text v-else>{{ family.name.slice(0, 1) }}</text>
+              </view>
+              <view class="family-dropdown__copy">
+                <text class="family-dropdown__name">{{ family.name }}</text>
+                <text class="family-dropdown__meta">
+                  {{ family.pendingItems ? `${family.pendingItems} 项待采购` : '菜篮为空' }}
+                </text>
+              </view>
+              <app-icon
+                v-if="family.id === currentFamily.id"
+                class="family-dropdown__check"
+                name="check"
+                size="18px"
+              />
+            </button>
+            <button class="family-dropdown__manage" @tap="openFamilyManagement">
+              <text>管理家庭</text>
+              <app-icon name="chevron-right" size="17px" />
+            </button>
+          </view>
           <text class="family-meta">
             {{ currentFamily.members.length }} 位成员 · {{ currentFamily.pendingItems }} 项待采购
           </text>
@@ -43,6 +80,8 @@
           </button>
         </view>
       </section>
+
+      <view v-if="isFamilyMenuVisible" class="family-dropdown-mask" @tap="closeFamilyMenu" />
 
       <section class="mine-recipes">
         <view class="section-heading">
@@ -158,7 +197,7 @@ import { onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
 import { loadAuthUser } from '../../services/auth';
-import { loadActiveFamilyId, loadFamilies } from '../../services/family';
+import { loadActiveFamilyId, loadFamilies, saveActiveFamilyId } from '../../services/family';
 import { loadMyRecipes, type MyRecipe } from '../../services/my-recipes';
 import { getDefaultUserProfile, getUserProfile } from '../../services/profile';
 import { listMobileFavorites, listMobileViewHistories } from '../../services/public-api';
@@ -176,6 +215,7 @@ const authUser = ref(loadAuthUser());
 const profile = ref<UserProfile>(getDefaultUserProfile());
 const familyOptions = ref<FamilyProfile[]>([]);
 const activeFamilyId = ref(loadActiveFamilyId());
+const isFamilyMenuVisible = ref(false);
 const favoriteCount = ref(0);
 const recentViewCount = ref(0);
 const myRecipePreviews = ref<MyRecipe[]>([]);
@@ -211,7 +251,6 @@ const sharingSummary = computed(() => {
   return `已向${currentFamily.value.name}共享 ${sharedGroups} 项信息`;
 });
 
-const familyQuery = computed(() => currentFamily.value.id ? `?id=${encodeURIComponent(currentFamily.value.id)}` : '');
 const navigateTo = (url: string) => uni.navigateTo({ url });
 const goToLogin = () => navigateTo('/pages/login/index');
 const editProfile = () => navigateTo('/pages/profile-edit/index');
@@ -223,9 +262,22 @@ const goToSettings = () => navigateTo('/pages/settings/index');
 const goToPrivacy = () => navigateTo('/pages/privacy-sharing/index');
 const goToNotifications = () => navigateTo('/pages/notifications/index');
 const goToFamilies = () => navigateTo('/pages/family/index');
-const goToCurrentFamily = () => navigateTo(currentFamily.value.id
-  ? `/pages/family-manage/index${familyQuery.value}`
-  : '/pages/family/index');
+const goToCurrentFamily = () => navigateTo('/pages/family/index');
+const toggleFamilyMenu = () => {
+  isFamilyMenuVisible.value = !isFamilyMenuVisible.value;
+};
+const closeFamilyMenu = () => {
+  isFamilyMenuVisible.value = false;
+};
+const selectFamily = (familyId: string) => {
+  activeFamilyId.value = familyId;
+  saveActiveFamilyId(familyId);
+  closeFamilyMenu();
+};
+const openFamilyManagement = () => {
+  closeFamilyMenu();
+  goToFamilies();
+};
 const goToFamilyPreferences = () => navigateTo(currentFamily.value.id
   ? `/pages/family-preferences/index?familyId=${encodeURIComponent(currentFamily.value.id)}`
   : '/pages/family/index');
@@ -288,6 +340,7 @@ const refreshUserStats = async (expectedToken: string, sequence: number) => {
 };
 
 const refreshMinePage = async () => {
+  closeFamilyMenu();
   const sequence = mineRequestSequence.value + 1;
   mineRequestSequence.value = sequence;
   const session = loadAuthUser();
@@ -337,14 +390,14 @@ button::after {
 
 .profile-header {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr) 44px;
+  grid-template-columns: 64px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 16px;
 }
 
 .profile-avatar {
-  width: 68px;
-  height: 68px;
+  width: 64px;
+  height: 64px;
   border-radius: var(--radius-lg);
   background: var(--app-surface);
 }
@@ -440,6 +493,8 @@ button::after {
 }
 
 .family-section {
+  position: relative;
+  z-index: calc(var(--z-sheet) + 1);
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.4fr);
   align-items: center;
@@ -450,6 +505,7 @@ button::after {
 }
 
 .family-summary {
+  position: relative;
   min-width: 0;
 }
 
@@ -470,6 +526,122 @@ button::after {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.family-name-chevron {
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.family-name-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.family-dropdown {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  z-index: calc(var(--z-sheet) + 2);
+  width: min(254px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: var(--app-surface-strong);
+  box-shadow: var(--shadow-floating);
+}
+
+.family-dropdown__item,
+.family-dropdown__manage {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
+.family-dropdown__item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 62px;
+  padding: 9px 13px;
+  text-align: left;
+}
+
+.family-dropdown__item + .family-dropdown__item {
+  border-top: 1px solid var(--app-border);
+}
+
+.family-dropdown__avatar {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--app-primary-soft);
+  color: var(--text-brand);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
+}
+
+.family-dropdown__avatar image {
+  width: 100%;
+  height: 100%;
+}
+
+.family-dropdown__copy,
+.family-dropdown__name,
+.family-dropdown__meta {
+  display: block;
+  min-width: 0;
+}
+
+.family-dropdown__name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
+  line-height: var(--line-list-title);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-dropdown__meta {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-regular);
+  line-height: var(--line-tag);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.family-dropdown__check {
+  color: var(--app-primary);
+}
+
+.family-dropdown__manage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 13px;
+  border-top: 1px solid var(--app-border);
+  color: var(--app-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--line-body-sm);
+  text-align: left;
+}
+
+.family-dropdown-mask {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  background: transparent;
 }
 
 .family-meta {
@@ -719,14 +891,20 @@ button::after {
 }
 
 .guest-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   min-height: 46px;
   margin-top: 22px;
+  padding: 0 24rpx;
+  box-sizing: border-box;
   border-radius: var(--app-radius-button);
   background: var(--app-primary);
   color: var(--text-white);
   font-size: var(--font-size-body);
   font-weight: var(--font-semibold);
+  line-height: normal;
 }
 
 .guest-settings {
