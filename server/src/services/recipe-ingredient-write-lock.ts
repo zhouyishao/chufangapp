@@ -2,6 +2,16 @@ type RecipeIngredientLockDatabase = {
   $executeRawUnsafe(query: string, ...values: unknown[]): Promise<unknown>;
 };
 
+export const lockRecipeRowForWrite = async (
+  database: RecipeIngredientLockDatabase,
+  recipeId: number
+) => {
+  await database.$executeRawUnsafe(
+    'SELECT id FROM recipes WHERE id = $1 FOR UPDATE',
+    recipeId
+  );
+};
+
 export const lockRecipeIngredientRowsForWrite = async (
   database: RecipeIngredientLockDatabase,
   ingredientIds: Array<number | null | undefined>

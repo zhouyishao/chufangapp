@@ -30,8 +30,10 @@ test('submitting a recipe for audit validates existing linked ingredient quality
     source.indexOf("adminRecipesRouter.patch('/:id/recommend'")
   );
 
-  assert.match(submitAuditRoute, /include:\s*includeRecipeRelations/);
+  assert.match(submitAuditRoute, /const updated = await prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(submitAuditRoute, /getLockedRecipeWithIngredientsForQuality\(tx, req\.params\.id\)/);
   assert.match(submitAuditRoute, /assertRecipeIngredientPublishable\(existing\.ingredients\)/);
+  assert.match(submitAuditRoute, /tx\.recipe\.update/);
 });
 
 test('approving or publishing a recipe validates existing linked ingredient quality', async () => {
@@ -45,10 +47,27 @@ test('approving or publishing a recipe validates existing linked ingredient qual
     source.indexOf("adminRecipesRouter.get('/:id/beverages'")
   );
 
-  assert.match(publishRoute, /getExistingRecipeWithIngredients\(req\.params\.id\)/);
+  assert.match(publishRoute, /const offline = await prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(publishRoute, /const existing = await getExistingRecipeInTransaction\(tx, req\.params\.id\);\s*await lockRecipeRowForWrite\(tx, existing\.id\)/);
+  assert.match(publishRoute, /const updated = await prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(publishRoute, /getLockedRecipeWithIngredientsForQuality\(tx, req\.params\.id\)/);
   assert.match(publishRoute, /assertRecipeIngredientPublishable\(existing\.ingredients\)/);
-  assert.match(auditRoute, /getExistingRecipeWithIngredients\(req\.params\.id\)/);
-  assert.match(auditRoute, /if \(parsed\.data\.auditStatus === 'APPROVED'\) \{\s*assertRecipeIngredientPublishable\(existing\.ingredients\)/);
+  assert.match(publishRoute, /tx\.recipe\.update/);
+  assert.match(auditRoute, /if \(parsed\.data\.auditStatus === 'APPROVED'\) \{[\s\S]*?getLockedRecipeWithIngredientsForQuality\(tx, req\.params\.id\)/);
+  assert.match(auditRoute, /if \(parsed\.data\.auditStatus === 'APPROVED'\) \{[\s\S]*?assertRecipeIngredientPublishable\(existing\.ingredients\)/);
+  assert.match(auditRoute, /if \(!parsed\.data\.rejectReason\) throw new HttpError\('驳回原因不能为空', 422, 422\);[\s\S]*?prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(auditRoute, /const existing = await getExistingRecipeInTransaction\(tx, req\.params\.id\);\s*await lockRecipeRowForWrite\(tx, existing\.id\)/);
+});
+
+test('quality-gated recipe status transitions lock then re-read linked ingredients', async () => {
+  const source = await readSource('src/routes/admin/recipes.ts');
+
+  assert.match(source, /const getLockedRecipeWithIngredientsForQuality = async/);
+  assert.match(source, /const initial = await getRecipeWithIngredients\(tx, value\)/);
+  assert.match(source, /await lockRecipeRowForWrite\(tx, initial\.id\)/);
+  assert.match(source, /await lockRecipeIngredientRowsForWrite\(tx, initial\.ingredients\.map\(\(item\) => item\.ingredientId\)\)/);
+  assert.match(source, /const refreshed = await getRecipeWithIngredients\(tx, value\)/);
+  assert.match(source, /name: item\.ingredient\?\.name \?\? item\.name/);
 });
 
 test('recipe writes lock and re-read linked ingredients inside their transaction before quality checks', async () => {

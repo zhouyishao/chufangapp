@@ -10,7 +10,7 @@ import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextC
 import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
-import { lockRecipeIngredientRowsForWrite } from '../../services/recipe-ingredient-write-lock';
+import { lockRecipeIngredientRowsForWrite, lockRecipeRowForWrite } from '../../services/recipe-ingredient-write-lock';
 import {
   formatRecipeIngredientPublishError,
   getRecipeIngredientPublishIssues,
@@ -263,13 +263,44 @@ const getExistingRecipe = async (value: unknown) => {
   return existing;
 };
 
-const getExistingRecipeWithIngredients = async (value: unknown) => {
-  const existing = await prisma.recipe.findFirst({
+type RecipeIngredientQualityTransaction = Pick<Prisma.TransactionClient, 'recipe' | '$executeRawUnsafe'>;
+
+const getRecipeWithIngredients = async (
+  tx: RecipeIngredientQualityTransaction,
+  value: unknown
+) => {
+  const existing = await tx.recipe.findFirst({
     where: { ...buildPublicIdWhere(value), deletedAt: null },
     include: includeRecipeRelations
   });
   if (!existing) throw new HttpError('not found', 404, 404);
   return existing;
+};
+
+const getExistingRecipeInTransaction = async (
+  tx: Pick<Prisma.TransactionClient, 'recipe'>,
+  value: unknown
+) => {
+  const existing = await tx.recipe.findFirst({ where: { ...buildPublicIdWhere(value), deletedAt: null } });
+  if (!existing) throw new HttpError('not found', 404, 404);
+  return existing;
+};
+
+const getLockedRecipeWithIngredientsForQuality = async (
+  tx: RecipeIngredientQualityTransaction,
+  value: unknown
+) => {
+  const initial = await getRecipeWithIngredients(tx, value);
+  await lockRecipeRowForWrite(tx, initial.id);
+  await lockRecipeIngredientRowsForWrite(tx, initial.ingredients.map((item) => item.ingredientId));
+  const refreshed = await getRecipeWithIngredients(tx, value);
+  return {
+    ...refreshed,
+    ingredients: refreshed.ingredients.map((item) => ({
+      ...item,
+      name: item.ingredient?.name ?? item.name
+    }))
+  };
 };
 
 adminRecipesRouter.get('/', requireAdminAuth, async (req, res) => {
@@ -426,19 +457,24 @@ adminRecipesRouter.patch('/:id/publish', requireAdminAuth, async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
-  const existing = await getExistingRecipeWithIngredients(req.params.id);
   if (parsed.data.isPublish === false) {
-    const offline = await prisma.recipe.update({ where: { id: existing.id }, data: { isPublish: false } });
+    const offline = await prisma.$transaction(async (tx) => {
+      const existing = await getExistingRecipeInTransaction(tx, req.params.id);
+      await lockRecipeRowForWrite(tx, existing.id);
+      return tx.recipe.update({ where: { id: existing.id }, data: { isPublish: false } });
+    });
     res.json(ok(serializeRecipe(offline)));
     return;
   }
-  if (existing.auditStatus !== 'APPROVED') throw new HttpError('菜谱审核通过后才能发布', 422, 422);
-  if (existing.status !== 'ACTIVE') throw new HttpError('菜谱启用后才能发布', 422, 422);
-  assertRecipeIngredientPublishable(existing.ingredients);
-
-  const updated = await prisma.recipe.update({
-    where: { id: existing.id },
-    data: { isPublish: true, isDraft: false }
+  const updated = await prisma.$transaction(async (tx) => {
+    const existing = await getLockedRecipeWithIngredientsForQuality(tx, req.params.id);
+    if (existing.auditStatus !== 'APPROVED') throw new HttpError('菜谱审核通过后才能发布', 422, 422);
+    if (existing.status !== 'ACTIVE') throw new HttpError('菜谱启用后才能发布', 422, 422);
+    assertRecipeIngredientPublishable(existing.ingredients);
+    return tx.recipe.update({
+      where: { id: existing.id },
+      data: { isPublish: true, isDraft: false }
+    });
   });
   res.json(ok(serializeRecipe(updated)));
 });
@@ -450,15 +486,13 @@ adminRecipesRouter.patch('/:id/offline', requireAdminAuth, async (req, res) => {
 });
 
 adminRecipesRouter.patch('/:id/submit-audit', requireAdminAuth, async (req, res) => {
-  const existing = await prisma.recipe.findFirst({
-    where: { ...buildPublicIdWhere(req.params.id), deletedAt: null },
-    include: includeRecipeRelations
-  });
-  if (!existing) throw new HttpError('not found', 404, 404);
-  assertRecipeIngredientPublishable(existing.ingredients);
-  const updated = await prisma.recipe.update({
-    where: { id: existing.id },
-    data: { auditStatus: 'PENDING', isDraft: false, isPublish: false, rejectReason: null }
+  const updated = await prisma.$transaction(async (tx) => {
+    const existing = await getLockedRecipeWithIngredientsForQuality(tx, req.params.id);
+    assertRecipeIngredientPublishable(existing.ingredients);
+    return tx.recipe.update({
+      where: { id: existing.id },
+      data: { auditStatus: 'PENDING', isDraft: false, isPublish: false, rejectReason: null }
+    });
   });
   res.json(ok(serializeRecipe(updated)));
 });
@@ -496,21 +530,32 @@ adminRecipesRouter.patch('/:id/audit', requireAdminAuth, async (req, res) => {
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const existing = await getExistingRecipeWithIngredients(req.params.id);
-
-  const data: Record<string, unknown> = { auditStatus: parsed.data.auditStatus };
   if (parsed.data.auditStatus === 'APPROVED') {
-    assertRecipeIngredientPublishable(existing.ingredients);
-    data.isDraft = false;
-    data.rejectReason = null;
-  } else {
-    if (!parsed.data.rejectReason) throw new HttpError('驳回原因不能为空', 422, 422);
-    data.isDraft = true;
-    data.isPublish = false;
-    data.rejectReason = parsed.data.rejectReason;
+    const updated = await prisma.$transaction(async (tx) => {
+      const existing = await getLockedRecipeWithIngredientsForQuality(tx, req.params.id);
+      assertRecipeIngredientPublishable(existing.ingredients);
+      return tx.recipe.update({
+        where: { id: existing.id },
+        data: { auditStatus: 'APPROVED', isDraft: false, rejectReason: null }
+      });
+    });
+    res.json(ok(serializeRecipe(updated)));
+    return;
   }
-
-  const updated = await prisma.recipe.update({ where: { id: existing.id }, data });
+  if (!parsed.data.rejectReason) throw new HttpError('驳回原因不能为空', 422, 422);
+  const updated = await prisma.$transaction(async (tx) => {
+    const existing = await getExistingRecipeInTransaction(tx, req.params.id);
+    await lockRecipeRowForWrite(tx, existing.id);
+    return tx.recipe.update({
+      where: { id: existing.id },
+      data: {
+        auditStatus: 'REJECTED',
+        isDraft: true,
+        isPublish: false,
+        rejectReason: parsed.data.rejectReason
+      }
+    });
+  });
   res.json(ok(serializeRecipe(updated)));
 });
 
