@@ -75,6 +75,12 @@
 - `transparentImageFileId`：关联 `File` 的受管媒体引用，可为空；删除文件时设为 `NULL`。
 - 历史数据无需回填，未配置透明实物图时由客户端回退普通封面。
 
+## 菜谱用料关联与发布规则
+
+- `recipe_ingredients.ingredient_id` 保持可空：历史数据和草稿可保留未关联用料，`name` 仅是兼容展示快照，`amount`、`unit`、`note` 仍属于菜谱自身字段。
+- 业务发布为强校验：提交审核、审核通过或发布时，每条有效用料必须关联未删除、启用且配置 `transparentImage` 的 `ingredients` 记录；不合格时拒绝操作，不通过将列改为非空来破坏存量数据。
+- 公开菜谱详情以关联食材为唯一来源：关联存在时使用 `Ingredient.name` 和稳定业务 ID，并只发布 `transparentImage` 与 `category.type`；未关联历史行明确返回空关联，不按快照名称反查或复制食材图片。
+
 ## 迁移与种子
 
 ```bash
