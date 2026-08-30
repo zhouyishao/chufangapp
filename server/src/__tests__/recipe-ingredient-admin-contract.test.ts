@@ -47,8 +47,7 @@ test('approving or publishing a recipe validates existing linked ingredient qual
     source.indexOf("adminRecipesRouter.get('/:id/beverages'")
   );
 
-  assert.match(publishRoute, /const offline = await prisma\.\$transaction\(async \(tx\) =>/);
-  assert.match(publishRoute, /const existing = await getExistingRecipeInTransaction\(tx, req\.params\.id\);\s*await lockRecipeRowForWrite\(tx, existing\.id\)/);
+  assert.doesNotMatch(publishRoute, /const offline = await prisma\.\$transaction\(async \(tx\) =>/);
   assert.match(publishRoute, /const updated = await prisma\.\$transaction\(async \(tx\) =>/);
   assert.match(publishRoute, /getLockedRecipeWithIngredientsForQuality\(tx, req\.params\.id\)/);
   assert.match(publishRoute, /assertRecipeIngredientPublishable\(existing\.ingredients\)/);
@@ -63,8 +62,9 @@ test('quality-gated recipe status transitions lock then re-read linked ingredien
   const source = await readSource('src/routes/admin/recipes.ts');
 
   assert.match(source, /const getLockedRecipeWithIngredientsForQuality = async/);
+  assert.match(source, /const existing = await getExistingRecipeInTransaction\(tx, value\)/);
+  assert.match(source, /await lockRecipeRowForWrite\(tx, existing\.id\)/);
   assert.match(source, /const initial = await getRecipeWithIngredients\(tx, value\)/);
-  assert.match(source, /await lockRecipeRowForWrite\(tx, initial\.id\)/);
   assert.match(source, /await lockRecipeIngredientRowsForWrite\(tx, initial\.ingredients\.map\(\(item\) => item\.ingredientId\)\)/);
   assert.match(source, /const refreshed = await getRecipeWithIngredients\(tx, value\)/);
   assert.match(source, /name: item\.ingredient\?\.name \?\? item\.name/);
@@ -93,4 +93,36 @@ test('recipe writes lock and re-read linked ingredients inside their transaction
     assert.match(transaction, /assertPublishableIngredients\(parsed\.data, resolvedIngredients\)/);
     assert.match(transaction, /const ingredients = toRecipeIngredientWrites\(resolvedIngredients\)/);
   }
+});
+
+test('recipe updates lock the recipe row before resolving and locking ingredients', async () => {
+  const source = await readSource('src/routes/admin/recipes.ts');
+  const updateRoute = source.slice(
+    source.indexOf("adminRecipesRouter.put('/:id',"),
+    source.indexOf("adminRecipesRouter.delete('/:id',")
+  );
+  const transaction = updateRoute.slice(updateRoute.indexOf('prisma.$transaction'));
+  const recipeLockIndex = transaction.indexOf('await lockRecipeRowForWrite');
+  const ingredientResolutionIndex = transaction.indexOf('const initialRecipeIngredients = await resolveRecipeIngredients');
+  const ingredientLockIndex = transaction.indexOf('await lockRecipeIngredientRowsForWrite');
+
+  assert.match(transaction, /const existing = await getExistingRecipeInTransaction\(tx, req\.params\.id\)/);
+  assert.ok(recipeLockIndex > 0);
+  assert.ok(recipeLockIndex < ingredientResolutionIndex);
+  assert.ok(ingredientResolutionIndex < ingredientLockIndex);
+});
+
+test('quality-gated status transitions lock the recipe row before loading linked ingredients', async () => {
+  const source = await readSource('src/routes/admin/recipes.ts');
+  const helper = source.slice(
+    source.indexOf('const getLockedRecipeWithIngredientsForQuality'),
+    source.indexOf("adminRecipesRouter.get('/',")
+  );
+  const recipeLookupIndex = helper.indexOf('getExistingRecipeInTransaction');
+  const recipeLockIndex = helper.indexOf('await lockRecipeRowForWrite');
+  const ingredientLoadIndex = helper.indexOf('getRecipeWithIngredients');
+
+  assert.ok(recipeLookupIndex >= 0);
+  assert.ok(recipeLockIndex > recipeLookupIndex);
+  assert.ok(ingredientLoadIndex > recipeLockIndex);
 });

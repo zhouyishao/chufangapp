@@ -290,8 +290,9 @@ const getLockedRecipeWithIngredientsForQuality = async (
   tx: RecipeIngredientQualityTransaction,
   value: unknown
 ) => {
+  const existing = await getExistingRecipeInTransaction(tx, value);
+  await lockRecipeRowForWrite(tx, existing.id);
   const initial = await getRecipeWithIngredients(tx, value);
-  await lockRecipeRowForWrite(tx, initial.id);
   await lockRecipeIngredientRowsForWrite(tx, initial.ingredients.map((item) => item.ingredientId));
   const refreshed = await getRecipeWithIngredients(tx, value);
   return {
@@ -408,6 +409,8 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
+    const existing = await getExistingRecipeInTransaction(tx, req.params.id);
+    await lockRecipeRowForWrite(tx, existing.id);
     const initialRecipeIngredients = await resolveRecipeIngredients(tx, parsed.data.ingredients);
     await lockRecipeIngredientRowsForWrite(tx, initialRecipeIngredients.map((item) => item.ingredientId));
     const resolvedIngredients = await resolveRecipeIngredients(tx, parsed.data.ingredients);
@@ -417,8 +420,6 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
     const videoFileId = await resolveActiveFileId(tx, parsed.data.videoFileId, parsed.data.video);
     const imageFileIds = await resolveActiveFileIds(tx, parsed.data.imageFileIds, parsed.data.images);
     await lockActiveMediaFiles(tx, [coverFileId, videoFileId, ...imageFileIds, ...steps.map((step) => step.mediaFileId)]);
-    const existing = await tx.recipe.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
-    if (!existing) throw new HttpError('not found', 404, 404);
     const id = existing.id;
     await tx.recipeStep.deleteMany({ where: { recipeId: id } });
     await tx.recipeIngredient.deleteMany({ where: { recipeId: id } });
@@ -458,11 +459,8 @@ adminRecipesRouter.patch('/:id/publish', requireAdminAuth, async (req, res) => {
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
   if (parsed.data.isPublish === false) {
-    const offline = await prisma.$transaction(async (tx) => {
-      const existing = await getExistingRecipeInTransaction(tx, req.params.id);
-      await lockRecipeRowForWrite(tx, existing.id);
-      return tx.recipe.update({ where: { id: existing.id }, data: { isPublish: false } });
-    });
+    const existing = await getExistingRecipe(req.params.id);
+    const offline = await prisma.recipe.update({ where: { id: existing.id }, data: { isPublish: false } });
     res.json(ok(serializeRecipe(offline)));
     return;
   }
