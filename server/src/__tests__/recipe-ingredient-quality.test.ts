@@ -29,3 +29,13 @@ test('accepts active linked ingredients with transparent images', () => {
     { name: '黄瓜', ingredientId: 8, ingredient: { status: 'ACTIVE', deletedAt: null, transparentImage: '/cucumber.webp' } }
   ]), []);
 });
+
+test('reports deleted ingredients and whitespace-only transparent images as publish issues', () => {
+  assert.deepEqual(getRecipeIngredientPublishIssues([
+    { name: '葱', ingredientId: 9, ingredient: { status: 'ACTIVE', deletedAt: new Date('2026-01-01'), transparentImage: '/scallion.webp' } },
+    { name: '姜', ingredientId: 10, ingredient: { status: 'ACTIVE', deletedAt: null, transparentImage: '   ' } }
+  ]), [
+    { name: '葱', reason: '关联食材不可用' },
+    { name: '姜', reason: '缺少透明实物图' }
+  ]);
+});
