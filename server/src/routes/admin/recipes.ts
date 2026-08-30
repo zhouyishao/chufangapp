@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../../prisma';
 import { HttpError } from '../../http/errors';
@@ -9,6 +10,7 @@ import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextC
 import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
+import { lockRecipeIngredientRowsForWrite } from '../../services/recipe-ingredient-write-lock';
 import {
   formatRecipeIngredientPublishError,
   getRecipeIngredientPublishIssues,
@@ -177,9 +179,12 @@ const resolveCategoryId = async (value: number | string | null | undefined) => {
   return item.id;
 };
 
-const resolveIngredient = async (value: number | string | null | undefined) => {
+const resolveIngredient = async (
+  database: Pick<Prisma.TransactionClient, 'ingredient'>,
+  value: number | string | null | undefined
+) => {
   if (value === undefined || value === null || value === '') return null;
-  const item = await prisma.ingredient.findFirst({
+  const item = await database.ingredient.findFirst({
     where: { ...buildPublicIdWhere(value), deletedAt: null },
     select: {
       id: true,
@@ -196,9 +201,12 @@ const resolveIngredient = async (value: number | string | null | undefined) => {
   return item;
 };
 
-const resolveRecipeIngredients = async (items: z.infer<typeof ingredientSchema>[]) =>
+const resolveRecipeIngredients = async (
+  database: Pick<Prisma.TransactionClient, 'ingredient'>,
+  items: z.infer<typeof ingredientSchema>[]
+) =>
   Promise.all(items.map(async ({ ingredientId, ...item }) => {
-    const ingredient = await resolveIngredient(ingredientId);
+    const ingredient = await resolveIngredient(database, ingredientId);
     return {
       ...item,
       name: ingredient?.name ?? item.name,
@@ -310,9 +318,6 @@ adminRecipesRouter.post('/', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
-  const resolvedIngredients = await resolveRecipeIngredients(parsed.data.ingredients);
-  assertPublishableIngredients(parsed.data, resolvedIngredients);
-  const ingredients = toRecipeIngredientWrites(resolvedIngredients);
   const codes = await prisma.recipe.findMany({ select: { code: true } });
   const importSource = {
     importSourceType: parsed.data.source_type ?? null,
@@ -336,6 +341,11 @@ adminRecipesRouter.post('/', requireAdminAuth, async (req, res) => {
   }
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
   const created = await prisma.$transaction(async (tx) => {
+    const initialRecipeIngredients = await resolveRecipeIngredients(tx, parsed.data.ingredients);
+    await lockRecipeIngredientRowsForWrite(tx, initialRecipeIngredients.map((item) => item.ingredientId));
+    const resolvedIngredients = await resolveRecipeIngredients(tx, parsed.data.ingredients);
+    assertPublishableIngredients(parsed.data, resolvedIngredients);
+    const ingredients = toRecipeIngredientWrites(resolvedIngredients);
     const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
     const videoFileId = await resolveActiveFileId(tx, parsed.data.videoFileId, parsed.data.video);
     const imageFileIds = await resolveActiveFileIds(tx, parsed.data.imageFileIds, parsed.data.images);
@@ -364,12 +374,14 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
-  const resolvedIngredients = await resolveRecipeIngredients(parsed.data.ingredients);
-  assertPublishableIngredients(parsed.data, resolvedIngredients);
-  const ingredients = toRecipeIngredientWrites(resolvedIngredients);
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
+    const initialRecipeIngredients = await resolveRecipeIngredients(tx, parsed.data.ingredients);
+    await lockRecipeIngredientRowsForWrite(tx, initialRecipeIngredients.map((item) => item.ingredientId));
+    const resolvedIngredients = await resolveRecipeIngredients(tx, parsed.data.ingredients);
+    assertPublishableIngredients(parsed.data, resolvedIngredients);
+    const ingredients = toRecipeIngredientWrites(resolvedIngredients);
     const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
     const videoFileId = await resolveActiveFileId(tx, parsed.data.videoFileId, parsed.data.video);
     const imageFileIds = await resolveActiveFileIds(tx, parsed.data.imageFileIds, parsed.data.images);

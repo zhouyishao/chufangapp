@@ -50,3 +50,28 @@ test('approving or publishing a recipe validates existing linked ingredient qual
   assert.match(auditRoute, /getExistingRecipeWithIngredients\(req\.params\.id\)/);
   assert.match(auditRoute, /if \(parsed\.data\.auditStatus === 'APPROVED'\) \{\s*assertRecipeIngredientPublishable\(existing\.ingredients\)/);
 });
+
+test('recipe writes lock and re-read linked ingredients inside their transaction before quality checks', async () => {
+  const source = await readSource('src/routes/admin/recipes.ts');
+  const createRoute = source.slice(
+    source.indexOf("adminRecipesRouter.post('/',"),
+    source.indexOf("adminRecipesRouter.put('/:id',")
+  );
+  const updateRoute = source.slice(
+    source.indexOf("adminRecipesRouter.put('/:id',"),
+    source.indexOf("adminRecipesRouter.delete('/:id',")
+  );
+
+  for (const route of [createRoute, updateRoute]) {
+    const transactionIndex = route.indexOf('prisma.$transaction');
+    const beforeTransaction = route.slice(0, transactionIndex);
+    const transaction = route.slice(transactionIndex);
+
+    assert.doesNotMatch(beforeTransaction, /resolveRecipeIngredients|assertPublishableIngredients/);
+    assert.match(transaction, /const initialRecipeIngredients = await resolveRecipeIngredients\(tx, parsed\.data\.ingredients\)/);
+    assert.match(transaction, /await lockRecipeIngredientRowsForWrite\(tx, initialRecipeIngredients\.map\(\(item\) => item\.ingredientId\)\)/);
+    assert.match(transaction, /const resolvedIngredients = await resolveRecipeIngredients\(tx, parsed\.data\.ingredients\)/);
+    assert.match(transaction, /assertPublishableIngredients\(parsed\.data, resolvedIngredients\)/);
+    assert.match(transaction, /const ingredients = toRecipeIngredientWrites\(resolvedIngredients\)/);
+  }
+});
