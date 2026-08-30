@@ -9,6 +9,11 @@ import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextC
 import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
+import {
+  formatRecipeIngredientPublishError,
+  getRecipeIngredientPublishIssues,
+  type RecipeIngredientQualityCandidate
+} from '../../services/recipe-ingredient-quality';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -80,7 +85,24 @@ export const adminRecipesRouter = Router();
 const includeRecipeRelations = {
   category: { select: { id: true, bizId: true, code: true, name: true, type: true } },
   steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' as const }, { id: 'asc' as const }] },
-  ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' as const }, { id: 'asc' as const }] }
+  ingredients: {
+    where: { deletedAt: null },
+    orderBy: [{ sortIndex: 'asc' as const }, { id: 'asc' as const }],
+    include: {
+      ingredient: {
+        select: {
+          id: true,
+          bizId: true,
+          code: true,
+          name: true,
+          transparentImage: true,
+          status: true,
+          deletedAt: true,
+          category: { select: { type: true } }
+        }
+      }
+    }
+  }
 };
 
 const serializeCategory = (category: { id: number; bizId?: string | null; code?: string | null; type: unknown; name: string } | null) =>
@@ -93,8 +115,50 @@ const serializeCategory = (category: { id: number; bizId?: string | null; code?:
       }
     : null;
 
+type RecipeIngredientAssociation = {
+  id: number;
+  bizId?: string | null;
+  code?: string | null;
+  name: string;
+  transparentImage: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  deletedAt: Date | null;
+  category: { type: unknown } | null;
+};
+
+type RecipeIngredientRelation = {
+  ingredientId: number | null;
+  ingredient: RecipeIngredientAssociation | null;
+};
+
+const serializeRecipeIngredient = <T extends RecipeIngredientRelation>(item: T) => ({
+  ...item,
+  ingredientStatus: !item.ingredientId || !item.ingredient
+    ? 'UNLINKED'
+    : !item.ingredient.transparentImage?.trim()
+      ? 'MISSING_TRANSPARENT_IMAGE'
+      : 'LINKED',
+  ingredient: item.ingredient
+    ? {
+        ...item.ingredient,
+        legacyId: item.ingredient.id,
+        id: getPublicId('ingredient', item.ingredient),
+        code: getPublicCode('ingredient', item.ingredient)
+      }
+    : null
+});
+
 const serializeRecipe = <
-  T extends { id: number; bizId?: string | null; code?: string | null; sort?: number; sortOrder?: number; category?: { id: number; bizId?: string | null; code?: string | null; type: unknown; name: string } | null; categoryId?: number | null }
+  T extends {
+    id: number;
+    bizId?: string | null;
+    code?: string | null;
+    sort?: number;
+    sortOrder?: number;
+    category?: { id: number; bizId?: string | null; code?: string | null; type: unknown; name: string } | null;
+    categoryId?: number | null;
+    ingredients?: RecipeIngredientRelation[];
+  }
 >(item: T) => ({
   ...item,
   legacyId: item.id,
@@ -102,7 +166,8 @@ const serializeRecipe = <
   code: getPublicCode('recipe', item),
   sortOrder: item.sortOrder ?? item.sort ?? 0,
   category: serializeCategory(item.category ?? null),
-  categoryId: item.category ? getPublicId('category', item.category) : null
+  categoryId: item.category ? getPublicId('category', item.category) : null,
+  ...(item.ingredients ? { ingredients: item.ingredients.map(serializeRecipeIngredient) } : {})
 });
 
 const resolveCategoryId = async (value: number | string | null | undefined) => {
@@ -112,12 +177,54 @@ const resolveCategoryId = async (value: number | string | null | undefined) => {
   return item.id;
 };
 
-const resolveIngredientId = async (value: number | string | null | undefined) => {
+const resolveIngredient = async (value: number | string | null | undefined) => {
   if (value === undefined || value === null || value === '') return null;
-  const item = await prisma.ingredient.findFirst({ where: { ...buildPublicIdWhere(value), deletedAt: null } });
+  const item = await prisma.ingredient.findFirst({
+    where: { ...buildPublicIdWhere(value), deletedAt: null },
+    select: {
+      id: true,
+      bizId: true,
+      code: true,
+      name: true,
+      transparentImage: true,
+      status: true,
+      deletedAt: true,
+      category: { select: { type: true } }
+    }
+  });
   if (!item) throw new HttpError('食材不存在', 422, 422);
-  return item.id;
+  return item;
 };
+
+const resolveRecipeIngredients = async (items: z.infer<typeof ingredientSchema>[]) =>
+  Promise.all(items.map(async ({ ingredientId, ...item }) => {
+    const ingredient = await resolveIngredient(ingredientId);
+    return {
+      ...item,
+      name: ingredient?.name ?? item.name,
+      ingredientId: ingredient?.id ?? null,
+      ingredient
+    };
+  }));
+
+const assertRecipeIngredientPublishable = (items: RecipeIngredientQualityCandidate[]) => {
+  const issues = getRecipeIngredientPublishIssues(items);
+  if (issues.length > 0) {
+    throw new HttpError(formatRecipeIngredientPublishError(issues), 422, 422);
+  }
+};
+
+const assertPublishableIngredients = (
+  parsed: z.infer<typeof upsertSchema>,
+  items: Awaited<ReturnType<typeof resolveRecipeIngredients>>
+) => {
+  const requiresIngredientQualityCheck = parsed.isPublish || parsed.auditStatus === 'APPROVED' || parsed.auditStatus === 'PENDING';
+  if (!requiresIngredientQualityCheck) return;
+  assertRecipeIngredientPublishable(items);
+};
+
+const toRecipeIngredientWrites = (items: Awaited<ReturnType<typeof resolveRecipeIngredients>>) =>
+  items.map(({ ingredient: _ingredient, ...item }) => item);
 
 const serializeBeverage = (item: {
   id: number;
@@ -144,6 +251,15 @@ const resolveBeverageId = async (value: number | string | null | undefined) => {
 
 const getExistingRecipe = async (value: unknown) => {
   const existing = await prisma.recipe.findFirst({ where: { ...buildPublicIdWhere(value), deletedAt: null } });
+  if (!existing) throw new HttpError('not found', 404, 404);
+  return existing;
+};
+
+const getExistingRecipeWithIngredients = async (value: unknown) => {
+  const existing = await prisma.recipe.findFirst({
+    where: { ...buildPublicIdWhere(value), deletedAt: null },
+    include: includeRecipeRelations
+  });
   if (!existing) throw new HttpError('not found', 404, 404);
   return existing;
 };
@@ -194,7 +310,9 @@ adminRecipesRouter.post('/', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
-  const ingredients = await Promise.all(parsed.data.ingredients.map(async ({ ingredientId, ...item }) => ({ ...item, ingredientId: await resolveIngredientId(ingredientId) })));
+  const resolvedIngredients = await resolveRecipeIngredients(parsed.data.ingredients);
+  assertPublishableIngredients(parsed.data, resolvedIngredients);
+  const ingredients = toRecipeIngredientWrites(resolvedIngredients);
   const codes = await prisma.recipe.findMany({ select: { code: true } });
   const importSource = {
     importSourceType: parsed.data.source_type ?? null,
@@ -236,10 +354,7 @@ adminRecipesRouter.post('/', requireAdminAuth, async (req, res) => {
         steps: { create: steps },
         ingredients: { create: ingredients }
       },
-      include: {
-        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
-      }
+      include: includeRecipeRelations
     });
   });
   res.json(ok(serializeRecipe(created)));
@@ -249,7 +364,9 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const parsed = upsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
-  const ingredients = await Promise.all(parsed.data.ingredients.map(async ({ ingredientId, ...item }) => ({ ...item, ingredientId: await resolveIngredientId(ingredientId) })));
+  const resolvedIngredients = await resolveRecipeIngredients(parsed.data.ingredients);
+  assertPublishableIngredients(parsed.data, resolvedIngredients);
+  const ingredients = toRecipeIngredientWrites(resolvedIngredients);
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -278,10 +395,7 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
         steps: { create: steps },
         ingredients: { create: ingredients }
       },
-      include: {
-        steps: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-        ingredients: { orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
-      }
+      include: includeRecipeRelations
     });
   });
 
@@ -300,7 +414,7 @@ adminRecipesRouter.patch('/:id/publish', requireAdminAuth, async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
-  const existing = await getExistingRecipe(req.params.id);
+  const existing = await getExistingRecipeWithIngredients(req.params.id);
   if (parsed.data.isPublish === false) {
     const offline = await prisma.recipe.update({ where: { id: existing.id }, data: { isPublish: false } });
     res.json(ok(serializeRecipe(offline)));
@@ -308,6 +422,7 @@ adminRecipesRouter.patch('/:id/publish', requireAdminAuth, async (req, res) => {
   }
   if (existing.auditStatus !== 'APPROVED') throw new HttpError('菜谱审核通过后才能发布', 422, 422);
   if (existing.status !== 'ACTIVE') throw new HttpError('菜谱启用后才能发布', 422, 422);
+  assertRecipeIngredientPublishable(existing.ingredients);
 
   const updated = await prisma.recipe.update({
     where: { id: existing.id },
@@ -323,7 +438,12 @@ adminRecipesRouter.patch('/:id/offline', requireAdminAuth, async (req, res) => {
 });
 
 adminRecipesRouter.patch('/:id/submit-audit', requireAdminAuth, async (req, res) => {
-  const existing = await getExistingRecipe(req.params.id);
+  const existing = await prisma.recipe.findFirst({
+    where: { ...buildPublicIdWhere(req.params.id), deletedAt: null },
+    include: includeRecipeRelations
+  });
+  if (!existing) throw new HttpError('not found', 404, 404);
+  assertRecipeIngredientPublishable(existing.ingredients);
   const updated = await prisma.recipe.update({
     where: { id: existing.id },
     data: { auditStatus: 'PENDING', isDraft: false, isPublish: false, rejectReason: null }
@@ -364,10 +484,11 @@ adminRecipesRouter.patch('/:id/audit', requireAdminAuth, async (req, res) => {
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const existing = await getExistingRecipe(req.params.id);
+  const existing = await getExistingRecipeWithIngredients(req.params.id);
 
   const data: Record<string, unknown> = { auditStatus: parsed.data.auditStatus };
   if (parsed.data.auditStatus === 'APPROVED') {
+    assertRecipeIngredientPublishable(existing.ingredients);
     data.isDraft = false;
     data.rejectReason = null;
   } else {
