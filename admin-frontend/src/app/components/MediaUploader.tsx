@@ -4,6 +4,7 @@ import { resolveAssetUrl, uploadMedia } from '../api';
 import { Button } from './Button';
 
 export type MediaItem = {
+  fileId?: number;
   url: string;
   type: 'image' | 'video';
   name?: string;
@@ -70,7 +71,7 @@ export const MediaUploader = ({
         if (mediaType === 'image' && file.size > imageMaxSize) throw new Error('图片不能超过 5MB');
         if (mediaType === 'video' && file.size > videoMaxSize) throw new Error('视频不能超过 50MB');
         const uploaded = await uploadMedia(file);
-        nextItems.push({ url: uploaded.url, type: uploaded.type, name: uploaded.name, size: uploaded.size });
+        nextItems.push({ fileId: uploaded.id, url: uploaded.url, type: uploaded.type, name: uploaded.name, size: uploaded.size });
       }
       const merged = multiple ? [...value, ...nextItems].slice(0, maxItems) : nextItems.slice(0, 1);
       onChange(merged);

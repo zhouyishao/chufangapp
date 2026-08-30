@@ -1,5 +1,6 @@
 import { prisma } from '../../prisma';
 import { buildPublicIdWhere, getPublicCode, getPublicId } from '../../lib/business-id';
+import { resolveSourceCategoryId } from '../../domain/content-module-rules';
 
 const publicRecipeWhere = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true, auditStatus: 'APPROVED' as const };
 
@@ -31,6 +32,7 @@ const getModuleCategoryName = async (categoryId: number | null) => {
 export const serializeModuleForApp = async (mod: {
   id: number;
   navId: number;
+  moduleKey: string | null;
   title: string;
   subtitle: string | null;
   displayStyle: string;
@@ -44,10 +46,12 @@ export const serializeModuleForApp = async (mod: {
   status: string;
   items: unknown;
   categoryId: number | null;
+  sourceCategoryId?: number | null;
   tagId: number | null;
 }) => {
   const moduleItems: unknown[] = Array.isArray(mod.items) ? mod.items : [];
   let resolvedItems: unknown[] = [];
+  const sourceCategoryId = resolveSourceCategoryId(mod);
 
   if (mod.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
     const categoryName = await getModuleCategoryName(mod.categoryId);
@@ -71,12 +75,14 @@ export const serializeModuleForApp = async (mod: {
     return {
       id: mod.id,
       navId: mod.navId,
+      moduleKey: mod.moduleKey,
       title: mod.title,
       subtitle: mod.subtitle,
       displayStyle: mod.displayStyle,
       contentType: mod.contentType,
       contentSource: mod.contentSource,
       categoryId: mod.categoryId,
+      sourceCategoryId,
       categoryName,
       displayCount: mod.displayCount,
       showMore: mod.showMore,
@@ -138,14 +144,16 @@ export const serializeModuleForApp = async (mod: {
       } else if (isIngredientType) {
         const ingredient = await prisma.ingredient.findFirst({
           where: { ...buildPublicIdWhere(item.id), deletedAt: null, status: 'ACTIVE', isPublish: true },
-          select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+          select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
         });
         if (ingredient) {
           resolvedItems.push({
             id: getPublicId('ingredient', ingredient),
-            type: 'ingredient',
+            type: mod.contentType.toLowerCase(),
             name: ingredient.name,
-            cover: ingredient.cover,
+            cover: ingredient.transparentImage ?? ingredient.cover,
+            transparentImage: ingredient.transparentImage,
+            displayImage: ingredient.transparentImage ?? ingredient.cover,
             currentPrice: ingredient.currentPrice,
             priceUnit: ingredient.priceUnit,
             sortOrder: item.sortOrder
@@ -154,10 +162,10 @@ export const serializeModuleForApp = async (mod: {
       }
     }
     resolvedItems.sort((a, b) => (a as { sortOrder: number }).sortOrder - (b as { sortOrder: number }).sortOrder);
-  } else if (mod.contentSource === 'CATEGORY' && mod.categoryId) {
+  } else if (mod.contentSource === 'CATEGORY' && sourceCategoryId) {
     if (isRecipeType) {
       const recipes = await prisma.recipe.findMany({
-        where: { ...publicRecipeWhere, categoryId: mod.categoryId },
+        where: { ...publicRecipeWhere, categoryId: sourceCategoryId },
         orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
         select: { id: true, bizId: true, code: true, title: true, cover: true, cookTime: true, difficulty: true, calories: true, servings: true, description: true, favoriteCount: true }
@@ -178,7 +186,7 @@ export const serializeModuleForApp = async (mod: {
       }));
     } else if (isBeverageType) {
       const beverages = await prisma.beverage.findMany({
-        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: mod.categoryId },
+        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: sourceCategoryId },
         orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
         select: { id: true, name: true, coverImage: true, description: true }
@@ -193,26 +201,28 @@ export const serializeModuleForApp = async (mod: {
       }));
     } else {
       const ingredients = await prisma.ingredient.findMany({
-        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: mod.categoryId },
+        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: sourceCategoryId },
         orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+        select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
       });
       resolvedItems = ingredients.map((ing, i) => ({
         id: getPublicId('ingredient', ing),
-        type: 'ingredient',
+        type: mod.contentType.toLowerCase(),
         name: ing.name,
-        cover: ing.cover,
+        cover: ing.transparentImage ?? ing.cover,
+        transparentImage: ing.transparentImage,
+        displayImage: ing.transparentImage ?? ing.cover,
         currentPrice: ing.currentPrice,
         priceUnit: ing.priceUnit,
         sortOrder: i
       }));
     }
-  } else if (mod.contentSource === 'CATEGORY_CONTENT' && mod.categoryId) {
+  } else if (mod.contentSource === 'CATEGORY_CONTENT' && sourceCategoryId) {
     // CATEGORY_CONTENT: 与 CATEGORY 逻辑相同，按 categoryId 自动查询对应分类下的内容
     if (isRecipeType) {
       const recipes = await prisma.recipe.findMany({
-        where: { ...publicRecipeWhere, categoryId: mod.categoryId },
+        where: { ...publicRecipeWhere, categoryId: sourceCategoryId },
         orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
         select: { id: true, bizId: true, code: true, title: true, cover: true, cookTime: true, difficulty: true, calories: true, servings: true, description: true, favoriteCount: true }
@@ -233,7 +243,7 @@ export const serializeModuleForApp = async (mod: {
       }));
     } else if (isBeverageType) {
       const beverages = await prisma.beverage.findMany({
-        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: mod.categoryId },
+        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: sourceCategoryId },
         orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
         select: { id: true, name: true, coverImage: true, description: true }
@@ -248,16 +258,18 @@ export const serializeModuleForApp = async (mod: {
       }));
     } else {
       const ingredients = await prisma.ingredient.findMany({
-        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: mod.categoryId },
+        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, categoryId: sourceCategoryId },
         orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+        select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
       });
       resolvedItems = ingredients.map((ing, i) => ({
         id: getPublicId('ingredient', ing),
-        type: 'ingredient',
+        type: mod.contentType.toLowerCase(),
         name: ing.name,
-        cover: ing.cover,
+        cover: ing.transparentImage ?? ing.cover,
+        transparentImage: ing.transparentImage,
+        displayImage: ing.transparentImage ?? ing.cover,
         currentPrice: ing.currentPrice,
         priceUnit: ing.priceUnit,
         sortOrder: i
@@ -330,16 +342,87 @@ export const serializeModuleForApp = async (mod: {
         },
         orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
         take: mod.displayCount,
-        select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true }
+        select: { id: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true }
       });
       resolvedItems = ingredients.map((ing, i) => ({
         id: getPublicId('ingredient', ing),
-        type: 'ingredient',
+        type: mod.contentType.toLowerCase(),
         name: ing.name,
-        cover: ing.cover,
+        cover: ing.transparentImage ?? ing.cover,
+        transparentImage: ing.transparentImage,
+        displayImage: ing.transparentImage ?? ing.cover,
         currentPrice: ing.currentPrice,
         priceUnit: ing.priceUnit,
         sortOrder: i
+      }));
+    }
+  } else if (mod.contentSource === 'LATEST' || mod.contentSource === 'AUTO') {
+    if (isRecipeType) {
+      const recipes = await prisma.recipe.findMany({
+        where: publicRecipeWhere,
+        orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
+        take: mod.displayCount,
+        select: { id: true, bizId: true, code: true, title: true, cover: true, cookTime: true, difficulty: true, calories: true, servings: true, description: true, favoriteCount: true }
+      });
+      resolvedItems = recipes.map((recipe, index) => ({
+        id: getPublicId('recipe', recipe),
+        code: getPublicCode('recipe', recipe),
+        type: 'recipe',
+        title: recipe.title,
+        cover: recipe.cover,
+        duration: recipe.cookTime ? `${recipe.cookTime}分钟` : null,
+        difficulty: recipe.difficulty,
+        servings: recipe.servings,
+        calories: recipe.calories ? `约${recipe.calories}kcal` : null,
+        description: recipe.description,
+        favoriteCount: recipe.favoriteCount,
+        sortOrder: index
+      }));
+    } else if (isBeverageType) {
+      const beverages = await prisma.beverage.findMany({
+        where: { deletedAt: null, status: 'ACTIVE', isPublish: true, auditStatus: 'APPROVED' },
+        orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
+        take: mod.displayCount,
+        select: { id: true, bizId: true, code: true, name: true, coverImage: true, description: true, beverageType: true }
+      });
+      resolvedItems = beverages.map((beverage, index) => ({
+        id: getPublicId('beverage', beverage),
+        code: getPublicCode('beverage', beverage),
+        type: 'beverage',
+        name: beverage.name,
+        title: beverage.name,
+        cover: beverage.coverImage,
+        description: beverage.description,
+        subtitle: beverage.beverageType,
+        sortOrder: index
+      }));
+    } else if (isIngredientType) {
+      const categoryType = mod.contentType as 'INGREDIENT' | 'FRUIT' | 'SEASONING';
+      const ingredients = await prisma.ingredient.findMany({
+        where: {
+          deletedAt: null,
+          status: 'ACTIVE',
+          isPublish: true,
+          auditStatus: 'APPROVED',
+          category: { type: categoryType }
+        },
+        orderBy: [{ isRecommend: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
+        take: mod.displayCount,
+        select: { id: true, bizId: true, code: true, name: true, cover: true, transparentImage: true, currentPrice: true, priceUnit: true, seasonMonth: true }
+      });
+      resolvedItems = ingredients.map((ingredient, index) => ({
+        id: getPublicId('ingredient', ingredient),
+        code: getPublicCode('ingredient', ingredient),
+        type: mod.contentType.toLowerCase(),
+        name: ingredient.name,
+        title: ingredient.name,
+        cover: ingredient.transparentImage ?? ingredient.cover,
+        transparentImage: ingredient.transparentImage,
+        displayImage: ingredient.transparentImage ?? ingredient.cover,
+        currentPrice: ingredient.currentPrice,
+        priceUnit: ingredient.priceUnit,
+        seasonMonth: ingredient.seasonMonth,
+        sortOrder: index
       }));
     }
   }
@@ -350,12 +433,14 @@ export const serializeModuleForApp = async (mod: {
   return {
     id: mod.id,
     navId: mod.navId,
+    moduleKey: mod.moduleKey,
     title: mod.title,
     subtitle: mod.subtitle,
     displayStyle: mod.displayStyle,
     contentType: mod.contentType,
     contentSource: mod.contentSource,
     categoryId: mod.categoryId,
+    sourceCategoryId,
     categoryName,
     displayCount: mod.displayCount,
     showMore: mod.showMore,

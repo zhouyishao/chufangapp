@@ -1,0 +1,76 @@
+{
+  "snapshotVersion": 1,
+  "capturedAt": "2026-07-18",
+  "basePath": "/api/mobile",
+  "currentEnvelope": "{code,message,data}",
+  "targetEnvelope": "{success,data|error,requestId}",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/mobile/search",
+      "auth": "app-jwt",
+      "request": { "query": ["q?", "page?", "pageSize?", "userId? deprecated"] },
+      "response": "{recipes,ingredients}",
+      "compatibility": "userId may be omitted; if present it must equal JWT sub; non-empty q records history for JWT sub"
+    },
+    {
+      "method": "GET",
+      "path": "/api/mobile/search-histories",
+      "auth": "app-jwt",
+      "request": { "query": ["page?", "pageSize?", "userId? deprecated"] },
+      "response": "CurrentPage<SearchHistory>",
+      "compatibility": "userId may be omitted; if present it must equal JWT sub"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/mobile/search-histories",
+      "auth": "app-jwt",
+      "request": { "query": ["userId? deprecated"] },
+      "response": "BatchUpdateResult",
+      "compatibility": "userId may be omitted; if present it must equal JWT sub"
+    },
+    {
+      "method": "GET",
+      "path": "/api/mobile/favorites",
+      "auth": "app-jwt",
+      "request": { "query": ["page?", "pageSize?", "userId? deprecated"] },
+      "response": "CurrentPage<FavoriteWithTarget>",
+      "compatibility": "recipe and ingredient targets only in current schema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mobile/favorites",
+      "auth": "app-jwt",
+      "request": { "body": ["recipeId?", "ingredientId?", "userId? deprecated"] },
+      "response": "FavoriteWithTarget",
+      "idempotency": "same user and target restores/returns one record"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/mobile/favorites/:id",
+      "auth": "app-jwt",
+      "request": { "path": ["id"], "queryOrBody": ["userId? deprecated"] },
+      "response": "Favorite",
+      "authorization": "record.userId must equal JWT sub"
+    },
+    {
+      "method": "GET",
+      "path": "/api/mobile/view-histories",
+      "auth": "app-jwt",
+      "request": { "query": ["page?", "pageSize?", "userId? deprecated"] },
+      "response": "CurrentPage<ViewHistoryWithTarget>"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mobile/view-histories",
+      "auth": "app-jwt",
+      "request": { "body": ["recipeId?", "ingredientId?", "userId? deprecated"] },
+      "response": "ViewHistoryWithTarget",
+      "idempotency": "same user and target updates one history record"
+    }
+  ],
+  "knownGaps": [
+    "profile, ingredient price records, family, my recipes, preferences, notifications and uploads are not yet frozen here",
+    "current pagination uses list and target pagination will use items plus hasMore"
+  ]
+}

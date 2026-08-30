@@ -17,7 +17,10 @@ import type { FamilyMember, FamilyProfile } from '../types/family';
 
 const ACTIVE_FAMILY_STORAGE_KEY = 'recipe-app-active-family-id';
 
-const roleText = (role: 'CREATOR' | 'ADMIN' | 'MEMBER') => (role === 'MEMBER' ? '成员' : '管理员');
+const roleText = (role: 'CREATOR' | 'ADMIN' | 'MEMBER') => {
+  if (role === 'CREATOR') return '创建者';
+  return role === 'ADMIN' ? '管理员' : '成员';
+};
 
 const unwrapStoredValue = (value: unknown): unknown => {
   if (typeof value === 'string') {
@@ -36,6 +39,8 @@ const unwrapStoredValue = (value: unknown): unknown => {
 export const mapApiFamily = (family: ApiFamily): FamilyProfile => ({
   id: String(family.id),
   name: family.name,
+  avatar: family.avatarSource || family.avatar || '',
+  avatarFileId: family.avatarFileId ?? null,
   description: family.description || `${family.memberCount} 位成员 · 菜谱和菜篮子共享中`,
   commonRecipes: 0,
   pendingItems: family.pendingItems,
@@ -109,7 +114,8 @@ export const updateFamily = async (family: FamilyProfile) => {
   await updateMobileFamily(Number(family.id), {
     userId: user.id,
     name: family.name,
-    description: family.description
+    description: family.description,
+    avatarFileId: family.avatarFileId
   });
   await saveMobileFamilyPreferences(Number(family.id), {
     userId: user.id,
@@ -147,8 +153,8 @@ export const canCurrentUserLeaveFamily = (family: FamilyProfile) => {
   const user = loadAuthUser();
   const currentUser = family.members.find((member) => member.userId === user?.id || member.accountId === user?.phone);
   if (!currentUser) return false;
-  const adminCount = family.members.filter((member) => member.role === '管理员').length;
-  return currentUser.role !== '管理员' || adminCount > 1 || family.members.length <= 1;
+  if (currentUser.role === '创建者') return family.members.length <= 1;
+  return true;
 };
 
 export const leaveFamilyAsCurrentUser = async (familyId: string) => {

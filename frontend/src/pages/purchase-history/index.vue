@@ -1,5 +1,6 @@
 <template>
   <view class="app-page history-page">
+    <view class="safe-top-spacer" aria-hidden="true" />
     <view class="topbar">
       <button class="back-button" @tap="goBack">
         <app-icon name="arrow-left" size="26rpx" />
@@ -24,6 +25,7 @@
         <text class="summary-value">{{ familyCount }}</text>
       </view>
     </view>
+    <text class="history-capability">当前记录由真实已购买条目生成的采购归档。</text>
 
     <view v-if="loading" class="state-card glass-card">
       <text class="state-title">正在加载采购记录</text>
@@ -49,13 +51,16 @@
 
     <view v-else class="history-card glass-card">
       <view v-for="group in groupedHistories" :key="group.dateKey" class="history-group">
-        <view class="history-group__header">
+        <button class="history-group__header" @tap="openPurchaseDetail(group.dateKey)">
           <view>
             <text class="history-date">{{ group.label }}</text>
             <text class="history-meta">{{ group.items.length }} 项 · {{ group.familyNames.join('、') }}</text>
           </view>
-          <text class="history-total">{{ group.totalQuantityText }}</text>
-        </view>
+          <view class="history-group__action">
+            <text class="history-total">{{ group.totalQuantityText }}</text>
+            <app-icon name="chevron-right" size="22rpx" />
+          </view>
+        </button>
 
         <view v-for="item in group.items" :key="item.id" class="history-item">
           <view class="history-item__main">
@@ -76,7 +81,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { loadBasketItems, type BasketItem } from '../../services/basket';
@@ -99,6 +104,13 @@ type PurchaseHistoryGroup = {
 const loading = ref(false);
 const error = ref('');
 const needsLogin = ref(false);
+
+const guardPrivatePage = () => {
+  if (loadAuthUser()) return true;
+  uni.reLaunch({ url: '/pages/phone-login/index' });
+  return false;
+};
+guardPrivatePage();
 const items = ref<HistoryItem[]>([]);
 
 const formatDateKey = (value: string) => {
@@ -184,7 +196,12 @@ const goToLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' });
 };
 
+const openPurchaseDetail = (dateKey: string) => {
+  uni.navigateTo({ url: `/pages/purchase-detail/index?date=${encodeURIComponent(dateKey)}` });
+};
+
 const loadPurchaseHistory = async () => {
+  if (!guardPrivatePage()) return;
   loading.value = true;
   error.value = '';
   needsLogin.value = false;
@@ -214,10 +231,16 @@ const loadPurchaseHistory = async () => {
 };
 
 onShow(() => {
+  if (!guardPrivatePage()) return;
   void loadPurchaseHistory();
 });
 
+onLoad(() => {
+  if (!guardPrivatePage()) return;
+});
+
 onMounted(() => {
+  if (!guardPrivatePage()) return;
   void loadPurchaseHistory();
 });
 </script>
@@ -225,7 +248,19 @@ onMounted(() => {
 <style scoped lang="scss">
 .history-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
+}
+
+.safe-top-spacer {
+  height: calc(var(--app-safe-area-top) + 8rpx);
+}
+
+.history-capability {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--app-text-tertiary);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-tag);
 }
 
 .topbar {
@@ -349,6 +384,25 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
+}
+
+.history-group__header {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.history-group__action {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  color: var(--app-text-secondary);
+}
+
+.history-group__header::after {
+  border: 0;
 }
 
 .history-date {

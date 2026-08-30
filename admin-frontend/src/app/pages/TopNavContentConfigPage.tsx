@@ -94,6 +94,7 @@ const toPayload = (item: HomeTopNav): HomeTopNavPayload => ({
 });
 
 const toModulePayload = (item: ContentModule, sortOrder = item.sortOrder): ContentModulePayload => ({
+  moduleKey: item.moduleKey,
   title: item.title,
   subtitle: item.subtitle,
   displayStyle: item.displayStyle,

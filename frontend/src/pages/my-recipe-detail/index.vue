@@ -17,7 +17,12 @@
         <button class="round-button" @tap="goBack">
           <app-icon name="arrow-left" size="26rpx" />
         </button>
-        <button class="round-button" @tap="editRecipe">编辑</button>
+        <view class="header-actions">
+          <button class="round-button" @tap="editRecipe">编辑</button>
+          <button class="round-button round-button--danger" :disabled="isDeleting" @tap="confirmDeleteRecipe">
+            <app-icon name="trash" size="24rpx" />
+          </button>
+        </view>
       </view>
     </view>
 
@@ -88,6 +93,11 @@
           <text>{{ recipe.visibility }}</text>
         </view>
       </view>
+
+      <button class="delete-recipe-row" :disabled="isDeleting" @tap="confirmDeleteRecipe">
+        <app-icon name="trash" size="24rpx" />
+        <text>{{ isDeleting ? '正在删除…' : '删除这道菜谱' }}</text>
+      </button>
     </view>
     <view v-else class="empty-card glass-card">
       <text class="empty-card__title">未找到食谱</text>
@@ -98,15 +108,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
-import { findMyRecipeById } from '../../services/my-recipes';
+import { deleteMyRecipe, findMyRecipeById } from '../../services/my-recipes';
 import type { MyRecipe } from '../../services/my-recipes';
 
 const recipe = ref<MyRecipe | null>(null);
 const loading = ref(true);
 const error = ref('');
+const isDeleting = ref(false);
+const skipInitialShowReload = ref(false);
 
 const readRecipeId = (query?: Record<string, string | undefined>) => {
   const fromQuery = query?.id?.trim();
@@ -141,19 +153,44 @@ const goBack = () => {
 };
 
 const editRecipe = () => {
-  uni.navigateTo({ url: '/pages/recipe-create/index' });
+  if (!recipe.value) return;
+  uni.navigateTo({ url: `/pages/recipe-create/index?id=${encodeURIComponent(recipe.value.id)}` });
+};
+
+const confirmDeleteRecipe = () => {
+  if (!recipe.value || isDeleting.value) return;
+  uni.showModal({
+    title: '删除这道菜谱？',
+    content: '删除后无法恢复，菜谱也会从“我的菜谱”中移除。',
+    cancelText: '取消',
+    confirmText: '删除',
+    confirmColor: '#B65C45',
+    success: async (result) => {
+      if (!result.confirm || !recipe.value || isDeleting.value) return;
+      isDeleting.value = true;
+      try {
+        await deleteMyRecipe(recipe.value.id);
+        uni.showToast({ title: '菜谱已删除', icon: 'none' });
+        setTimeout(() => uni.redirectTo({ url: '/pages/my-recipes/index' }), 400);
+      } catch (err) {
+        uni.showToast({ title: err instanceof Error ? err.message : '删除失败', icon: 'none' });
+      } finally {
+        isDeleting.value = false;
+      }
+    }
+  });
 };
 
 onLoad((query?: Record<string, string | undefined>) => {
+  skipInitialShowReload.value = true;
   void loadRecipe(query);
 });
 
 onShow(() => {
-  void loadRecipe();
-});
-
-onMounted(() => {
-  if (recipe.value) return;
+  if (skipInitialShowReload.value) {
+    skipInitialShowReload.value = false;
+    return;
+  }
   void loadRecipe();
 });
 </script>
@@ -161,13 +198,13 @@ onMounted(() => {
 <style scoped lang="scss">
 .my-recipe-detail-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .empty-card {
   display: grid;
   gap: 16rpx;
-  margin-top: calc(var(--status-bar-height) + 40rpx);
+  margin-top: calc(var(--app-safe-area-top) + 40rpx);
   padding: 34rpx;
 }
 
@@ -219,11 +256,17 @@ onMounted(() => {
 
 .header-overlay {
   position: absolute;
-  top: calc(32rpx + env(safe-area-inset-top, 0));
+  top: calc(32rpx + var(--app-safe-area-top));
   right: 32rpx;
   left: 32rpx;
   display: flex;
   justify-content: space-between;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
 }
 
 .round-button {
@@ -244,6 +287,13 @@ onMounted(() => {
 
 .round-button::after {
   border: 0;
+}
+
+.round-button--danger {
+  width: 76rpx;
+  min-width: 76rpx;
+  padding: 0;
+  color: var(--app-danger);
 }
 
 .content {
@@ -451,5 +501,24 @@ onMounted(() => {
   color: var(--app-text-secondary);
   font-size: var(--font-size-tabbar);
   font-weight: var(--font-medium);
+}
+
+.delete-recipe-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  width: 100%;
+  min-height: var(--touch-target);
+  margin: 28rpx 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-danger);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
+}
+
+.delete-recipe-row::after {
+  border: 0;
 }
 </style>

@@ -13,30 +13,15 @@
       </button>
     </view>
 
-    <view class="studio-card glass-card">
+    <view class="recipe-toolbar">
       <view>
-        <text class="studio-card__label">原创菜谱库</text>
-        <text class="studio-card__title">记录你的创新味道</text>
-        <text class="studio-card__desc">把每次试菜、调味和灵感沉淀成自己的家庭菜谱。</text>
+        <text class="recipe-toolbar__title">全部菜谱</text>
+        <text class="recipe-toolbar__count">{{ recipes.length }} 道</text>
       </view>
-      <view class="studio-mark">私房</view>
-    </view>
-
-    <view class="stats-card glass-card">
-      <view class="stat-item">
-        <text class="stat-value">{{ recipes.length }}</text>
-        <text class="stat-label">原创</text>
-      </view>
-      <view class="stat-divider" />
-      <view class="stat-item">
-        <text class="stat-value">{{ draftCount }}</text>
-        <text class="stat-label">草稿</text>
-      </view>
-      <view class="stat-divider" />
-      <view class="stat-item">
-        <text class="stat-value">{{ publishedCount }}</text>
-        <text class="stat-label">已整理</text>
-      </view>
+      <button class="recipe-toolbar__add" @tap="createRecipe">
+        <app-icon name="plus" size="22rpx" />
+        <text>添加菜谱</text>
+      </button>
     </view>
 
     <view v-if="loading" class="empty-tip glass-card">
@@ -61,9 +46,7 @@
         <view class="recipe-body">
           <view class="recipe-head">
             <text class="recipe-name">{{ recipe.name }}</text>
-            <text :class="['status-pill', { 'is-draft': recipe.status === 'draft' }]">
-              {{ recipe.status === 'draft' ? '草稿' : '已整理' }}
-            </text>
+            <text class="status-pill">{{ recipe.visibility }}</text>
           </view>
           <text class="recipe-desc">{{ recipe.description }}</text>
           <view class="recipe-meta">
@@ -83,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import { loadMyRecipes } from '../../services/my-recipes';
@@ -91,9 +74,6 @@ import { loadMyRecipes } from '../../services/my-recipes';
 const recipes = ref<Awaited<ReturnType<typeof loadMyRecipes>>>([]);
 const loading = ref(true);
 const error = ref('');
-
-const draftCount = computed(() => recipes.value.filter((recipe) => recipe.status === 'draft').length);
-const publishedCount = computed(() => recipes.value.filter((recipe) => recipe.status === 'published').length);
 
 const goBack = () => {
   uni.navigateBack();
@@ -111,7 +91,7 @@ const loadRecipes = async () => {
   loading.value = true;
   error.value = '';
   try {
-    recipes.value = await loadMyRecipes();
+    recipes.value = (await loadMyRecipes()).filter((recipe) => recipe.status === 'published');
   } catch (err) {
     recipes.value = [];
     error.value = err instanceof Error ? err.message : '加载失败';
@@ -132,7 +112,7 @@ onShow(() => {
 <style scoped lang="scss">
 .my-recipes-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {
@@ -169,11 +149,8 @@ onShow(() => {
 
 .eyebrow,
 .page-title,
-.studio-card__label,
-.studio-card__title,
-.studio-card__desc,
-.stat-value,
-.stat-label,
+.recipe-toolbar__title,
+.recipe-toolbar__count,
 .recipe-name,
 .recipe-desc,
 .empty-tip__title,
@@ -194,79 +171,46 @@ onShow(() => {
   font-weight: var(--font-semibold);
 }
 
-.studio-card {
+.recipe-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24rpx;
-  padding: 30rpx;
-  background:
-    radial-gradient(circle at 88% 18%, rgba(0, 0, 0, 0.06), transparent 30%),
-    linear-gradient(135deg, #fffdfc, #e9e2d6);
+  gap: 18rpx;
+  margin-top: 8rpx;
 }
 
-.studio-card__label {
-  color: var(--app-text-tertiary);
-  font-size: var(--font-size-tabbar);
-  font-weight: var(--font-semibold);
-}
-
-.studio-card__title {
-  margin-top: 10rpx;
-  color: var(--app-text);
-  font-size: var(--font-size-card-title);
-  font-weight: var(--font-semibold);
-}
-
-.studio-card__desc {
-  margin-top: 12rpx;
-  color: var(--app-text-secondary);
-  font-size: var(--font-size-tag);
-  line-height: var(--line-body-sm);
-}
-
-.studio-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 92rpx;
-  height: 92rpx;
-  flex: 0 0 auto;
-  border-radius: 28rpx;
-  background: #7a8b6f;
-  color: var(--text-white);
-  font-size: var(--font-size-tag);
-  font-weight: var(--font-semibold);
-}
-
-.stats-card {
-  display: grid;
-  grid-template-columns: 1fr 1rpx 1fr 1rpx 1fr;
-  align-items: center;
-  margin-top: 18rpx;
-  padding: 24rpx;
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-value {
+.recipe-toolbar__title {
   color: var(--app-text);
   font-size: var(--font-size-section-title);
   font-weight: var(--font-semibold);
+  line-height: var(--line-section-title);
 }
 
-.stat-label {
-  margin-top: 6rpx;
-  color: var(--app-text-secondary);
+.recipe-toolbar__count {
+  margin-top: 2rpx;
+  color: var(--text-tertiary);
   font-size: var(--font-size-tabbar);
+  line-height: var(--line-tabbar);
 }
 
-.stat-divider {
-  width: 1rpx;
-  height: 54rpx;
-  background: var(--app-border);
+.recipe-toolbar__add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  min-height: 88rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  border: 0;
+  background: transparent;
+  color: var(--text-brand);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
+  line-height: var(--line-caption);
+}
+
+.recipe-toolbar__add::after {
+  border: 0;
 }
 
 .recipe-list {
@@ -318,11 +262,6 @@ onShow(() => {
   color: var(--text-white);
   font-size: var(--font-size-tabbar);
   font-weight: var(--font-medium);
-}
-
-.status-pill.is-draft {
-  background: var(--app-accent-soft);
-  color: var(--app-text-secondary);
 }
 
 .recipe-desc {

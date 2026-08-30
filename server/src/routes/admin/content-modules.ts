@@ -13,6 +13,7 @@ const contentSources = ['MANUAL', 'CATEGORY', 'CATEGORY_CONTENT', 'CATEGORY_GROU
 const moduleStatuses = ['ENABLED', 'DISABLED'] as const;
 
 const upsertSchema = z.object({
+  moduleKey: z.string().trim().max(48).nullable().optional(),
   title: z.string().trim().min(1).max(80),
   subtitle: z.string().trim().max(160).nullable().optional(),
   displayStyle: z.enum(displayStyles),
@@ -37,11 +38,19 @@ const upsertSchema = z.object({
     sortOrder: z.coerce.number().int().min(0).default(0)
   })).optional().default([]),
   categoryId: z.coerce.number().int().nullable().optional(),
+  sourceCategoryId: z.coerce.number().int().nullable().optional(),
   tagId: z.coerce.number().int().nullable().optional()
 });
 
 const statusSchema = z.object({
   status: z.enum(moduleStatuses)
+});
+
+const reorderSchema = z.object({
+  items: z.array(z.object({
+    id: z.coerce.number().int().positive(),
+    sortOrder: z.coerce.number().int().min(1).max(999)
+  })).min(1)
 });
 
 const listQuerySchema = z.object({
@@ -77,10 +86,10 @@ const contentSourceLabel: Record<string, string> = {
 };
 
 const displayStyleContentTypes: Record<string, string[]> = {
-  HORIZONTAL_RECIPE_CARD: ['RECIPE'],
+  HORIZONTAL_RECIPE_CARD: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
   SEASONAL_INGREDIENT_CARD: ['INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
-  IMAGE_TEXT_LIST: ['RECIPE'],
-  TWO_COLUMN_RECIPE_GRID: ['RECIPE'],
+  IMAGE_TEXT_LIST: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
+  TWO_COLUMN_RECIPE_GRID: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
   LARGE_IMAGE_CAROUSEL: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE'],
   FOUR_CARD_GRID: ['RECIPE', 'INGREDIENT', 'FRUIT', 'SEASONING', 'BEVERAGE']
 };
@@ -88,6 +97,7 @@ const displayStyleContentTypes: Record<string, string[]> = {
 const serializeModule = (item: {
   id: number;
   navId: number;
+  moduleKey: string | null;
   title: string;
   subtitle: string | null;
   displayStyle: string;
@@ -101,6 +111,7 @@ const serializeModule = (item: {
   status: string;
   items: unknown;
   categoryId: number | null;
+  sourceCategoryId: number | null;
   tagId: number | null;
   createdAt: Date;
   updatedAt: Date;
@@ -155,6 +166,42 @@ adminContentModulesRouter.get('/', requireAdminAuth, async (req, res) => {
   res.json(ok(data));
 });
 
+adminContentModulesRouter.patch('/reorder', requireAdminAuth, async (req, res) => {
+  const nav = await getExistingNav(String(req.params.navId));
+  const parsed = reorderSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError('排序参数错误', 400, 400);
+
+  const existingModules = await prisma.contentModule.findMany({
+    where: { navId: nav.id },
+    select: { id: true }
+  });
+  const submittedIds = new Set(parsed.data.items.map((item) => item.id));
+  const submittedOrders = new Set(parsed.data.items.map((item) => item.sortOrder));
+  const expectedOrders = parsed.data.items.map((_, index) => index + 1);
+  const isCompleteList = submittedIds.size === existingModules.length
+    && parsed.data.items.length === existingModules.length
+    && existingModules.every((item) => submittedIds.has(item.id));
+  const isCompleteSequence = submittedOrders.size === expectedOrders.length
+    && expectedOrders.every((sortOrder) => submittedOrders.has(sortOrder));
+
+  if (!isCompleteList || !isCompleteSequence) {
+    throw new HttpError('请提交当前频道现有模块完整列表，并使用从 1 开始的连续排序值', 422, 422);
+  }
+
+  const reordered = await prisma.$transaction(async (tx) => {
+    await Promise.all(parsed.data.items.map((item) => tx.contentModule.update({
+      where: { id: item.id },
+      data: { sortOrder: item.sortOrder }
+    })));
+    return tx.contentModule.findMany({
+      where: { navId: nav.id },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
+    });
+  });
+
+  res.json(ok(reordered.map(serializeModule)));
+});
+
 adminContentModulesRouter.get('/:moduleId', requireAdminAuth, async (req, res) => {
   const nav = await getExistingNav(String(req.params.navId));
   const mod = await getExistingModule(nav.id, String(req.params.moduleId));
@@ -178,6 +225,16 @@ adminContentModulesRouter.post('/', requireAdminAuth, async (req, res) => {
     );
   }
 
+  if (parsed.data.moduleKey) {
+    const duplicate = await prisma.contentModule.findFirst({
+      where: { navId: nav.id, moduleKey: parsed.data.moduleKey },
+      select: { id: true }
+    });
+    if (duplicate) {
+      throw new HttpError('该推荐模板已被当前频道使用；可选择自由配置或编辑现有模块', 409, 409);
+    }
+  }
+
   // Fallback: LARGE_IMAGE_CAROUSEL items auto-type to "image"
   let resolvedItems = (parsed.data.items ?? []) as Array<{ id: string; type?: string; sortOrder: number }>;
   if (parsed.data.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
@@ -187,6 +244,7 @@ adminContentModulesRouter.post('/', requireAdminAuth, async (req, res) => {
   const created = await prisma.contentModule.create({
     data: {
       navId: nav.id,
+      moduleKey: parsed.data.moduleKey || null,
       title: parsed.data.title,
       subtitle: parsed.data.subtitle ?? null,
       displayStyle: parsed.data.displayStyle,
@@ -200,6 +258,7 @@ adminContentModulesRouter.post('/', requireAdminAuth, async (req, res) => {
       status: parsed.data.status,
       items: resolvedItems,
       categoryId: parsed.data.categoryId ?? null,
+      sourceCategoryId: parsed.data.sourceCategoryId ?? null,
       tagId: parsed.data.tagId ?? null
     }
   });
@@ -224,6 +283,21 @@ adminContentModulesRouter.put('/:moduleId', requireAdminAuth, async (req, res) =
     );
   }
 
+
+  if (parsed.data.moduleKey) {
+    const duplicate = await prisma.contentModule.findFirst({
+      where: {
+        navId: nav.id,
+        moduleKey: parsed.data.moduleKey,
+        id: { not: existing.id }
+      },
+      select: { id: true }
+    });
+    if (duplicate) {
+      throw new HttpError('该推荐模板已被当前频道使用；可选择自由配置或编辑现有模块', 409, 409);
+    }
+  }
+
   // Fallback: LARGE_IMAGE_CAROUSEL items auto-type to "image"
   let resolvedItemsUpdate = (parsed.data.items ?? []) as Array<{ id: string; type?: string; sortOrder: number }>;
   if (parsed.data.displayStyle === 'LARGE_IMAGE_CAROUSEL') {
@@ -233,6 +307,7 @@ adminContentModulesRouter.put('/:moduleId', requireAdminAuth, async (req, res) =
   const updated = await prisma.contentModule.update({
     where: { id: existing.id },
     data: {
+      moduleKey: parsed.data.moduleKey || null,
       title: parsed.data.title,
       subtitle: parsed.data.subtitle ?? null,
       displayStyle: parsed.data.displayStyle,
@@ -246,6 +321,7 @@ adminContentModulesRouter.put('/:moduleId', requireAdminAuth, async (req, res) =
       status: parsed.data.status,
       items: resolvedItemsUpdate,
       categoryId: parsed.data.categoryId ?? null,
+      sourceCategoryId: parsed.data.sourceCategoryId ?? null,
       tagId: parsed.data.tagId ?? null
     }
   });

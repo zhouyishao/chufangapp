@@ -2,14 +2,15 @@
   <view class="cm-topnav" v-if="items.length">
     <scroll-view scroll-x enable-flex :show-scrollbar="false" class="cm-topnav__scroll">
       <view class="cm-topnav__row">
-        <view
+        <button
           v-for="item in items"
           :key="item.id"
           :class="['cm-topnav__tab', { 'cm-topnav__tab--active': item.active }]"
+          :aria-selected="item.active"
           @tap="emit('change', item)"
         >
           {{ item.name }}
-        </view>
+        </button>
       </view>
     </scroll-view>
   </view>
@@ -48,8 +49,12 @@ const emit = defineEmits<{
 .cm-topnav__tab {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  padding-bottom: 8rpx;
+  min-height: var(--touch-target);
+  padding: 0 4rpx;
+  border-bottom: 4rpx solid transparent;
+  background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-medium);
@@ -61,6 +66,6 @@ const emit = defineEmits<{
 .cm-topnav__tab--active {
   color: var(--text-brand);
   font-weight: var(--font-semibold);
-  border-bottom: 4rpx solid var(--text-brand);
+  border-bottom-color: var(--text-brand);
 }
 </style>

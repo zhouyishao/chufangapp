@@ -55,10 +55,23 @@ adminContentSelectorRouter.get('/', requireAdminAuth, async (req, res) => {
   if (type === 'recipe') {
     const where = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true, ...(keyword ? { title: { contains: keyword, mode: 'insensitive' as const } } : {}) };
     const [rows, total] = await Promise.all([
-      prisma.recipe.findMany({ where, orderBy: [{ sort: 'desc' }, { id: 'desc' }], skip, take: pageSize }),
+      prisma.recipe.findMany({
+        where,
+        include: { coverFile: { select: { url: true } } },
+        orderBy: [{ sort: 'desc' }, { id: 'desc' }],
+        skip,
+        take: pageSize
+      }),
       prisma.recipe.count({ where })
     ]);
-    const list = rows.map((item) => ({ id: getPublicId('recipe', item), code: getPublicCode('recipe', item), name: item.title, type: 'recipe', status: item.status }));
+    const list = rows.map((item) => ({
+      id: getPublicId('recipe', item),
+      code: getPublicCode('recipe', item),
+      name: item.title,
+      type: 'recipe',
+      status: item.status,
+      cover: item.coverFile?.url ?? item.cover
+    }));
     const data: PageResult<(typeof list)[number]> = { list, total, page, pageSize };
     res.json(ok(data));
     return;
@@ -74,10 +87,23 @@ adminContentSelectorRouter.get('/', requireAdminAuth, async (req, res) => {
       category: { type: categoryType }
     };
     const [rows, total] = await Promise.all([
-      prisma.ingredient.findMany({ where, orderBy: [{ sort: 'desc' }, { id: 'desc' }], skip, take: pageSize }),
+      prisma.ingredient.findMany({
+        where,
+        include: { coverFile: { select: { url: true } } },
+        orderBy: [{ sort: 'desc' }, { id: 'desc' }],
+        skip,
+        take: pageSize
+      }),
       prisma.ingredient.count({ where })
     ]);
-    const list = rows.map((item) => ({ id: getPublicId('ingredient', item), code: getPublicCode('ingredient', item), name: item.name, type, status: item.status }));
+    const list = rows.map((item) => ({
+      id: getPublicId('ingredient', item),
+      code: getPublicCode('ingredient', item),
+      name: item.name,
+      type,
+      status: item.status,
+      cover: item.coverFile?.url ?? item.cover
+    }));
     const data: PageResult<(typeof list)[number]> = { list, total, page, pageSize };
     res.json(ok(data));
     return;
@@ -86,10 +112,23 @@ adminContentSelectorRouter.get('/', requireAdminAuth, async (req, res) => {
   if (type === 'beverage') {
     const where = { deletedAt: null, isDeleted: false, status: 'ACTIVE' as const, isPublish: true, ...(keyword ? { name: { contains: keyword, mode: 'insensitive' as const } } : {}) };
     const [rows, total] = await Promise.all([
-      prisma.beverage.findMany({ where, orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }], skip, take: pageSize }),
+      prisma.beverage.findMany({
+        where,
+        include: { coverFile: { select: { url: true } } },
+        orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
+        skip,
+        take: pageSize
+      }),
       prisma.beverage.count({ where })
     ]);
-    const list = rows.map((item) => ({ id: getPublicId('beverage', item), code: getPublicCode('beverage', item), name: item.name, type: 'beverage', status: item.status }));
+    const list = rows.map((item) => ({
+      id: getPublicId('beverage', item),
+      code: getPublicCode('beverage', item),
+      name: item.name,
+      type: 'beverage',
+      status: item.status,
+      cover: item.coverFile?.url ?? item.coverImage
+    }));
     const data: PageResult<(typeof list)[number]> = { list, total, page, pageSize };
     res.json(ok(data));
     return;

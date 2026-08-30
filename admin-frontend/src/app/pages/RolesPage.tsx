@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { createRole, deleteRole, listAdminPermissions, listRoles, replaceRolePermissions, setRoleStatus, updateRole } from '../api';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
@@ -8,215 +9,163 @@ import { FilterPanel } from '../components/FilterPanel';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
-import { resolveMockList } from '../mockApi';
+import { canAccess } from '../permissions';
+import type { AdminPermissionGroup, AdminRoleItem } from '../types';
 
-type RoleStatus = 'ACTIVE' | 'DISABLED';
-
-type RoleItem = {
-  id: number;
-  name: string;
-  description: string;
-  adminCount: number;
-  permissionCount: number;
-  status: RoleStatus;
-  updatedAt: string;
-};
-
-const initialRoles: RoleItem[] = [
-  { id: 1, name: '超级管理员', description: '拥有所有菜单和按钮权限', adminCount: 1, permissionCount: 98, status: 'ACTIVE', updatedAt: '2026-05-25 09:20' },
-  { id: 2, name: '内容运营', description: '管理内容、首页运营、文件和评论', adminCount: 3, permissionCount: 46, status: 'ACTIVE', updatedAt: '2026-05-24 17:45' },
-  { id: 3, name: '审核员', description: '处理投稿、评论和举报审核', adminCount: 2, permissionCount: 18, status: 'ACTIVE', updatedAt: '2026-05-23 11:08' }
-];
-
-const emptyDraft: Omit<RoleItem, 'id' | 'adminCount' | 'permissionCount' | 'updatedAt'> = {
-  name: '',
-  description: '',
-  status: 'ACTIVE'
-};
-
-const permissionGroups = [
-  { title: '内容管理', children: ['菜谱查看', '菜谱编辑', '食材管理', '分类标签'] },
-  { title: '运营配置', children: ['首页运营', 'Banner 管理', '推荐位管理', '搜索运营'] },
-  { title: '系统能力', children: ['管理员管理', '角色权限', '操作日志', '基础配置'] }
-];
+type RoleDraft = { code: string; name: string; description: string; status: AdminRoleItem['status'] };
+const emptyDraft: RoleDraft = { code: '', name: '', description: '', status: 'ACTIVE' };
 
 export const RolesPage = () => {
-  const [sourceItems, setSourceItems] = useState<RoleItem[]>(initialRoles);
-  const [items, setItems] = useState<RoleItem[]>([]);
+  const canManage = canAccess('system:role:manage');
+  const [items, setItems] = useState<AdminRoleItem[]>([]);
+  const [groups, setGroups] = useState<AdminPermissionGroup[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [q, setQ] = useState('');
-  const [status, setStatus] = useState<'all' | RoleStatus>('all');
+  const [status, setStatus] = useState<'all' | AdminRoleItem['status']>('all');
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<RoleItem | null>(null);
-  const [draft, setDraft] = useState(emptyDraft);
-  const [deleting, setDeleting] = useState<RoleItem | null>(null);
+  const [editing, setEditing] = useState<AdminRoleItem | null>(null);
+  const [draft, setDraft] = useState<RoleDraft>(emptyDraft);
+  const [permissionRole, setPermissionRole] = useState<AdminRoleItem | null>(null);
+  const [permissionIds, setPermissionIds] = useState<number[]>([]);
+  const [deleting, setDeleting] = useState<AdminRoleItem | null>(null);
 
-  const filteredItems = useMemo(() => {
-    return sourceItems.filter((item) => {
-      const matchKeyword = q.trim() ? item.name.includes(q.trim()) || item.description.includes(q.trim()) : true;
-      const matchStatus = status === 'all' ? true : item.status === status;
-      return matchKeyword && matchStatus;
-    });
-  }, [q, sourceItems, status]);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      setLoading(true);
-      const response = await resolveMockList(filteredItems, page, pageSize);
-      if (!alive) return;
-      setItems(response.data.list);
-      setTotal(response.data.pagination.total);
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [rolesResult, permissionGroups] = await Promise.all([
+        listRoles({ page, pageSize, q, status: status === 'all' ? undefined : status }),
+        listAdminPermissions()
+      ]);
+      setItems(rolesResult.list);
+      setTotal(rolesResult.total);
+      setGroups(permissionGroups);
+      setPermissionRole((current) => current ? rolesResult.list.find((role) => role.id === current.id) ?? null : null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '角色权限加载失败');
+    } finally {
       setLoading(false);
-    };
-    void load();
-    return () => {
-      alive = false;
-    };
-  }, [filteredItems, page, pageSize]);
-
-  const canPrev = page > 1;
-  const canNext = page * pageSize < total;
-
-  const openCreate = () => {
-    setEditing(null);
-    setDraft(emptyDraft);
-    setDrawerOpen(true);
-  };
-
-  const openEdit = (item: RoleItem) => {
-    setEditing(item);
-    setDraft({ name: item.name, description: item.description, status: item.status });
-    setDrawerOpen(true);
-  };
-
-  const handleSave = () => {
-    const now = new Date().toLocaleString('zh-CN', { hour12: false });
-    if (editing) {
-      setSourceItems((prev) => prev.map((item) => (item.id === editing.id ? { ...item, ...draft, updatedAt: now } : item)));
-      setNotice('角色已保存');
-    } else {
-      setSourceItems((prev) => [{ id: Math.max(...prev.map((item) => item.id)) + 1, ...draft, adminCount: 0, permissionCount: 0, updatedAt: now }, ...prev]);
-      setNotice('角色已新增');
     }
-    setDrawerOpen(false);
   };
 
-  const handleDelete = () => {
+  useEffect(() => { void refresh(); }, [page, pageSize, q, status]);
+
+  const openCreate = () => { setEditing(null); setDraft(emptyDraft); setDrawerOpen(true); setError(null); };
+  const openEdit = (role: AdminRoleItem) => {
+    setEditing(role);
+    setDraft({ code: role.code, name: role.name, description: role.description ?? '', status: role.status });
+    setDrawerOpen(true);
+    setError(null);
+  };
+  const openPermissions = (role: AdminRoleItem) => {
+    setPermissionRole(role);
+    setPermissionIds(role.code === 'SUPER_ADMIN' ? groups.flatMap((group) => group.permissions.map((permission) => permission.id)) : role.permissionIds);
+  };
+  const saveRole = async () => {
+    if (!draft.name.trim() || (!editing && !/^[A-Z][A-Z0-9_]{1,63}$/.test(draft.code))) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (editing) await updateRole(editing.id, { name: draft.name.trim(), description: draft.description.trim() || null, status: draft.status });
+      else await createRole({ code: draft.code.trim(), name: draft.name.trim(), description: draft.description.trim() || null, status: draft.status });
+      setDrawerOpen(false);
+      setNotice(editing ? '角色已保存' : '角色已新增，请继续配置权限');
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '角色保存失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const togglePermission = (id: number) => setPermissionIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  const toggleGroup = (group: AdminPermissionGroup) => {
+    const ids = group.permissions.map((permission) => permission.id);
+    const allSelected = ids.every((id) => permissionIds.includes(id));
+    setPermissionIds((current) => allSelected ? current.filter((id) => !ids.includes(id)) : Array.from(new Set([...current, ...ids])));
+  };
+  const savePermissions = async () => {
+    if (!permissionRole || permissionRole.code === 'SUPER_ADMIN') return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await replaceRolePermissions(permissionRole.id, permissionIds);
+      setNotice('角色权限已保存');
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '权限保存失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const toggleStatus = async (role: AdminRoleItem) => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await setRoleStatus(role.id, role.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE');
+      setNotice(role.status === 'ACTIVE' ? '角色已停用' : '角色已启用');
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '状态修改失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const confirmDelete = async () => {
     if (!deleting) return;
-    setSourceItems((prev) => prev.filter((item) => item.id !== deleting.id));
-    setDeleting(null);
-    setNotice('角色已删除');
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deleteRole(deleting.id);
+      setDeleting(null);
+      setNotice('角色已删除');
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '角色删除失败');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const columns: DataTableColumn<RoleItem>[] = [
-    { key: 'id', title: 'ID', render: (item) => item.id },
-    { key: 'name', title: '角色名称', render: (item) => <span className="font-medium text-[#2f2f2f]">{item.name}</span> },
-    { key: 'description', title: '说明', render: (item) => item.description },
-    { key: 'adminCount', title: '管理员数', render: (item) => item.adminCount },
-    { key: 'permissionCount', title: '权限数', render: (item) => item.permissionCount },
-    { key: 'status', title: '状态', render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={item.status === 'ACTIVE' ? 'green' : 'gray'} /> },
-    {
-      key: 'actions',
-      title: '操作',
-      render: (item) => (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => openEdit(item)}>编辑</Button>
-          <Button variant="ghost" onClick={() => setNotice(`权限树已选择：${item.name}`)}>配置权限</Button>
-          <Button variant="danger" onClick={() => setDeleting(item)}>删除</Button>
-        </div>
-      )
-    }
+  const columns: DataTableColumn<AdminRoleItem>[] = [
+    { key: 'code', title: '角色编码', render: (role) => <span className="font-medium text-[#2f2f2f]">{role.code}</span> },
+    { key: 'name', title: '角色名称', render: (role) => role.name },
+    { key: 'adminCount', title: '管理员数', render: (role) => role.adminCount },
+    { key: 'permissionCount', title: '权限数', render: (role) => role.permissionCount ?? '全部' },
+    { key: 'status', title: '状态', render: (role) => <StatusTag label={role.status === 'ACTIVE' ? '启用' : '禁用'} tone={role.status === 'ACTIVE' ? 'green' : 'gray'} /> },
+    { key: 'updatedAt', title: '更新时间', render: (role) => new Date(role.updatedAt).toLocaleString('zh-CN', { hour12: false }) },
+    { key: 'actions', title: '操作', render: (role) => <div className="flex min-w-[260px] justify-end gap-2">
+      <Button variant="ghost" onClick={() => openPermissions(role)}>查看权限</Button>
+      {canManage ? <><Button variant="ghost" onClick={() => openEdit(role)}>编辑</Button><Button variant="ghost" disabled={submitting || role.isSystem || role.adminCount > 0} onClick={() => void toggleStatus(role)}>{role.status === 'ACTIVE' ? '停用' : '启用'}</Button><Button variant="danger" disabled={submitting || role.isSystem || role.adminCount > 0} onClick={() => setDeleting(role)}>删除</Button></> : null}
+    </div> }
   ];
 
-  return (
-    <section className="space-y-6">
-      <PageHeader title="角色权限" description="配置后台角色、菜单权限、按钮权限和权限树，后续接入真实 RBAC 接口。" actions={<Button onClick={openCreate}>新增角色</Button>} />
-
-      {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="space-y-4">
-          <FilterPanel>
-            <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
-              <Input value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} placeholder="搜索角色名称..." />
-              <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value as typeof status); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                <option value="all">全部状态</option>
-                <option value="ACTIVE">启用</option>
-                <option value="DISABLED">禁用</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-[#8c8c8c]">
-              <select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
-                <option value={10}>10 / 页</option>
-                <option value={20}>20 / 页</option>
-              </select>
-              <Button variant="ghost" disabled={!canPrev || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</Button>
-              <span>第 {page} 页 / 共 {Math.max(1, Math.ceil(total / pageSize))} 页</span>
-              <Button variant="ghost" disabled={!canNext || loading} onClick={() => setPage((value) => value + 1)}>下一页</Button>
-            </div>
-          </FilterPanel>
-          <DataTable columns={columns} data={items} loading={loading} rowKey={(item) => item.id} emptyTitle="暂无角色" />
-        </div>
-
-        <div className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5">
-          <h2 className="text-lg font-semibold text-[#2f2f2f]">权限树占位</h2>
-          <p className="mt-2 text-sm text-[#8c8c8c]">前端先展示菜单与按钮权限层级，后续接 RBAC 权限接口。</p>
-          <div className="mt-5 space-y-4">
-            {permissionGroups.map((group) => (
-              <div key={group.title} className="rounded-2xl bg-[#f5f1ea] p-4">
-                <label className="flex items-center gap-2 text-sm font-medium text-[#2f2f2f]">
-                  <input type="checkbox" defaultChecked />
-                  {group.title}
-                </label>
-                <div className="mt-3 space-y-2 pl-6">
-                  {group.children.map((child) => (
-                    <label key={child} className="flex items-center gap-2 text-sm text-[#8c8c8c]">
-                      <input type="checkbox" defaultChecked />
-                      {child}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+  return <section className="space-y-6">
+    <PageHeader title="角色权限" description="真实维护后台角色及菜单、页面与操作权限；超级管理员权限固定为全部。" actions={canManage ? <Button onClick={openCreate}>新增角色</Button> : null} />
+    {error ? <div className="flex items-center justify-between rounded-2xl bg-red-50 p-4 text-sm text-red-700"><span>{error}</span><Button variant="ghost" onClick={() => void refresh()}>重试</Button></div> : null}
+    {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div className="space-y-4">
+        <FilterPanel><div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2"><Input value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} placeholder="搜索角色名称 / 编码" /><select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value as typeof status); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value="all">全部状态</option><option value="ACTIVE">启用</option><option value="DISABLED">禁用</option></select></div><div className="flex items-center gap-2 text-sm text-[#8c8c8c]"><select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value={10}>10 / 页</option><option value={20}>20 / 页</option></select><Button variant="ghost" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>上一页</Button><span>第 {page} 页 / 共 {Math.max(1, Math.ceil(total / pageSize))} 页</span><Button variant="ghost" disabled={page * pageSize >= total || loading} onClick={() => setPage((value) => value + 1)}>下一页</Button></div></FilterPanel>
+        <DataTable columns={columns} data={items} loading={loading} error={error} rowKey={(role) => role.id} emptyTitle="暂无角色" />
       </div>
-
-      <Drawer title={editing ? '编辑角色' : '新增角色'} open={drawerOpen} onClose={() => setDrawerOpen(false)} widthClassName="max-w-xl">
-        <div className="space-y-4">
-          <div>
-            <div className="mb-1 text-xs text-zinc-600">角色名称</div>
-            <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          </div>
-          <div>
-            <div className="mb-1 text-xs text-zinc-600">角色说明</div>
-            <textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="min-h-24 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm" />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-zinc-700">
-            <input type="checkbox" checked={draft.status === 'ACTIVE'} onChange={(event) => setDraft({ ...draft, status: event.target.checked ? 'ACTIVE' : 'DISABLED' })} />
-            启用角色
-          </label>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setDrawerOpen(false)}>取消</Button>
-            <Button disabled={!draft.name.trim()} onClick={handleSave}>保存</Button>
-          </div>
-        </div>
-      </Drawer>
-
-      <ConfirmModal
-        title="删除角色"
-        open={!!deleting}
-        description={deleting ? `确认删除角色「${deleting.name}」？删除前应先迁移该角色下的管理员。` : null}
-        confirmText="删除"
-        danger
-        onClose={() => setDeleting(null)}
-        onConfirm={handleDelete}
-      />
-    </section>
-  );
+      <aside className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5">
+        <h2 className="text-lg font-semibold text-[#2f2f2f]">{permissionRole ? `${permissionRole.name} · 权限` : '权限配置'}</h2>
+        <p className="mt-2 text-sm text-[#8c8c8c]">{permissionRole ? (permissionRole.code === 'SUPER_ADMIN' ? '系统超级管理员自动拥有全部权限，不可修改。' : '权限按业务模块分组，保存后该角色账号重新请求即生效。') : '请从角色列表选择“查看权限”。'}</p>
+        {permissionRole ? <div className="mt-5 max-h-[620px] space-y-4 overflow-y-auto pr-1">{groups.map((group) => {
+          const groupIds = group.permissions.map((permission) => permission.id);
+          const checked = groupIds.every((id) => permissionIds.includes(id));
+          const disabled = !canManage || permissionRole.code === 'SUPER_ADMIN';
+          return <div key={group.module} className="rounded-2xl bg-[#f5f1ea] p-4"><label className="flex items-center gap-2 text-sm font-medium text-[#2f2f2f]"><input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleGroup(group)} />{group.moduleName}</label><div className="mt-3 space-y-2 pl-6">{group.permissions.map((permission) => <label key={permission.id} className="flex items-start gap-2 text-sm text-[#666]"><input className="mt-1" type="checkbox" checked={permissionIds.includes(permission.id)} disabled={disabled} onChange={() => togglePermission(permission.id)} /><span>{permission.name}<small className="block text-[#9b9185]">{permission.key}</small></span></label>)}</div></div>;
+        })}{canManage && permissionRole.code !== 'SUPER_ADMIN' ? <Button disabled={submitting} onClick={() => void savePermissions()}>{submitting ? '保存中...' : '保存权限'}</Button> : null}</div> : null}
+      </aside>
+    </div>
+    <Drawer title={editing ? '编辑角色' : '新增角色'} open={drawerOpen} onClose={() => !submitting && setDrawerOpen(false)} widthClassName="max-w-xl"><div className="space-y-4"><div><div className="mb-1 text-xs text-zinc-600">角色编码</div><Input value={draft.code} disabled={!!editing} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })} placeholder="例如 REVIEW_OPERATOR" /><div className="mt-1 text-xs text-[#8c8c8c]">大写字母开头，仅允许大写字母、数字和下划线</div></div><div><div className="mb-1 text-xs text-zinc-600">角色名称</div><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></div><div><div className="mb-1 text-xs text-zinc-600">角色说明</div><textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="min-h-24 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm" /></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.status === 'ACTIVE'} disabled={editing?.code === 'SUPER_ADMIN'} onChange={(event) => setDraft({ ...draft, status: event.target.checked ? 'ACTIVE' : 'DISABLED' })} />启用角色</label><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDrawerOpen(false)}>取消</Button><Button disabled={submitting || !draft.name.trim() || (!editing && !/^[A-Z][A-Z0-9_]{1,63}$/.test(draft.code))} onClick={() => void saveRole()}>{submitting ? '保存中...' : '保存'}</Button></div></div></Drawer>
+    <ConfirmModal title="删除角色" open={!!deleting} description={deleting ? `确认删除角色「${deleting.name}」？仅无关联管理员的非系统角色可删除。` : null} confirmText="删除" danger onClose={() => setDeleting(null)} onConfirm={() => void confirmDelete()} />
+  </section>;
 };

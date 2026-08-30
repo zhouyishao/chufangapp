@@ -57,6 +57,23 @@ export const parseMaybeNumericId = (value: unknown) => {
 };
 
 export const buildPublicIdWhere = (value: unknown) => {
-  const numericId = parseMaybeNumericId(value);
-  return numericId ? { id: numericId } : { bizId: String(value) };
+  const text = String(value ?? '').trim();
+  const numericId = parseMaybeNumericId(text);
+  if (numericId) return { id: numericId };
+
+  const legacyPublicId = /^([a-z_]+)_(\d+)$/.exec(text);
+  const legacyPrefix = legacyPublicId?.[1];
+  const legacySerial = legacyPublicId?.[2];
+  const isKnownPrefix = legacyPrefix
+    ? Object.values(businessPrefixes).includes(legacyPrefix)
+    : false;
+  const legacyNumericId = legacySerial && isKnownPrefix
+    ? Number.parseInt(legacySerial, 10)
+    : null;
+
+  if (legacyNumericId) {
+    return { OR: [{ bizId: text }, { id: legacyNumericId }] };
+  }
+
+  return { bizId: text };
 };

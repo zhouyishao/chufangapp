@@ -29,6 +29,7 @@ import { Drawer } from '../components/Drawer';
 import { FilterPanel } from '../components/FilterPanel';
 import { Input } from '../components/Input';
 import { StatusTag } from '../components/StatusTag';
+import { PermissionGate } from '../components/PermissionGate';
 
 type FamilyPageMode = 'list' | 'members' | 'invites';
 
@@ -69,7 +70,7 @@ const Avatar = ({ name, src }: { name?: string | null; src?: string | null }) =>
   </div>
 );
 
-const StatCard = ({ title, value, suffix, delta, icon: Icon, tone }: { title: string; value: string | number; suffix?: string; delta: string; icon: typeof Users; tone: string }) => (
+const StatCard = ({ title, value, suffix, icon: Icon, tone }: { title: string; value: string | number; suffix?: string; icon: typeof Users; tone: string }) => (
   <div className="rounded-[8px] border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.03)]">
     <div className="flex items-center gap-4">
       <div className={`flex h-12 w-12 items-center justify-center rounded-full ${tone}`}>
@@ -81,20 +82,20 @@ const StatCard = ({ title, value, suffix, delta, icon: Icon, tone }: { title: st
           {value}
           {suffix ? <span className="text-sm font-normal text-[#4b5563]">{suffix}</span> : null}
         </div>
-        <div className="mt-1 text-xs text-[#6b7280]">较昨日 <span className="font-semibold text-[#2f7d32]">{delta}</span></div>
+        <div className="mt-1 text-xs text-[#6b7280]">当前实时数据</div>
       </div>
     </div>
   </div>
 );
 
 const FamilyIdentity = ({ family }: { family: FamilySummary }) => (
-  <button className="flex items-center gap-3 text-left" type="button">
+  <div className="flex items-center gap-3 text-left">
     <Avatar name={family.name} src={family.avatar} />
     <span>
       <span className="block font-medium text-[#202124]">{family.name}</span>
       <span className="block text-xs text-[#6b7280]">ID: {family.legacyId}</span>
     </span>
-  </button>
+  </div>
 );
 
 const MemberIdentity = ({ member }: { member: FamilyMember }) => (
@@ -264,8 +265,8 @@ export const FamiliesPage = ({ mode = 'list' }: Props) => {
         render: (item) => (
           <div className="flex items-center gap-2 text-sm">
             <button className="font-medium text-[#2f7d32]" type="button" onClick={() => void openFamily(item)}>查看</button>
-            <button className="font-medium text-[#2f7d32]" type="button" onClick={() => void setSelectedFamily(null)}>成员管理</button>
-            <button className="font-medium text-[#2f7d32]" type="button" onClick={() => void handleToggleFamilyStatus(item)}>{item.status === 'ACTIVE' ? '禁用' : '启用'}</button>
+            <PermissionGate permission="family:manage"><button className="font-medium text-[#2f7d32]" type="button" onClick={() => void setSelectedFamily(null)}>成员管理</button></PermissionGate>
+            <PermissionGate permission="family:manage"><button className="font-medium text-[#2f7d32]" type="button" onClick={() => void handleToggleFamilyStatus(item)}>{item.status === 'ACTIVE' ? '禁用' : '启用'}</button></PermissionGate>
           </div>
         )
       }
@@ -289,7 +290,7 @@ export const FamiliesPage = ({ mode = 'list' }: Props) => {
         render: (item) => (
           <div className="flex items-center gap-2 text-sm">
             <button className="font-medium text-[#2f7d32]" type="button" onClick={() => setSelectedMember(item)}>查看</button>
-            <button className="font-medium text-red-600 disabled:text-[#9ca3af]" type="button" disabled={item.memberStatus !== 'ACTIVE'} onClick={() => void handleRemoveMember(item)}>移除</button>
+            <PermissionGate permission="family:manage"><button className="font-medium text-red-600 disabled:text-[#9ca3af]" type="button" disabled={item.memberStatus !== 'ACTIVE'} onClick={() => void handleRemoveMember(item)}>移除</button></PermissionGate>
           </div>
         )
       }
@@ -335,11 +336,11 @@ export const FamiliesPage = ({ mode = 'list' }: Props) => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard title="家庭总数" value={overview?.familyTotal ?? '--'} suffix="个" delta="+28" icon={Users} tone="bg-[#edf5ea] text-[#4f7d43]" />
-        <StatCard title={mode === 'invites' ? '总邀请次数' : '活跃家庭'} value={mode === 'invites' ? overview?.memberTotal ?? '--' : overview?.activeFamilies ?? '--'} suffix={mode === 'invites' ? '次' : '个'} delta="+32" icon={CheckCircle2} tone="bg-[#eef2ff] text-[#4f64d8]" />
-        <StatCard title={mode === 'list' ? '总成员数' : mode === 'members' ? '活跃成员' : '待加入次数'} value={mode === 'list' ? overview?.memberTotal ?? '--' : mode === 'members' ? overview?.memberTotal ?? '--' : 6} suffix={mode === 'list' || mode === 'members' ? '人' : '次'} delta="+86" icon={Users} tone="bg-[#fff4e8] text-[#c47d20]" />
-        <StatCard title={mode === 'list' ? '今日新增家庭' : mode === 'members' ? '今日新增成员' : '已失效次数'} value={mode === 'list' ? overview?.todayFamilies ?? '--' : mode === 'members' ? overview?.todayMembers ?? '--' : 4} suffix={mode === 'invites' ? '次' : mode === 'members' ? '人' : '个'} delta="+9" icon={CalendarDays} tone="bg-[#f4e9f8] text-[#9b4db7]" />
-        <StatCard title={mode === 'members' ? '异常成员' : mode === 'invites' ? '当前家庭成员' : '今日新增成员'} value={mode === 'members' ? overview?.abnormalMembers ?? '--' : mode === 'invites' ? 5 : overview?.todayMembers ?? '--'} suffix={mode === 'invites' || mode === 'list' ? '人' : '人'} delta="+3" icon={mode === 'members' ? XCircle : Hourglass} tone="bg-[#e8f8f8] text-[#2f9aa2]" />
+        <StatCard title="家庭总数" value={overview?.familyTotal ?? '--'} suffix="个" icon={Users} tone="bg-[#edf5ea] text-[#4f7d43]" />
+        <StatCard title={mode === 'invites' ? '总邀请次数' : '活跃家庭'} value={mode === 'invites' ? overview?.memberTotal ?? '--' : overview?.activeFamilies ?? '--'} suffix={mode === 'invites' ? '次' : '个'} icon={CheckCircle2} tone="bg-[#eef2ff] text-[#4f64d8]" />
+        <StatCard title={mode === 'list' ? '总成员数' : mode === 'members' ? '活跃成员' : '待加入次数'} value={mode === 'list' ? overview?.memberTotal ?? '--' : mode === 'members' ? overview?.memberTotal ?? '--' : 6} suffix={mode === 'list' || mode === 'members' ? '人' : '次'} icon={Users} tone="bg-[#fff4e8] text-[#c47d20]" />
+        <StatCard title={mode === 'list' ? '今日新增家庭' : mode === 'members' ? '今日新增成员' : '已失效次数'} value={mode === 'list' ? overview?.todayFamilies ?? '--' : mode === 'members' ? overview?.todayMembers ?? '--' : 4} suffix={mode === 'invites' ? '次' : mode === 'members' ? '人' : '个'} icon={CalendarDays} tone="bg-[#f4e9f8] text-[#9b4db7]" />
+        <StatCard title={mode === 'members' ? '异常成员' : mode === 'invites' ? '当前家庭成员' : '今日新增成员'} value={mode === 'members' ? overview?.abnormalMembers ?? '--' : mode === 'invites' ? 5 : overview?.todayMembers ?? '--'} suffix={mode === 'invites' || mode === 'list' ? '人' : '人'} icon={mode === 'members' ? XCircle : Hourglass} tone="bg-[#e8f8f8] text-[#2f9aa2]" />
       </div>
 
       <FilterPanel>

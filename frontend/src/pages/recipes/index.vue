@@ -112,7 +112,7 @@
               :class="['basket-icon-button', { 'is-added': isRecipeInBasket(recipe) }]"
               @tap.stop="toggleRecipeBasket(recipe)"
             >
-              <app-icon class="basket-icon-button__icon" name="basket" size="28rpx" />
+              <app-icon class="basket-icon-button__icon" name="basket-action" size="28rpx" />
             </button>
           </view>
         </view>
@@ -186,8 +186,8 @@ const basketItemIds = ref<string[]>([]);
 const basketItems = ref<BasketItem[]>([]);
 const tabs = ref<HomeTab[]>([
   { id: 'home', label: '首页', active: false },
-  { id: 'ingredients', label: '食材', active: true },
-  { id: 'basket', label: '菜篮子', active: false },
+  { id: 'categories', label: '分类', active: true },
+  { id: 'basket', label: '菜篮', active: false },
   { id: 'mine', label: '我的', active: false }
 ]);
 
@@ -599,7 +599,7 @@ onMounted(() => {
 <style scoped lang="scss">
 .page {
   min-height: 100vh;
-  padding-bottom: calc(190rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(190rpx + var(--app-safe-area-bottom));
   background: var(--app-bg);
 }
 
@@ -607,7 +607,7 @@ onMounted(() => {
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: calc(var(--status-bar-height) + 20rpx) 30rpx 14rpx;
+  padding: calc(var(--app-safe-area-top) + 20rpx) 30rpx 14rpx;
   background: var(--app-bg);
 }
 

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>家里有菜 · 首页交互原型</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./fixes.css?v=20260811-recipe-single-scroll-5">
+</head>
+<body>
+  <div class="prototype-toolbar" aria-label="原型控制"><button id="scaleToggle" type="button">字体 100%</button></div>
+  <main id="homeScroll" class="home-scroll">
+    <header class="hero" aria-label="首页推荐 Banner">
+      <div class="hero-carousel" id="heroCarousel" aria-roledescription="轮播图">
+        <img class="hero-media is-active" data-hero-slide data-title="今晚吃点清爽的" data-meta="夏日家常菜 · 25 分钟" src="https://images.unsplash.com/photo-1644647849404-bba4739704e3?auto=format&fit=crop&w=900&q=82" width="393" height="420" alt="夏日清爽家常菜摆盘" fetchpriority="high" aria-hidden="false">
+        <img class="hero-media" data-hero-slide data-title="一锅鲜香刚刚好" data-meta="家庭聚餐 · 40 分钟" src="https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=900&q=82" width="393" height="420" alt="适合家庭聚餐的鲜香炖菜" aria-hidden="true">
+        <img class="hero-media" data-hero-slide data-title="给晚餐配一杯清凉" data-meta="夏日饮品 · 10 分钟" src="https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=82" width="393" height="420" alt="青柠与薄荷调制的清凉饮品" aria-hidden="true">
+      </div>
+      <span class="hero-shade" aria-hidden="true"></span>
+      <div id="searchLayer" class="search-layer">
+        <form class="search-box glass-clear" id="searchForm" role="search"><button class="search-submit" type="submit" aria-label="提交搜索"><span class="icon icon-search" aria-hidden="true"></span></button><input id="searchInput" aria-label="搜索" placeholder="搜索菜谱、食材、水果、饮品"></form>
+        <button class="icon-button notification-button glass-clear" type="button" aria-label="通知"><span class="icon icon-bell" aria-hidden="true"></span><i class="unread-dot" aria-hidden="true"></i></button>
+      </div>
+      <nav id="channelBar" class="channel-bar" aria-label="首页频道" role="tablist">
+        <button id="homeChannelRecommend" class="channel is-active" type="button" role="tab" aria-selected="true" aria-controls="channelPanelRecommend" data-channel="recommend">推荐</button><button id="homeChannelRecipe" class="channel" type="button" role="tab" aria-selected="false" aria-controls="channelPanelExplore" data-channel="recipe">菜谱</button><button id="homeChannelIngredient" class="channel" type="button" role="tab" aria-selected="false" aria-controls="channelPanelExplore" data-channel="ingredient">食材</button><button id="homeChannelFruit" class="channel" type="button" role="tab" aria-selected="false" aria-controls="channelPanelExplore" data-channel="fruit">水果</button><button id="homeChannelDrink" class="channel" type="button" role="tab" aria-selected="false" aria-controls="channelPanelExplore" data-channel="drink">饮品</button>
+      </nav>
+      <div class="hero-copy"><h1 id="heroTitle">今晚吃点清爽的</h1><p id="heroMeta">夏日家常菜 · 25 分钟</p></div>
+      <div class="hero-dots" role="group" aria-label="Banner 轮播">
+        <button class="hero-dot is-active" type="button" data-hero-dot="0" aria-label="查看第 1 张 Banner" aria-current="true"></button>
+        <button class="hero-dot" type="button" data-hero-dot="1" aria-label="查看第 2 张 Banner"></button>
+        <button class="hero-dot" type="button" data-hero-dot="2" aria-label="查看第 3 张 Banner"></button>
+      </div>
+    </header>
+
+    <div id="channelPanelRecommend" class="home-channel-panel" role="tabpanel" aria-labelledby="homeChannelRecommend" data-channel-panel="recommend">
+    <section class="section seasonal" aria-labelledby="seasonalTitle">
+      <div class="section-heading"><h2 id="seasonalTitle">时令果蔬</h2><button class="text-action" type="button" data-route="seasonal">查看全部 <span class="icon icon-chevron" aria-hidden="true"></span></button></div>
+      <div class="seasonal-rail"><button class="season-item" type="button" data-route="fruit:peach"><img src="https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=180&q=80" width="68" height="68" alt="水蜜桃" loading="lazy"><span>水蜜桃</span></button><button class="season-item" type="button" data-route="ingredient:edamame"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=180&q=80" width="68" height="68" alt="毛豆" loading="lazy"><span>毛豆</span></button><button class="season-item" type="button" data-route="fruit:lychee"><img src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=180&q=80" width="68" height="68" alt="荔枝" loading="lazy"><span>荔枝</span></button><button class="season-item" type="button" data-route="ingredient:winter-melon"><img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=180&q=80" width="68" height="68" alt="冬瓜" loading="lazy"><span>冬瓜</span></button><button class="season-item" type="button" data-route="fruit:bayberry"><img src="https://images.unsplash.com/photo-1425934398893-310a009a77f9?auto=format&fit=crop&w=180&q=80" width="68" height="68" alt="杨梅" loading="lazy"><span>杨梅</span></button></div>
+    </section>
+
+    <section class="section home-picks" aria-labelledby="homePicksTitle"><div class="section-heading"><h2 id="homePicksTitle">家常精选</h2><button class="text-action" data-route="recipe" type="button">查看更多 <span class="icon icon-chevron" aria-hidden="true"></span></button></div><div class="recipe-rail" id="recommendationRail"></div></section>
+
+    <button class="knowledge-strip knowledge-card" type="button" data-route="guide:peach" aria-labelledby="pickTitle"><img class="knowledge-image" src="https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=300&q=82" width="128" height="128" alt="水蜜桃挑选示意" loading="lazy"><span class="knowledge-copy"><span class="knowledge-eyebrow">挑选指南</span><strong id="pickTitle">水蜜桃</strong><span class="knowledge-summary">颜色均匀，轻按有弹性</span></span></button>
+
+    <section class="section fresh-meal" aria-labelledby="freshTitle"><div class="section-heading"><h2 id="freshTitle">清爽一餐</h2><button class="text-action" type="button" data-route="recipe">查看全部 <span class="icon icon-chevron" aria-hidden="true"></span></button></div><div class="recipe-grid"><button class="grid-recipe" type="button" data-route="recipe:salad"><img src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=420&q=80" width="170" height="128" alt="凉拌鸡丝" loading="lazy"><strong>凉拌鸡丝</strong><span>酸爽开胃 · 20 分钟</span></button><button class="grid-recipe" type="button" data-route="recipe:soup"><img src="https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=420&q=80" width="170" height="128" alt="冬瓜虾仁汤" loading="lazy"><strong>冬瓜虾仁汤</strong><span>鲜甜低负担 · 30 分钟</span></button><button class="grid-recipe" type="button" data-route="recipe:pasta"><img src="https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=420&q=80" width="170" height="128" alt="番茄意面" loading="lazy"><strong>番茄意面</strong><span>酸甜轻盈 · 25 分钟</span></button><button class="grid-recipe" type="button" data-route="recipe:tofu"><img src="https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=420&q=80" width="170" height="128" alt="麻婆豆腐" loading="lazy"><strong>麻婆豆腐</strong><span>麻辣下饭 · 20 分钟</span></button></div></section>
+
+    <section class="section ingredient-story" aria-labelledby="ingredientTitle"><div class="section-heading"><h2 id="ingredientTitle">食材灵感</h2><button class="text-action" type="button" data-route="ingredient">查看更多 <span class="icon icon-chevron" aria-hidden="true"></span></button></div><button class="ingredient-panel knowledge-card" type="button" data-route="ingredient:edamame"><img class="knowledge-image" src="https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?auto=format&fit=crop&w=300&q=82" width="128" height="128" alt="新鲜毛豆" loading="lazy"><span class="knowledge-copy"><span class="knowledge-eyebrow">当季食材</span><strong>毛豆</strong><span class="knowledge-summary">清炒、凉拌都合适</span></span></button></section>
+
+    <section class="section drinks" aria-labelledby="drinkTitle"><div class="section-heading"><h2 id="drinkTitle">饮品搭配</h2><button class="text-action" type="button" data-route="drink">更多饮品 <span class="icon icon-chevron" aria-hidden="true"></span></button></div><div class="drink-rail"><button type="button" data-route="drink:lime"><img src="https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=260&q=80" width="104" height="104" alt="青柠气泡水" loading="lazy"><strong>青柠气泡水</strong></button><button type="button" data-route="drink:oolong"><img src="https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=260&q=80" width="104" height="104" alt="冷泡乌龙" loading="lazy"><strong>冷泡乌龙</strong></button><button type="button" data-route="drink:watermelon"><img src="https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=260&q=80" width="104" height="104" alt="西瓜冰饮" loading="lazy"><strong>西瓜冰饮</strong></button></div></section>
+
+    <section class="section weekly" aria-labelledby="weeklyTitle"><div class="section-heading"><h2 id="weeklyTitle">本周热门</h2></div><div class="weekly-list"><button type="button" data-route="recipe:fish"><span class="rank-mark">热</span><span><strong>清蒸鲈鱼</strong><small>鲜嫩清淡 · 30 分钟</small></span><span class="icon icon-chevron" aria-hidden="true"></span></button><button type="button" data-route="recipe:egg"><span class="rank-mark">新</span><span><strong>丝瓜炒蛋</strong><small>清鲜软嫩 · 15 分钟</small></span><span class="icon icon-chevron" aria-hidden="true"></span></button><button type="button" data-route="recipe:beef"><span class="rank-mark">荐</span><span><strong>青椒牛肉</strong><small>鲜香下饭 · 20 分钟</small></span><span class="icon icon-chevron" aria-hidden="true"></span></button></div></section>
+    <div id="feedSentinel" class="feed-status" data-state="idle" aria-live="polite">继续向下，发现更多</div>
+    </div>
+    <section id="channelPanelExplore" class="home-channel-panel channel-explore" role="tabpanel" aria-live="polite" hidden></section>
+  </main>
+  <main id="categoryView" class="category-view" hidden aria-label="内容分类">
+    <h1 class="sr-only">分类</h1>
+    <div class="category-statusbar" aria-hidden="true"></div>
+    <header class="category-header">
+      <form class="category-search glass-clear" id="categorySearchForm" role="search"><span class="icon icon-search" aria-hidden="true"></span><input id="categorySearchInput" aria-label="搜索分类内容" autocomplete="off" placeholder="搜索菜谱、食材、水果、饮品、调料"><button class="category-search-clear" type="button" data-clear-category-search aria-label="清除搜索" hidden><span aria-hidden="true">×</span></button></form>
+      <nav id="categoryPrimaryNav" class="category-primary" aria-label="内容大类" role="tablist"></nav>
+    </header>
+    <div class="category-shell">
+      <aside id="categorySecondaryNav" class="category-secondary" aria-label="内容二级分类"></aside>
+      <div class="category-main">
+        <div id="categoryResultSummary" class="category-result-summary" aria-live="polite"></div>
+        <section id="categoryContent" class="category-content" role="tabpanel" aria-live="polite" tabindex="0"></section>
+      </div>
+    </div>
+  </main>
+  <main id="basketView" class="basket-view" hidden aria-label="家庭菜篮">
+    <div class="basket-safe-area" aria-hidden="true"></div>
+    <header class="basket-header">
+      <div class="basket-heading">
+        <h1 class="basket-family-title"><button class="basket-family-trigger" type="button" data-basket-family-trigger aria-expanded="false" aria-controls="basketFamilyMenu"><span id="basketFamilyName">周家</span><span class="basket-chevron" aria-hidden="true"></span></button></h1>
+        <span id="basketSummary">待采购 12 项 · 参考约 ¥86</span>
+        <div id="basketFamilyMenu" class="basket-family-menu" hidden role="menu" aria-label="切换家庭"></div>
+      </div>
+      <button class="basket-scan" type="button" data-route="scan:family" aria-label="扫一扫加入家庭"><svg class="basket-scan-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3M6 12h12"/></svg></button>
+      <button class="basket-clear-all" type="button" data-clear-basket hidden>清空</button>
+    </header>
+    <section id="basketContent" class="basket-content" aria-live="polite"></section>
+  </main>
+  <main id="mineView" class="mine-view" hidden aria-label="我的">
+    <div class="mine-safe-area" aria-hidden="true"></div>
+    <header class="mine-profile">
+      <img class="mine-avatar" src="https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&fit=crop&w=220&q=82" width="72" height="72" alt="小周的头像" loading="lazy">
+      <div class="mine-profile-copy"><h1>小周</h1><p>认真吃饭，也认真生活</p></div>
+      <button class="mine-icon-button" type="button" data-route="profile:edit" aria-label="编辑个人资料"><img src="https://api.iconify.design/ph/note-pencil.svg?color=%232f2f2f" width="25" height="25" alt="编辑" loading="lazy"></button>
+    </header>
+    <button class="mine-sharing-row" type="button" data-route="privacy:family-share"><img src="https://api.iconify.design/ph/users-three.svg?color=%237a8b6f" width="24" height="24" alt="" loading="lazy"><span>已向周家共享：口味、忌口与菜谱</span><i class="mine-chevron" aria-hidden="true"></i></button>
+    <section class="mine-family" aria-labelledby="mineFamilyTitle">
+      <div class="mine-family-copy"><div class="mine-family-title-row"><button type="button" class="mine-family-select" data-mine-family-trigger aria-expanded="false" aria-controls="mineFamilyMenu"><h2 id="mineFamilyTitle">周家</h2><span class="mine-family-chevron" aria-hidden="true"></span></button><div id="mineFamilyMenu" class="mine-family-menu" hidden role="menu" aria-label="切换家庭"></div></div><p>4 位成员 · 12 项待采购</p></div>
+      <div class="mine-family-actions">
+        <button type="button" data-route="family:manage"><img src="https://api.iconify.design/ph/users-three.svg?color=%237a8b6f" width="27" height="27" alt="" loading="lazy"><span>管理</span></button>
+        <button type="button" data-route="family:preferences"><img src="https://api.iconify.design/ph/bowl-food.svg?color=%237a8b6f" width="27" height="27" alt="" loading="lazy"><span>口味</span></button>
+        <button type="button" data-route="family:code" aria-label="家庭码，用于邀请家人加入"><img src="https://api.iconify.design/ph/qr-code.svg?color=%237a8b6f" width="27" height="27" alt="" loading="lazy"><span>家庭码</span></button>
+      </div>
+    </section>
+    <section class="mine-recipes" aria-labelledby="mineRecipesTitle">
+      <div class="mine-section-heading"><h2 id="mineRecipesTitle"><button class="mine-recipes-title" type="button" data-route="recipe:mine-all">我的菜谱<i class="mine-heading-chevron" aria-hidden="true"></i></button></h2><div class="mine-recipe-actions"><button type="button" data-route="recipe:create"><span aria-hidden="true">＋</span>添加</button></div></div>
+      <div class="mine-recipe-grid" role="list" aria-label="我的菜谱，可左右滑动">
+        <article class="mine-recipe-card" role="listitem"><button class="mine-recipe-hit" type="button" data-route="my-recipe:tomato-beef"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=520&q=84" width="170" height="128" alt="番茄炖牛腩" loading="lazy"><strong>番茄炖牛腩</strong><small><img src="https://api.iconify.design/ph/lock-simple.svg?color=%238c9189" width="14" height="14" alt="仅自己" loading="lazy">仅自己</small></button></article>
+        <article class="mine-recipe-card" role="listitem"><button class="mine-recipe-hit" type="button" data-route="my-recipe:steamed-fish"><img src="https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=520&q=84" width="170" height="128" alt="清蒸鲈鱼" loading="lazy"><strong>清蒸鲈鱼</strong><small class="is-shared"><img src="https://api.iconify.design/ph/users-three.svg?color=%237a8b6f" width="14" height="14" alt="家庭共享" loading="lazy">已共享 · 周家</small></button></article>
+        <article class="mine-recipe-card" role="listitem"><button class="mine-recipe-hit" type="button" data-route="my-recipe:shrimp-egg"><img src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=520&q=84" width="170" height="128" alt="虾仁滑蛋" loading="lazy"><strong>虾仁滑蛋</strong><small class="is-shared"><img src="https://api.iconify.design/ph/users-three.svg?color=%237a8b6f" width="14" height="14" alt="家庭共享" loading="lazy">已共享 · 周家</small></button></article>
+      </div>
+    </section>
+    <section class="mine-assets" aria-label="我的内容">
+      <button type="button" data-route="favorite:recipe"><img src="https://api.iconify.design/ph/star.svg?color=%237a8b6f" width="30" height="30" alt="收藏" loading="lazy"><span><strong>收藏</strong><small data-favorite-home-count>28 道菜谱</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button type="button" data-route="history:recipe"><img src="https://api.iconify.design/ph/clock.svg?color=%237a8b6f" width="30" height="30" alt="最近浏览" loading="lazy"><span><strong>最近浏览</strong><small>16 道菜谱</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+    </section>
+    <section class="mine-settings" aria-label="常用设置">
+      <button type="button" data-route="notification"><img src="https://api.iconify.design/ph/bell.svg?color=%232f2f2f" width="21" height="21" alt="" loading="lazy"><span>消息与提醒</span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button type="button" data-route="privacy:family"><img src="https://api.iconify.design/ph/user-focus.svg?color=%232f2f2f" width="21" height="21" alt="" loading="lazy"><span>隐私与家庭共享</span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button class="mine-settings-more" type="button" data-route="settings:all"><img src="https://api.iconify.design/ph/sliders-horizontal.svg?color=%232f2f2f" width="21" height="21" alt="" loading="lazy"><span>更多设置</span><i class="mine-chevron" aria-hidden="true"></i></button>
+    </section>
+  </main>
+  <main id="mineRecipeListView" class="mine-recipe-list-view" hidden aria-label="我的菜谱列表" data-state="loaded" tabindex="-1">
+    <header class="mine-recipe-list-header">
+      <button type="button" data-mine-recipes-back aria-label="返回我的页面"><svg class="page-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <h1>我的菜谱</h1>
+      <button type="button" data-route="recipe:create">添加</button>
+    </header>
+    <div class="mine-recipe-state mine-recipe-state-loading" data-mine-recipes-loading hidden aria-live="polite" aria-label="正在加载我的菜谱"><span></span><span></span><span></span></div>
+    <section class="mine-recipe-state mine-recipe-state-empty" data-mine-recipes-empty hidden aria-live="polite"><img src="https://api.iconify.design/ph/notebook.svg?color=%237a8b6f" width="44" height="44" alt="" loading="lazy"><h2>还没有自己的菜谱</h2><p>把家里常做的菜记下来，也可以选择分享给家人。</p><button type="button" data-route="recipe:create">添加第一道菜谱</button></section>
+    <section class="mine-recipe-state mine-recipe-state-error" data-mine-recipes-error hidden aria-live="assertive"><img src="https://api.iconify.design/ph/cloud-slash.svg?color=%237a8b6f" width="44" height="44" alt="" loading="lazy"><h2>菜谱暂时加载失败</h2><p>网络恢复后可以重新加载，已有内容不会丢失。</p><button type="button" data-mine-recipes-retry>重新加载</button></section>
+    <section class="mine-recipe-list" data-mine-recipes-loaded aria-label="全部个人菜谱">
+      <button type="button" data-route="my-recipe:tomato-beef"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=260&q=82" width="76" height="76" alt="番茄炖牛腩" loading="lazy"><span><strong>番茄炖牛腩</strong><small>仅自己</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button type="button" data-route="my-recipe:steamed-fish"><img src="https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=260&q=82" width="76" height="76" alt="清蒸鲈鱼" loading="lazy"><span><strong>清蒸鲈鱼</strong><small>已共享 · 周家</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button type="button" data-route="my-recipe:shrimp-egg"><img src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=260&q=82" width="76" height="76" alt="虾仁滑蛋" loading="lazy"><span><strong>虾仁滑蛋</strong><small>已共享 · 周家</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button type="button" data-route="recipe:roast-chicken"><img src="https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=260&q=82" width="76" height="76" alt="柠檬香草烤鸡" loading="lazy"><span><strong>柠檬香草烤鸡</strong><small>仅自己</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+      <button type="button" data-route="recipe:vegetable-noodle"><img src="https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=260&q=82" width="76" height="76" alt="时蔬拌面" loading="lazy"><span><strong>时蔬拌面</strong><small>已共享 · 周家</small></span><i class="mine-chevron" aria-hidden="true"></i></button>
+    </section>
+  </main>
+  <main id="recipeCreateView" class="recipe-create-view" hidden aria-label="添加菜谱" tabindex="-1">
+    <header class="recipe-create-header">
+      <button type="button" data-create-back aria-label="返回我的页面"><svg class="page-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <h1>添加菜谱</h1>
+      <button type="button" class="create-save-draft" data-create-draft>存草稿</button>
+    </header>
+    <div class="create-progress" aria-label="添加菜谱进度">
+      <span class="is-active" data-create-progress="1"></span><span data-create-progress="2"></span><span data-create-progress="3"></span><span data-create-progress="4"></span>
+    </div>
+    <p class="create-progress-label" id="createProgressLabel">1 / 4　基本信息</p>
+    <section class="create-panel create-panel-media" data-create-panel="1" aria-labelledby="createMediaTitle">
+      <div class="create-section-heading"><div><h2 id="createMediaTitle">基本信息与封面</h2><p>先写名称，再添加至少一张图片或视频</p></div><strong data-media-count>0 / 10</strong></div>
+      <label class="create-name-field"><span>菜谱名称</span><input type="text" data-create-recipe-name maxlength="30" autocomplete="off" placeholder="例如：番茄炖牛腩" aria-label="菜谱名称"></label>
+      <button class="media-empty-upload" type="button" data-open-media-source><span class="media-upload-icon" aria-hidden="true">＋</span><strong>添加图片或视频</strong><small>让家人一眼看懂这道菜</small></button>
+      <div class="media-rules"><p><strong>图片</strong> JPG、PNG、HEIC，单张 ≤10MB，最多 9 张</p><p><strong>视频</strong> MP4、MOV，≤200MB、≤3 分钟，最多 1 个</p></div>
+      <div class="media-source-sheet" data-media-source-sheet hidden>
+        <button type="button" data-media-source="photo"><span class="source-icon" aria-hidden="true">▧</span><span>拍照</span></button>
+        <button type="button" data-media-source="album"><span class="source-icon" aria-hidden="true">▦</span><span>从相册选择</span></button>
+        <button type="button" data-media-source="video"><span class="source-icon" aria-hidden="true">▷</span><span>录制视频</span></button>
+        <button type="button" data-media-source="file"><span class="source-icon" aria-hidden="true">□</span><span>从文件选择</span></button>
+        <button type="button" class="source-cancel" data-close-media-source>取消</button>
+      </div>
+    </section>
+    <section class="create-panel create-panel-media-uploaded" data-create-panel="2" hidden aria-labelledby="uploadedMediaTitle">
+      <div class="create-section-heading"><div><h2 id="uploadedMediaTitle">菜谱图片与视频</h2><p>长按拖动排序，首张图片为封面</p></div><strong data-media-count>7 / 10</strong></div>
+      <div class="media-cover-card"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=720&q=84" width="353" height="265" alt="番茄炖牛腩封面" loading="lazy"><span class="cover-badge">封面</span><button type="button" class="media-delete" data-media-delete="cover" aria-label="删除封面图片">×</button></div>
+      <div class="media-grid" aria-label="已上传的菜谱媒体">
+        <div class="media-tile"><img src="https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=240&q=82" width="104" height="104" alt="清蒸鲈鱼步骤图" loading="lazy"><button type="button" class="media-delete" data-media-delete="fish" aria-label="删除清蒸鲈鱼步骤图">×</button></div>
+        <div class="media-tile"><img src="https://images.unsplash.com/photo-1565299507177-b0ac66763828?auto=format&fit=crop&w=240&q=82" width="104" height="104" alt="番茄炒蛋步骤图" loading="lazy"><button type="button" class="media-delete" data-media-delete="tomato" aria-label="删除番茄炒蛋步骤图">×</button></div>
+        <div class="media-tile"><img src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=240&q=82" width="104" height="104" alt="蔬菜摆盘步骤图" loading="lazy"><button type="button" class="media-delete" data-media-delete="salad" aria-label="删除蔬菜摆盘步骤图">×</button></div>
+        <div class="media-tile"><img src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=240&q=82" width="104" height="104" alt="虾仁步骤图" loading="lazy"><button type="button" class="media-delete" data-media-delete="shrimp" aria-label="删除虾仁步骤图">×</button></div>
+        <div class="media-tile media-video-tile"><img src="https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=240&q=82" width="104" height="104" alt="焯水过程视频封面" loading="lazy"><span class="video-play" aria-hidden="true">▷</span><span class="video-duration">00:42</span><button type="button" class="media-delete" data-media-delete="video" aria-label="删除焯水过程视频">×</button></div>
+        <button type="button" class="media-tile media-add-tile" data-open-media-source aria-label="继续添加图片或视频"><span>＋</span><small>继续添加</small></button>
+      </div>
+      <p class="media-sort-note">视频不能设为封面；删除封面后，下一张图片会自动补位。</p>
+    </section>
+    <section class="create-panel create-panel-steps" data-create-panel="3" hidden aria-labelledby="createStepsTitle">
+      <div class="create-section-heading"><div><h2 id="createStepsTitle">制作步骤</h2><p>文字、图片和视频可以放在同一个步骤里</p></div><strong>3 / 4</strong></div>
+      <article class="step-editor-card">
+        <header><span class="drag-handle" aria-hidden="true">⠿</span><strong>步骤 1</strong><button type="button" class="step-delete" aria-label="删除步骤 1">×</button></header>
+        <textarea aria-label="步骤 1 说明">牛腩冷水下锅，加入姜片焯水。撇去浮沫后捞出，用温水冲洗干净。</textarea>
+        <div class="step-media-row" aria-label="步骤 1 的图片和视频">
+          <div class="step-media-item"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=220&q=82" width="84" height="84" alt="牛腩切块" loading="lazy"><button type="button" data-step-media-delete aria-label="删除步骤图片">×</button></div>
+          <div class="step-media-item"><img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=220&q=82" width="84" height="84" alt="牛腩焯水" loading="lazy"><button type="button" data-step-media-delete aria-label="删除步骤图片">×</button></div>
+          <div class="step-media-item step-video-item"><img src="https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=220&q=82" width="84" height="84" alt="焯水过程视频封面" loading="lazy"><span class="video-play" aria-hidden="true">▷</span><span class="video-duration">00:28</span><button type="button" data-step-media-delete aria-label="删除步骤视频">×</button></div>
+          <button type="button" class="step-media-add" data-open-media-source aria-label="为步骤添加图片或视频">＋</button>
+        </div>
+        <p class="step-limit">每个步骤最多 6 张图片或 1 个视频</p>
+        <div class="step-tools"><button type="button" data-step-timer>◷ 设置计时 5 分钟</button><button type="button" data-step-note>＋ 添加提示</button></div>
+      </article>
+      <button type="button" class="step-collapsed"><span class="drag-handle" aria-hidden="true">⠿</span><strong>步骤 2</strong><small>锅中倒油，放入葱姜蒜爆香 · 2 张图片</small><span aria-hidden="true">⌄</span></button>
+      <button type="button" class="add-step-button">＋ 添加步骤</button>
+    </section>
+    <section class="create-panel create-panel-preview" data-create-panel="4" hidden aria-labelledby="previewRecipeTitle">
+      <div class="create-section-heading"><div><h2 id="previewRecipeTitle">预览菜谱</h2><p>发布后家人看到的制作步骤</p></div><strong>4 / 4</strong></div>
+      <h3>番茄炖牛腩</h3><p class="preview-meta">4 人份　·　约 60 分钟　·　家常菜</p><h4>制作步骤</h4>
+      <article class="preview-step-card"><div class="preview-media-main"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=760&q=84" width="353" height="265" alt="牛腩焯水步骤" loading="lazy"><span class="preview-step-number">1</span><span class="preview-counter">1 / 3</span></div><div class="preview-media-thumbs"><img src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=180&q=82" width="72" height="54" alt="步骤图片一" loading="lazy"><img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=180&q=82" width="72" height="54" alt="步骤图片二" loading="lazy"><span class="preview-video-thumb"><span class="video-play" aria-hidden="true">▷</span><small>00:28</small></span></div><p>牛腩冷水下锅，加入姜片焯水。撇去浮沫后捞出，用温水冲洗干净。</p><button type="button" class="preview-timer" data-preview-timer>◷ 开始计时 5 分钟</button></article>
+      <article class="preview-next-step"><span>2</span><p>锅中倒油，放入葱姜蒜爆香，加入番茄炒出汁。</p><span aria-hidden="true">›</span></article>
+    </section>
+    <div class="create-bottom-actions"><button type="button" class="create-secondary-action" data-create-prev hidden>上一步</button><button type="button" class="create-primary-action" data-create-next>下一步</button></div>
+    <div class="media-delete-dialog" data-media-delete-dialog hidden><div class="delete-dialog-card"><h2>删除这张图片？</h2><p>删除后无法恢复；如果它是封面，请重新选择封面。</p><div><button type="button" data-cancel-media-delete>取消</button><button type="button" class="is-destructive" data-confirm-media-delete>删除</button></div></div></div>
+  </main>
+  <main id="detailView" class="detail-view" hidden aria-label="内容详情" tabindex="-1"></main>
+  <main id="cookingView" class="cooking-view" hidden aria-label="烹饪模式" tabindex="-1"></main>
+  <main id="mineSubpageView" class="mine-subpage-view" hidden aria-label="我的二级页面" tabindex="-1">
+    <header class="mine-subpage-header">
+      <button type="button" data-mine-subpage-back aria-label="返回我的页面"><svg class="page-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <h1 data-mine-subpage-title>个人资料</h1>
+      <button type="button" class="mine-subpage-action" data-mine-subpage-action hidden>保存</button>
+    </header>
+    <div class="mine-subpage-content" data-mine-subpage-content></div>
+  </main>
+  <main id="workflowView" class="workflow-view" hidden aria-label="功能页面" tabindex="-1">
+    <header class="workflow-header">
+      <button type="button" data-workflow-back aria-label="返回"><svg class="page-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <h1 data-workflow-title>功能页面</h1>
+      <button type="button" data-workflow-action hidden></button>
+    </header>
+    <div class="workflow-content" data-workflow-content></div>
+  </main>
+  <div id="basketOverlay" class="basket-overlay" hidden></div>
+  <nav class="tab-bar glass-regular" aria-label="主导航"><button class="tab is-active" type="button" data-tab="home" aria-current="page"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="fillable" d="M4 10.5 12 4l8 6.5v8.25A1.25 1.25 0 0 1 18.75 20H5.25A1.25 1.25 0 0 1 4 18.75Z"/><path d="M9 20v-6h6v6"/></svg><span>首页</span></button><button class="tab" type="button" data-tab="category"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect class="fillable" x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect class="fillable" x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect class="fillable" x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><rect class="fillable" x="14" y="14" width="6.5" height="6.5" rx="1.2"/></svg><span>分类</span></button><button class="tab" type="button" data-tab="basket" aria-label="菜篮"><span id="basketCount" class="basket-count" hidden>0</span><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="fillable" d="M4 9h16l-1.3 10H5.3Z"/><path d="m8.2 9 2.1-5m5.5 5-2.1-5"/></svg><span>菜篮</span></button><button class="tab" type="button" data-tab="mine"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle class="fillable" cx="12" cy="7.5" r="3.5"/><path class="fillable" d="M5 20c.35-4 2.7-6 7-6s6.65 2 7 6Z"/></svg><span>我的</span></button></nav>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js?v=20260811-recipe-single-scroll-5"></script>
+</body>
+</html>

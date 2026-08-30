@@ -77,7 +77,7 @@ export const TopNavDetailPage = () => {
           <Button variant="ghost" className="h-11 rounded-xl border-[#e1d8ca] bg-[#fffdfc]" onClick={() => navigate(`/home-ops/top-nav/${item.id}/edit`)}>
             <Edit3 className="mr-2 h-4 w-4" /> 编辑
           </Button>
-          <Button className="h-11 rounded-xl bg-[#7a8b6f] hover:bg-[#6f8065]" onClick={() => navigate(`/home-ops/top-nav/${item.id}/content`)}>
+          <Button className="h-11 rounded-xl bg-[#7a8b6f] hover:bg-[#6f8065]" onClick={() => navigate(`/home-ops?nav=${encodeURIComponent(item.id)}`)}>
             <Layers3 className="mr-2 h-4 w-4" /> 配置内容
           </Button>
         </div>

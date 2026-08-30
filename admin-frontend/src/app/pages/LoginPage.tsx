@@ -8,8 +8,8 @@ import { Input } from '../components/Input';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +25,7 @@ export const LoginPage = () => {
     try {
       const result = await login(username.trim(), password.trim());
       saveToken(result.token);
-      saveAdminUser(result.admin);
+      saveAdminUser({ ...result.admin, role: result.role, permissions: result.permissions });
       navigate('/', { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : '登录失败';
@@ -45,13 +45,14 @@ export const LoginPage = () => {
           <div className="mt-6 space-y-3">
             <div>
               <div className="mb-1 text-xs text-zinc-600">用户名</div>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} />
+              <Input value={username} placeholder="请输入管理员用户名" onChange={(e) => setUsername(e.target.value)} />
             </div>
             <div>
               <div className="mb-1 text-xs text-zinc-600">密码</div>
               <Input
                 type="password"
                 value={password}
+                placeholder="请输入密码"
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
@@ -66,13 +67,8 @@ export const LoginPage = () => {
           >
             {loading ? '登录中...' : '登录'}
           </Button>
-
-          <div className="mt-3 text-xs text-zinc-500">
-            默认账号：admin / admin123（见后端 `sql/schema.sql`）。
-          </div>
         </div>
       </div>
     </div>
   );
 };
-

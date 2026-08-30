@@ -21,6 +21,7 @@ import { FilterPanel } from '../components/FilterPanel';
 import { ImagePreview } from '../components/ImagePreview';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 import { UploadImage } from '../components/UploadImage';
 
@@ -328,9 +329,9 @@ export const RecipesPage = () => {
       title: '操作',
       render: (item) => (
         <div className="flex min-w-[260px] flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => navigate(`/content/recipes/${item.id}/edit`)}>编辑</Button>
-          <Button variant="ghost" onClick={() => setPublishing({ item, next: !item.isPublish })}>{item.isPublish ? '下架' : '上架'}</Button>
-          <Button variant="danger" onClick={() => setDeleting(item)}>删除</Button>
+          <PermissionGate permission="content:recipe:update"><Button variant="ghost" onClick={() => navigate(`/content/recipes/${item.id}/edit`)}>编辑</Button></PermissionGate>
+          <PermissionGate permission="content:recipe:publish"><Button variant="ghost" onClick={() => setPublishing({ item, next: !item.isPublish })}>{item.isPublish ? '下架' : '上架'}</Button></PermissionGate>
+          <PermissionGate permission="content:recipe:delete"><Button variant="danger" onClick={() => setDeleting(item)}>删除</Button></PermissionGate>
         </div>
       )
     }
@@ -343,10 +344,10 @@ export const RecipesPage = () => {
         description="管理官方菜谱和用户投稿菜谱，支持搜索、筛选、分页、发布状态、审核状态和批量操作。"
         actions={
           <>
-            <Button variant="ghost" disabled={!selectedIds.length || batchDeleting} onClick={() => void handleBatchDelete()}>
+            <PermissionGate permission="content:recipe:delete"><Button variant="ghost" disabled={!selectedIds.length || batchDeleting} onClick={() => void handleBatchDelete()}>
               {batchDeleting ? '处理中...' : `批量删除${selectedIds.length ? ` (${selectedIds.length})` : ''}`}
-            </Button>
-            <Button onClick={() => navigate('/content/recipes/create')}>新增菜谱</Button>
+            </Button></PermissionGate>
+            <PermissionGate permission="content:recipe:create"><Button onClick={() => navigate('/content/recipes/create')}>新增菜谱</Button></PermissionGate>
           </>
         }
       />
@@ -356,7 +357,7 @@ export const RecipesPage = () => {
 
       <FilterPanel>
           <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-5">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索标题..." />
+            <Input value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} placeholder="搜索标题..." />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}

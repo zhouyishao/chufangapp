@@ -23,6 +23,10 @@ export interface BasketItem {
   updatedAt?: string;
   familyId?: string | null;
   familyName?: string | null;
+  imageUrl?: string | null;
+  currentPrice?: number | null;
+  priceUnit?: string | null;
+  recipeCoverUrl?: string | null;
 }
 
 const requireUser = async () => {
@@ -49,11 +53,20 @@ const resolveBasketFamilyId = async (familyId?: string | null) => {
   return families[0]?.id ?? null;
 };
 
+const resolveBasketItemName = (item: ApiBasketItem) => {
+  const legacyName = item.name?.trim();
+  const linkedName = item.ingredient?.name?.trim();
+  if (linkedName && (!legacyName || /^(食材详情|食材|未命名)$/.test(legacyName))) {
+    return linkedName;
+  }
+  return legacyName || linkedName || '待确认食材';
+};
+
 const mapBasketItem = (item: ApiBasketItem): BasketItem => ({
   id: String(item.id),
   recipeId: item.recipeId ? String(item.recipeId) : 'ingredient',
   recipeName: item.recipeName || item.recipe?.title || '单独添加',
-  name: item.name,
+  name: resolveBasketItemName(item),
   amountText: item.amountText || (item.quantity ? String(item.quantity) : ''),
   purchaseText: item.purchaseText || undefined,
   checked: item.checked,
@@ -63,8 +76,26 @@ const mapBasketItem = (item: ApiBasketItem): BasketItem => ({
   createdAt: item.createdAt,
   updatedAt: item.updatedAt,
   familyId: item.familyId ? String(item.familyId) : null,
-  familyName: item.family?.name ?? null
+  familyName: item.family?.name ?? null,
+  imageUrl: item.ingredient?.cover ?? null,
+  currentPrice: item.ingredient?.currentPrice ?? null,
+  priceUnit: item.ingredient?.priceUnit ?? null,
+  recipeCoverUrl: item.recipe?.cover ?? null
 });
+
+const createBasketItem = async (userId: number, scopeFamilyId: string | null, item: BasketItem) => {
+  await addMobileBasketItem({
+    userId,
+    familyId: scopeFamilyId ? Number(scopeFamilyId) : null,
+    recipeId: item.recipeId && item.recipeId !== 'ingredient' ? Number(item.recipeId) : null,
+    ingredientId: item.ingredientId ? Number(item.ingredientId) : null,
+    recipeName: item.recipeName,
+    name: item.name,
+    amountText: item.amountText,
+    quantity: item.quantity ?? 1,
+    purchaseText: item.purchaseText ?? null
+  });
+};
 
 export const getIngredientBasketItemId = (ingredientId: string) => `ingredient-${ingredientId}`;
 
@@ -85,17 +116,16 @@ export const loadBasketItems = async (familyId?: string | null) => {
 export const addBasketItem = async (item: BasketItem, familyId?: string | null) => {
   const user = await requireUser();
   const scopeFamilyId = await resolveBasketFamilyId(familyId);
-  await addMobileBasketItem({
-    userId: user.id,
-    familyId: scopeFamilyId ? Number(scopeFamilyId) : null,
-    recipeId: item.recipeId && item.recipeId !== 'ingredient' ? Number(item.recipeId) : null,
-    ingredientId: item.ingredientId ? Number(item.ingredientId) : null,
-    recipeName: item.recipeName,
-    name: item.name,
-    amountText: item.amountText,
-    quantity: item.quantity ?? 1,
-    purchaseText: item.purchaseText ?? null
-  });
+  await createBasketItem(user.id, scopeFamilyId, item);
+  return loadBasketItems(scopeFamilyId);
+};
+
+export const addBasketItems = async (items: BasketItem[], familyId?: string | null) => {
+  const user = await requireUser();
+  const scopeFamilyId = await resolveBasketFamilyId(familyId);
+  for (const item of items) {
+    await createBasketItem(user.id, scopeFamilyId, item);
+  }
   return loadBasketItems(scopeFamilyId);
 };
 

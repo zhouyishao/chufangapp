@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { createCategory, getCategory, updateCategory } from '../api';
+import { createCategory, getCategory, listCategories, updateCategory } from '../api';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
@@ -10,25 +10,19 @@ import type { IngredientCategory } from '../types';
 type Draft = {
   name: string;
   type: IngredientCategory['type'];
-  parentName: string;
-  level: number;
+  parentId: string | null;
   sort: number;
   status: IngredientCategory['status'];
   isPublish: boolean;
-  description: string;
-  remark: string;
 };
 
 const emptyDraft: Draft = {
   name: '',
   type: 'RECIPE',
-  parentName: '',
-  level: 1,
+  parentId: null,
   sort: 0,
   status: 'ACTIVE',
-  isPublish: true,
-  description: '',
-  remark: ''
+  isPublish: true
 };
 
 const typeOptions: { value: IngredientCategory['type']; label: string }[] = [
@@ -47,6 +41,8 @@ export const CategoryFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [parentOptions, setParentOptions] = useState<IngredientCategory[]>([]);
+  const [canChangeType, setCanChangeType] = useState(true);
 
   const canSave = useMemo(() => draft.name.trim().length > 0 && Number.isFinite(draft.sort) && !saving, [draft.name, draft.sort, saving]);
 
@@ -59,18 +55,22 @@ export const CategoryFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
         setDraft({
           name: item.name,
           type: item.type,
-          parentName: '',
-          level: 1,
+          parentId: item.parentId ?? null,
           sort: item.sort,
           status: item.status,
-          isPublish: item.isPublish,
-          description: `${item.name} 分类用于内容归档、筛选和 App 展示。`,
-          remark: ''
+          isPublish: item.isPublish
         });
+        setCanChangeType(item.canChangeType);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : '加载失败'))
       .finally(() => setLoading(false));
   }, [id, mode]);
+
+  useEffect(() => {
+    void listCategories({ page: 1, pageSize: 100, type: draft.type })
+      .then((result) => setParentOptions(result.list.filter((item) => item.id !== id && item.level === 1)))
+      .catch(() => setParentOptions([]));
+  }, [draft.type, id]);
 
   const handleSave = async (publish: boolean) => {
     if (!canSave) return;
@@ -80,6 +80,7 @@ export const CategoryFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
       const payload = {
         name: draft.name.trim(),
         type: draft.type,
+        parentId: draft.parentId,
         sort: draft.sort,
         status: publish ? draft.status : 'DISABLED',
         isPublish: publish && draft.isPublish
@@ -99,7 +100,7 @@ export const CategoryFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
     <section className="space-y-6">
       <PageHeader
         title={mode === 'edit' ? '编辑分类' : '新增分类'}
-        description="维护分类名称、类型、层级、排序、状态和说明信息。"
+        description="维护分类名称、两级归属、排序、启用状态和 App 展示状态。"
         actions={<><Button variant="ghost" onClick={() => navigate('/taxonomies/categories')}>返回</Button><Button variant="ghost" disabled={saving} onClick={() => void handleSave(false)}>保存草稿</Button><Button disabled={!canSave} onClick={() => void handleSave(true)}>保存并发布</Button></>}
       />
       {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
@@ -109,12 +110,18 @@ export const CategoryFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Field label="分类名称 *"><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
             <Field label="分类类型">
-              <select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as Draft['type'] })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+              <select disabled={!canChangeType} value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as Draft['type'], parentId: null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm disabled:bg-[#f5f1ea] disabled:text-[#8c8c8c]">
                 {typeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
+              {!canChangeType ? <span className="mt-2 block text-xs text-[#c27b48]">已有内容或子分类，不能修改分类类型。</span> : null}
             </Field>
-            <Field label="上级分类"><Input value={draft.parentName} onChange={(event) => setDraft({ ...draft, parentName: event.target.value })} placeholder="不填则为一级分类" /></Field>
-            <Field label="层级"><Input type="number" value={draft.level} onChange={(event) => setDraft({ ...draft, level: Number(event.target.value) })} /></Field>
+            <Field label="上级分类">
+              <select value={draft.parentId ?? ''} onChange={(event) => setDraft({ ...draft, parentId: event.target.value || null })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+                <option value="">无（一级分类）</option>
+                {parentOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </Field>
+            <Field label="层级"><Input value={draft.parentId ? '二级分类' : '一级分类'} disabled /></Field>
             <Field label="排序"><Input type="number" value={draft.sort} onChange={(event) => setDraft({ ...draft, sort: Number(event.target.value) })} /></Field>
             <Field label="状态">
               <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Draft['status'] })} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm">
@@ -123,8 +130,6 @@ export const CategoryFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
             </Field>
             <label className="flex items-center gap-2 rounded-2xl bg-[#f5f1ea] px-4 py-3 text-sm text-[#2f2f2f]"><input type="checkbox" checked={draft.isPublish} onChange={(event) => setDraft({ ...draft, isPublish: event.target.checked })} />在 App 展示</label>
             <div />
-            <Field label="分类说明" className="lg:col-span-2"><textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="min-h-28 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" /></Field>
-            <Field label="备注" className="lg:col-span-2"><textarea value={draft.remark} onChange={(event) => setDraft({ ...draft, remark: event.target.value })} className="min-h-24 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" /></Field>
           </div>
         )}
       </div>

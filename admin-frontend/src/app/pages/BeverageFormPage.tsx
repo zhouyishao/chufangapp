@@ -14,6 +14,7 @@ import {
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { TransparentImageUpload } from '../components/TransparentImageUpload';
 import type { IngredientCategory } from '../types';
 
 export type MixStepItem = {
@@ -37,6 +38,7 @@ export type BeveragePriceRecord = {
 export type Draft = {
   name: string;
   coverImage: string | null;
+  transparentImage: string | null;
   categoryId: string | null;
   beverageType: string; // 白酒, 红酒, 啤酒, 鸡尾酒, 茶饮, 果汁, 咖啡, 乳饮, 其他
   isAlcoholic: boolean;
@@ -129,6 +131,7 @@ const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const emptyDraft: Draft = {
   name: '',
   coverImage: null,
+  transparentImage: null,
   categoryId: null,
   beverageType: '其他',
   isAlcoholic: false,
@@ -248,6 +251,7 @@ const serializeDraftToPayload = (draft: Draft, extra: BeverageExtra) => {
   return {
     name: draft.name.trim(),
     coverImage: draft.coverImage,
+    transparentImage: draft.transparentImage,
     categoryId: draft.categoryId,
     beverageType: draft.beverageType,
     isAlcoholic: draft.isAlcoholic,
@@ -256,7 +260,24 @@ const serializeDraftToPayload = (draft: Draft, extra: BeverageExtra) => {
     sort: draft.sort,
     status: draft.status,
     isPublish: draft.isPublish,
-    isRecommend: draft.isRecommend
+    isRecommend: draft.isRecommend,
+    kind: extra.showMixMethod && extra.mixSteps.length > 0 ? 'MIXED' as const : 'ORDINARY' as const,
+    cocktailMethod: extra.mixMethod.trim() || null,
+    baseSpirit: extra.baseLiquor.trim() || null,
+    glassType: extra.glassType.trim() || null,
+    garnish: extra.garnish.trim() || null,
+    instructions: extra.mixTips.trim() || null,
+    ingredientsV2: [
+      ...(extra.baseLiquor.trim() ? [{ name: extra.baseLiquor.trim(), amount: null, isBase: true }] : []),
+      ...extra.mixIngredients.split(/[、,，;；\n]/).map((name) => name.trim()).filter(Boolean).map((name) => ({ name, amount: null, isBase: false }))
+    ],
+    tools: extra.accessories.split(/[、,，;；\n]/).map((name) => name.trim()).filter(Boolean).map((name) => ({ name })),
+    steps: extra.mixSteps.map((step, index) => ({
+      title: `步骤 ${index + 1}`,
+      description: step.description,
+      timerSeconds: step.estimatedTime,
+      tip: index === extra.mixSteps.length - 1 ? extra.mixTips.trim() || null : null
+    }))
   };
 };
 
@@ -277,6 +298,7 @@ const deserializePayloadToDraft = (beverage: Beverage): { draft: Draft; extra: B
   const draft: Draft = {
     name: beverage.name,
     coverImage: beverage.coverImage,
+    transparentImage: beverage.transparentImage,
     categoryId: beverage.categoryId,
     beverageType: beverage.beverageType ?? '其他',
     isAlcoholic: beverage.isAlcoholic,
@@ -313,16 +335,23 @@ const deserializePayloadToDraft = (beverage: Beverage): { draft: Draft; extra: B
 
     drinkingNotes: Array.isArray(extra.drinkingNotes) ? extra.drinkingNotes : [''],
 
-    mixMethod: extra.mixMethod ?? '摇和',
-    baseLiquor: extra.baseLiquor ?? '',
-    mixIngredients: extra.mixIngredients ?? '',
-    accessories: extra.accessories ?? '',
-    garnish: extra.garnish ?? '',
-    glassType: extra.glassType ?? '',
+    mixMethod: beverage.cocktailMethod ?? extra.mixMethod ?? '摇和',
+    baseLiquor: beverage.baseSpirit ?? extra.baseLiquor ?? '',
+    mixIngredients: beverage.ingredientsV2?.filter((item) => !item.isBase).map((item) => item.name).join('、') || extra.mixIngredients || '',
+    accessories: beverage.tools?.map((item) => item.name).join('、') || extra.accessories || '',
+    garnish: beverage.garnish ?? extra.garnish ?? '',
+    glassType: beverage.glassType ?? extra.glassType ?? '',
     iceType: extra.iceType ?? '',
-    mixSteps: Array.isArray(extra.mixSteps) ? extra.mixSteps : [],
-    mixTips: extra.mixTips ?? '',
-    showMixMethod: typeof extra.showMixMethod === 'boolean' ? extra.showMixMethod : true,
+    mixSteps: beverage.steps?.map((step) => ({
+      id: String(step.id),
+      stepNo: step.sortIndex + 1,
+      description: step.description,
+      image: step.mediaFile?.url ?? null,
+      estimatedTime: step.timerSeconds,
+      sort: step.sortIndex + 1
+    })) ?? (Array.isArray(extra.mixSteps) ? extra.mixSteps : []),
+    mixTips: beverage.instructions ?? extra.mixTips ?? '',
+    showMixMethod: beverage.kind === 'MIXED' || (typeof extra.showMixMethod === 'boolean' ? extra.showMixMethod : true),
 
     estimatedPrice: extra.estimatedPrice ?? null,
     priceUnit: extra.priceUnit ?? '瓶',
@@ -975,6 +1004,12 @@ export const BeverageFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
                     </button>
                   )}
                 </div>
+
+                <TransparentImageUpload
+                  value={draft.transparentImage}
+                  onChange={(transparentImage) => setDraft((d) => ({ ...d, transparentImage }))}
+                  onError={setError}
+                />
 
                 <div>
                   <div className="flex items-center justify-between mb-2">

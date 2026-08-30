@@ -27,6 +27,10 @@ export const ReportsOverviewPage = () => {
         <p className="mt-1 text-sm text-[#8c8c8c]">查看系统今日核心流量、活跃指标、内容建设情况及多维趋势表现。</p>
       </div>
 
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        样例数据：运营概览尚未接入实时统计接口，以下指标、趋势和系统状态仅展示页面结构。
+      </div>
+
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {metrics.map((m, i) => {

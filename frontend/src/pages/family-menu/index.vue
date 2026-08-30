@@ -49,7 +49,7 @@
 
       <view class="section-block">
         <text class="section-title">菜单建议</text>
-        <view class="card-list">
+        <view v-if="menuRecipes.length" class="card-list">
           <view v-for="recipe in menuRecipes" :key="recipe.id" class="recipe-card glass-card" @tap="goToRecipe(recipe.id)">
             <image class="recipe-image" :src="recipe.cover" mode="aspectFill" />
             <view class="recipe-body">
@@ -61,6 +61,11 @@
             </view>
             <app-icon class="arrow" name="chevron-right" size="22rpx" />
           </view>
+        </view>
+        <view v-else class="state-card glass-card">
+          <text class="state-title">暂无菜单建议</text>
+          <text class="state-desc">换个时间再来看看，新的家庭菜谱会陆续出现。</text>
+          <button class="state-action" @tap="loadFamilyMenu">重新加载</button>
         </view>
       </view>
     </view>
@@ -186,7 +191,7 @@ onShow(() => {
 <style scoped lang="scss">
 .family-menu-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {

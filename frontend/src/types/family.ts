@@ -1,4 +1,4 @@
-export type FamilyMemberRole = '管理员' | '成员';
+export type FamilyMemberRole = '创建者' | '管理员' | '成员';
 
 export interface FamilyMember {
   id: string;
@@ -22,6 +22,8 @@ export interface FamilyPreference {
 export interface FamilyProfile {
   id: string;
   name: string;
+  avatar: string;
+  avatarFileId: number | null;
   description: string;
   commonRecipes: number;
   pendingItems: number;

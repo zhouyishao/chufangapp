@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { prisma } from '../../prisma';
 import { HttpError } from '../../http/errors';
 import { ok, type PageResult } from '../../http/response';
+import { buildPublicIdWhere } from '../../lib/business-id';
+import { presentIngredient } from '../../lib/ingredient-presentation';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -39,19 +41,22 @@ apiIngredientsRouter.get('/', async (req, res) => {
     prisma.ingredient.count({ where })
   ]);
 
-  const data: PageResult<(typeof list)[number]> = { list, total, page, pageSize };
+  const presentedList = list.map((item) => presentIngredient(item));
+  const data: PageResult<(typeof presentedList)[number]> = { list: presentedList, total, page, pageSize };
   res.json(ok(data));
 });
 
 apiIngredientsRouter.get('/:id', async (req, res) => {
-  const id = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(id)) throw new HttpError('参数错误', 400, 400);
-
   const item = await prisma.ingredient.findFirst({
-    where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE' },
+    where: {
+      ...buildPublicIdWhere(req.params.id),
+      deletedAt: null,
+      isPublish: true,
+      status: 'ACTIVE'
+    },
     include: { category: { select: { id: true, name: true, type: true } } }
   });
   if (!item) throw new HttpError('not found', 404, 404);
 
-  res.json(ok(item));
+  res.json(ok(presentIngredient(item)));
 });

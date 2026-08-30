@@ -48,7 +48,7 @@ defineProps<{
 const resolveImage = (cover: string | null | undefined) => resolveAssetUrl(cover);
 
 const goToIngredient = (id: string) => {
-  uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${id}` });
+  uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${id}&from=home` });
 };
 
 const handleMore = () => {

@@ -155,7 +155,7 @@ onShow(() => {
 
 <style scoped lang="scss">
 .search-page {
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {

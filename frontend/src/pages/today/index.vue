@@ -34,7 +34,7 @@
 
       <view v-if="!recommendRecipes.length && !seasonalIngredients.length" class="state-card glass-card">
         <text class="state-title">暂无今日内容</text>
-        <text class="state-desc">后台推荐还没有返回数据。</text>
+        <text class="state-desc">今天的推荐正在准备中，稍后再来看看。</text>
       </view>
 
       <view v-else class="section-block">
@@ -153,7 +153,7 @@ onShow(() => {
 <style scoped lang="scss">
 .today-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {

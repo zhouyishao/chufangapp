@@ -3,10 +3,12 @@ import { Sprout } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { adminNavigation, findNavigationTrail } from '../navigation';
+import { filterNavigationByAccess } from '../permissions';
 
 export const Sidebar = () => {
   const location = useLocation();
-  const activeTrail = useMemo(() => findNavigationTrail(location.pathname), [location.pathname]);
+  const visibleNavigation = useMemo(() => filterNavigationByAccess(adminNavigation), []);
+  const activeTrail = useMemo(() => findNavigationTrail(location.pathname, visibleNavigation), [location.pathname, visibleNavigation]);
   const activeGroup = activeTrail[0] ?? null;
   const activeItem = activeTrail[activeTrail.length - 1] ?? null;
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(activeGroup ? [activeGroup.path] : []));
@@ -44,7 +46,7 @@ export const Sidebar = () => {
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 pb-4">
-        {adminNavigation.map((group) => {
+        {visibleNavigation.map((group) => {
           const isGroupActive = activeGroup?.label === group.label;
           const isExpanded = expanded.has(group.path);
           if (group.children?.length) {
