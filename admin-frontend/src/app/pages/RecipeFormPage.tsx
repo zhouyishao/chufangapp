@@ -16,7 +16,7 @@ import { Button } from '../components/Button';
 import { ImageEditorUploader } from '../components/ImageEditorUploader';
 import { Input } from '../components/Input';
 import { StatusTag } from '../components/StatusTag';
-import type { IngredientCategory, Recipe } from '../types';
+import type { Ingredient, IngredientCategory, Recipe } from '../types';
 
 type RecipeFormMode = 'create' | 'edit';
 type IngredientDraft = {
@@ -28,6 +28,14 @@ type IngredientDraft = {
   note: string;
   sortIndex: number;
   ingredientId: string | null;
+  ingredient: {
+    id: string;
+    name: string;
+    transparentImage: string | null;
+    categoryType: IngredientCategory['type'];
+  } | null;
+  ingredientStatus: 'LINKED' | 'UNLINKED' | 'MISSING_TRANSPARENT_IMAGE';
+  transparentImage: string | null;
 };
 type StepDraft = {
   id: string;
@@ -135,7 +143,10 @@ const createIngredient = (sortIndex: number, type = '主料'): IngredientDraft =
   type,
   note: '',
   sortIndex,
-  ingredientId: null
+  ingredientId: null,
+  ingredient: null,
+  ingredientStatus: 'UNLINKED',
+  transparentImage: null
 });
 const createStep = (sortIndex: number): StepDraft => ({
   id: createId(),
@@ -247,7 +258,7 @@ const recipeToDraft = (recipe: Recipe): Draft => {
 
     ingredients: (recipe.ingredients?.length
       ? recipe.ingredients
-      : [{ id: 0, sortIndex: 1, ingredientId: null, name: '', amount: null, type: '主料', unit: null, note: null }]
+      : [{ id: 0, sortIndex: 1, ingredientId: null, name: '', amount: null, type: '主料', unit: null, note: null, ingredient: null, ingredientStatus: 'UNLINKED', transparentImage: null }]
     ).map((item, index) => ({
       id: String(item.id ?? createId()),
       name: item.name,
@@ -256,7 +267,10 @@ const recipeToDraft = (recipe: Recipe): Draft => {
       type: item.type ?? '主料',
       note: item.note ?? '',
       sortIndex: index + 1,
-      ingredientId: item.ingredientId ? String(item.ingredientId) : null
+      ingredientId: item.ingredientId ? String(item.ingredientId) : null,
+      ingredient: item.ingredient ?? null,
+      ingredientStatus: (item.ingredientStatus ?? (item.ingredientId ? (item.ingredient?.transparentImage?.trim() ? 'LINKED' : 'MISSING_TRANSPARENT_IMAGE') : 'UNLINKED')) as IngredientDraft['ingredientStatus'],
+      transparentImage: item.ingredient?.transparentImage ?? item.transparentImage ?? null
     })),
 
     steps: (recipe.steps?.length
@@ -389,6 +403,14 @@ const auditLabels: Record<Recipe['auditStatus'], { label: string; tone: 'green' 
   REJECTED: { label: '审核驳回', tone: 'red' }
 };
 
+const requiresQualifiedIngredients = (draft: Draft) =>
+  draft.auditStatus === 'PENDING' || draft.auditStatus === 'APPROVED' || draft.isPublish;
+
+const ingredientStatusLabel = (item: IngredientDraft) =>
+  item.ingredientStatus === 'MISSING_TRANSPARENT_IMAGE' || (item.ingredientId && !item.transparentImage?.trim())
+    ? '食材缺少透明图'
+    : '请选择资源库食材';
+
 export const RecipeFormPage = ({ mode }: { mode: RecipeFormMode }) => {
   const navigate = useNavigate();
   const params = useParams();
@@ -445,6 +467,16 @@ export const RecipeFormPage = ({ mode }: { mode: RecipeFormMode }) => {
     if (tabIndex === 2) {
       const activeIngredients = currentDraft.ingredients.filter((item) => item.type !== '调料' && item.name.trim());
       if (activeIngredients.length === 0) return '至少输入一个食材配料名称';
+      if (requiresQualifiedIngredients(currentDraft)) {
+        const invalidItem = activeIngredients.find((item) => item.ingredientStatus !== 'LINKED' || !item.ingredientId || !item.transparentImage?.trim());
+        if (invalidItem) return `食材“${invalidItem.name.trim()}”${ingredientStatusLabel(invalidItem)}`;
+      }
+    }
+    if (tabIndex === 3 && requiresQualifiedIngredients(currentDraft)) {
+      const invalidItem = currentDraft.ingredients
+        .filter((item) => item.type === '调料' && item.name.trim())
+        .find((item) => item.ingredientStatus !== 'LINKED' || !item.ingredientId || !item.transparentImage?.trim());
+      if (invalidItem) return `调料“${invalidItem.name.trim()}”${ingredientStatusLabel(invalidItem)}`;
     }
     if (tabIndex === 4) {
       const activeSteps = currentDraft.steps.filter((step) => step.description.trim());
@@ -506,7 +538,7 @@ export const RecipeFormPage = ({ mode }: { mode: RecipeFormMode }) => {
       status: intent === 'submit' ? ('ACTIVE' as const) : ('DISABLED' as const)
     };
 
-    if (intent === 'submit') {
+    if (intent === 'submit' || requiresQualifiedIngredients(finalDraft)) {
       const isValid = updateAllTabErrors(finalDraft);
       if (!isValid) {
         let firstErrorTab = 0;
@@ -1689,10 +1721,16 @@ const IngredientAutocompleteInput = ({
 }: {
   value: string;
   onChange: (val: string) => void;
-  onSelectIngredient: (ing: { id: string; name: string; unit: string | null }) => void;
+  onSelectIngredient: (ing: {
+    id: string;
+    name: string;
+    unit: string | null;
+    transparentImage: string | null;
+    categoryType: IngredientCategory['type'];
+  }) => void;
   placeholder?: string;
 }) => {
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<Ingredient[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1755,7 +1793,13 @@ const IngredientAutocompleteInput = ({
               key={ing.id}
               type="button"
               onClick={() => {
-                onSelectIngredient({ id: ing.id, name: ing.name, unit: ing.priceUnit });
+                onSelectIngredient({
+                  id: ing.id,
+                  name: ing.name,
+                  unit: ing.priceUnit,
+                  transparentImage: ing.transparentImage,
+                  categoryType: ing.category?.type ?? 'INGREDIENT'
+                });
                 setOpen(false);
               }}
               className="w-full text-left p-2.5 hover:bg-[#edf5ea] text-xs text-[#2f2f2f] transition flex justify-between items-center"
@@ -1766,6 +1810,19 @@ const IngredientAutocompleteInput = ({
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+const IngredientAssociationStatus = ({ item }: { item: IngredientDraft }) => {
+  const previewUrl = resolveAssetUrl(item.transparentImage);
+  const isLinked = item.ingredientStatus === 'LINKED' && Boolean(item.ingredientId) && Boolean(item.transparentImage?.trim());
+  const label = isLinked ? '已关联' : ingredientStatusLabel(item);
+
+  return (
+    <div className="mt-1 flex min-h-5 items-center gap-1.5 text-[10px] text-[#6f6a61]">
+      {previewUrl ? <img src={previewUrl} alt={`${item.name}透明图`} className="h-5 w-5 object-contain" /> : null}
+      <span>{label}</span>
     </div>
   );
 };
@@ -1829,17 +1886,33 @@ const IngredientRowsSection = ({
                   <td className="p-2">
                     <IngredientAutocompleteInput
                       value={item.name}
-                      onChange={(val) => updateIngredient(index, { name: val, type: isSeasoning ? '调料' : '主料' })}
+                      onChange={(val) => updateIngredient(index, {
+                        name: val,
+                        ingredientId: null,
+                        ingredient: null,
+                        ingredientStatus: 'UNLINKED',
+                        transparentImage: null,
+                        type: isSeasoning ? '调料' : '主料'
+                      })}
                       onSelectIngredient={(ing) => {
                         updateIngredient(index, {
                           name: ing.name,
                           ingredientId: ing.id,
+                          ingredient: {
+                            id: ing.id,
+                            name: ing.name,
+                            transparentImage: ing.transparentImage,
+                            categoryType: ing.categoryType
+                          },
+                          ingredientStatus: ing.transparentImage?.trim() ? 'LINKED' : 'MISSING_TRANSPARENT_IMAGE',
+                          transparentImage: ing.transparentImage,
                           unit: ing.unit || item.unit,
                           type: isSeasoning ? '调料' : '主料'
                         });
                       }}
                       placeholder={isSeasoning ? '如：生抽' : '如：番茄'}
                     />
+                    <IngredientAssociationStatus item={item} />
                   </td>
                   <td className="p-2">
                     <Input
