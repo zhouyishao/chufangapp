@@ -375,7 +375,7 @@ export const TopNavFormPage = ({ mode }: { mode: 'create' | 'edit' }) => {
                   <Button
                     className="h-11 w-full rounded-lg border-[#7a8b6f] bg-[#fffdfc] text-[#6f8663]"
                     onClick={() => {
-                      if (id) navigate(`/home-ops/top-nav/${id}/content`);
+                      if (id) navigate(`/home-ops?nav=${encodeURIComponent(id)}`);
                     }}
                     disabled={!id}
                   >

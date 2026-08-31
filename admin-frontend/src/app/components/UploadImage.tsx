@@ -78,6 +78,7 @@ export const UploadImage = ({ label = '封面图片上传', value, helperText, d
             <div className="flex flex-1 flex-col gap-3">
               <div className="text-sm font-medium text-[#2f2f2f]">{uploading ? '正在上传图片' : '已上传图片'}</div>
               <div className="break-all text-xs text-[#8c8c8c]">{value ?? '本地预览，上传完成后保存地址'}</div>
+              <div className="text-xs text-[#8c8c8c]">请上传真实图片；系统会拒绝 example.com 或包含 placeholder 的占位地址。</div>
               {readOnly ? null : (
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="ghost" disabled={disabled || uploading} onClick={openPicker}>

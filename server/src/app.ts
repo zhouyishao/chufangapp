@@ -5,9 +5,14 @@ import swaggerUi from 'swagger-ui-express';
 
 import { config } from './config';
 import { errorHandler } from './http/middleware/error-handler';
+import { requireAdminAuth } from './http/middleware/admin-auth';
+import { requireAdminRouteAccess } from './http/middleware/admin-permission';
 import { ok } from './http/response';
 import { swaggerSpec } from './swagger';
 import { adminAuthRouter } from './routes/admin/auth';
+import { adminAdminsRouter } from './routes/admin/admins';
+import { adminPermissionsRouter, adminRolesRouter } from './routes/admin/roles';
+import { adminOperationLogsRouter } from './routes/admin/operation-logs';
 import { adminBannersRouter } from './routes/admin/banners';
 import { adminBeveragesRouter } from './routes/admin/beverages';
 import { adminCategoriesRouter } from './routes/admin/categories';
@@ -24,12 +29,15 @@ import { adminTopNavHeroBannersRouter } from './routes/admin/top-nav-hero-banner
 import { adminIngredientsRouter } from './routes/admin/ingredients';
 import { adminMenusRouter } from './routes/admin/menus';
 import { adminPostsRouter } from './routes/admin/posts';
+import { adminPurchaseListsRouter } from './routes/admin/purchase-lists';
 import { adminRecommendationsRouter } from './routes/admin/recommendations';
 import { adminAuditsRouter } from './routes/admin/audits';
 import { adminChannelsRouter } from './routes/admin/channels';
+import { adminResourceApiProvidersRouter } from './routes/admin/resource-api-providers';
 import { adminRecipesRouter } from './routes/admin/recipes';
 import { adminTagsRouter } from './routes/admin/tags';
 import { adminSeasonalFoodsRouter } from './routes/admin/seasonal-foods';
+import { adminSearchLogsRouter } from './routes/admin/search-logs';
 import { adminUploadRouter } from './routes/admin/upload';
 import { adminUsersRouter } from './routes/admin/users';
 import { adminResourcesRouter } from './routes/admin/resources';
@@ -40,6 +48,7 @@ import { apiPageModulesRouter } from './routes/api/page-modules';
 import { apiIngredientsRouter } from './routes/api/ingredients';
 import { apiMobileRouter } from './routes/api/mobile';
 import { apiRecipesRouter } from './routes/api/recipes';
+import { adminFilesRouter, filesRouter } from './routes/files';
 
 const isLocalDevOrigin = (origin: string) =>
   config.env !== 'prod' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
@@ -73,11 +82,17 @@ export const createApp = () => {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   app.use('/api/admin/auth', adminAuthRouter);
+  app.use('/api/admin', requireAdminAuth, requireAdminRouteAccess);
+  app.use('/api/admin/admins', adminAdminsRouter);
+  app.use('/api/admin/roles', adminRolesRouter);
+  app.use('/api/admin/permissions', adminPermissionsRouter);
+  app.use('/api/admin/operation-logs', adminOperationLogsRouter);
   app.use('/api/admin/categories', adminCategoriesRouter);
   app.use('/api/admin/ingredients', adminIngredientsRouter);
   app.use('/api/admin/recipes', adminRecipesRouter);
   app.use('/api/admin/recommendations', adminRecommendationsRouter);
   app.use('/api/admin/seasonal-foods', adminSeasonalFoodsRouter);
+  app.use('/api/admin/search-logs', adminSearchLogsRouter);
   app.use('/api/admin/cuisines', adminCuisinesRouter);
   app.use('/api/admin/menus', adminMenusRouter);
   app.use('/api/admin/banners', adminBannersRouter);
@@ -86,12 +101,15 @@ export const createApp = () => {
   app.use('/api/admin/beverages', adminBeveragesRouter);
   app.use('/api/admin/families', adminFamiliesRouter);
   app.use('/api/admin/upload', adminUploadRouter);
+  app.use('/api/admin/files', adminFilesRouter);
   app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/admin/posts', adminPostsRouter);
+  app.use('/api/admin/purchase-lists', adminPurchaseListsRouter);
   app.use('/api/admin/comments', adminCommentsRouter);
   app.use('/api/admin/audits', adminAuditsRouter);
   app.use('/api/admin/tags', adminTagsRouter);
   app.use('/api/admin/channels', adminChannelsRouter);
+  app.use('/api/admin/resource-api-providers', adminResourceApiProvidersRouter);
   app.use('/api/admin/content-selector', adminContentSelectorRouter);
   app.use('/api/admin/home/top-navs', adminHomeTopNavsRouter);
   app.use('/api/admin/home/top-navs/:navId/hero-banners', adminTopNavHeroBannersRouter);
@@ -107,6 +125,7 @@ export const createApp = () => {
   app.use('/api/mobile', apiMobileRouter);
   app.use('/api/mobile/ingredients', apiIngredientsRouter);
   app.use('/api/mobile/recipes', apiRecipesRouter);
+  app.use('/api/files', filesRouter);
 
   app.use(errorHandler);
 

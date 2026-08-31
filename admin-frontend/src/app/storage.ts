@@ -6,12 +6,21 @@ const ADMIN_KEY = 'chufangapp_admin_user';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const isAdminRoleSummary = (value: unknown) => {
+  if (!isRecord(value)) return false;
+  return typeof value.id === 'number' && typeof value.code === 'string' && typeof value.name === 'string' && typeof value.isSystem === 'boolean';
+};
+
 const isAdminUser = (value: unknown): value is AdminUser => {
   if (!isRecord(value)) return false;
   return (
     typeof value.id === 'number' &&
     typeof value.username === 'string' &&
-    (typeof value.nickname === 'string' || value.nickname === null)
+    (typeof value.nickname === 'string' || value.nickname === null) &&
+    (typeof value.lastLoginAt === 'string' || value.lastLoginAt === null) &&
+    isAdminRoleSummary(value.role) &&
+    Array.isArray(value.permissions) &&
+    value.permissions.every((permission) => typeof permission === 'string')
   );
 };
 
@@ -46,4 +55,3 @@ export const saveAdminUser = (user: AdminUser) => {
 export const clearAdminUser = () => {
   localStorage.removeItem(ADMIN_KEY);
 };
-

@@ -19,6 +19,10 @@ export const DashboardPage = () => {
         </p>
       </div>
 
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        样例数据：工作台尚未接入实时统计接口，以下指标、待办和热门内容不能作为运营依据。
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {metrics.map((metric) => (
           <div key={metric.label} className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-5">

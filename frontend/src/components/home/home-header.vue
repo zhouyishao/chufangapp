@@ -180,7 +180,7 @@ const addRecipe = () => {
 }
 
 .home-header.is-immersive .search-top {
-  padding: calc(var(--status-bar-height) + 24rpx) 34rpx 0;
+  padding: calc(var(--app-safe-area-top) + 24rpx) 34rpx 0;
 }
 
 .add-button {
@@ -354,7 +354,7 @@ const addRecipe = () => {
 
 .action-dropdown {
   position: fixed;
-  top: calc(var(--status-bar-height) + 92rpx);
+  top: calc(var(--app-safe-area-top) + 92rpx);
   right: 24rpx;
   z-index: 61;
   width: 278rpx;

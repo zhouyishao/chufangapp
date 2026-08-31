@@ -6,6 +6,9 @@ import { HttpError } from '../../http/errors';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
 import { ok, type PageResult } from '../../http/response';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
+import { optionalContentMediaUrl } from '../../lib/content-media-url';
+import { lockActiveMediaFiles } from '../../services/file-mutation';
+import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -15,6 +18,7 @@ const listQuerySchema = z.object({
   isPublish: z.coerce.boolean().optional(),
   isRecommend: z.coerce.boolean().optional(),
   auditStatus: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).optional(),
+  sourceType: z.enum(['ADMIN', 'USER', 'IMPORT', 'SYSTEM']).optional(),
   categoryId: z.string().trim().optional()
 });
 
@@ -24,7 +28,8 @@ const stepSchema = z.object({
   description: z.string().trim().min(1),
   image: z.string().trim().max(255).nullable().optional(),
   video: z.string().trim().max(255).nullable().optional(),
-  duration: z.coerce.number().int().min(0).nullable().optional()
+  duration: z.coerce.number().int().min(0).nullable().optional(),
+  mediaFileId: z.coerce.number().int().positive().nullable().optional()
 });
 
 const ingredientSchema = z.object({
@@ -40,9 +45,12 @@ const ingredientSchema = z.object({
 const upsertSchema = z.object({
   title: z.string().trim().min(1).max(120),
   subtitle: z.string().trim().max(255).nullable().optional(),
-  cover: z.string().trim().max(255).nullable().optional(),
+  cover: optionalContentMediaUrl(),
+  coverFileId: z.coerce.number().int().positive().nullable().optional(),
   images: z.array(z.string().trim().max(255)).default([]),
+  imageFileIds: z.array(z.coerce.number().int().positive()).nullable().optional(),
   video: z.string().trim().max(255).nullable().optional(),
+  videoFileId: z.coerce.number().int().positive().nullable().optional(),
   description: z.string().trim().nullable().optional(),
   categoryId: z.union([z.coerce.number().int(), z.string().trim()]).nullable().optional(),
   cookTime: z.coerce.number().int().min(0).nullable().optional(),
@@ -143,7 +151,7 @@ const getExistingRecipe = async (value: unknown) => {
 adminRecipesRouter.get('/', requireAdminAuth, async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { page, pageSize, q, status, isPublish, isRecommend, auditStatus } = parsed.data;
+  const { page, pageSize, q, status, isPublish, isRecommend, auditStatus, sourceType } = parsed.data;
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const skip = (page - 1) * pageSize;
 
@@ -153,6 +161,7 @@ adminRecipesRouter.get('/', requireAdminAuth, async (req, res) => {
     ...(typeof isPublish === 'boolean' ? { isPublish } : {}),
     ...(typeof isRecommend === 'boolean' ? { isRecommend } : {}),
     ...(auditStatus ? { auditStatus } : {}),
+    ...(sourceType ? { sourceType } : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(q ? { title: { contains: q, mode: 'insensitive' as const } } : {})
   };
@@ -208,21 +217,30 @@ adminRecipesRouter.post('/', requireAdminAuth, async (req, res) => {
     }
   }
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
-  const created = await prisma.recipe.create({
-    data: {
-      ...recipePayload,
-      categoryId,
-      bizId: createBusinessId('recipe'),
-      code: nextCodeFromItems('recipe', codes),
-      sortOrder: parsed.data.sort,
-      ...importSource,
-      steps: { create: steps },
-      ingredients: { create: ingredients }
-    },
-    include: {
-      steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-      ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
-    }
+  const created = await prisma.$transaction(async (tx) => {
+    const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
+    const videoFileId = await resolveActiveFileId(tx, parsed.data.videoFileId, parsed.data.video);
+    const imageFileIds = await resolveActiveFileIds(tx, parsed.data.imageFileIds, parsed.data.images);
+    await lockActiveMediaFiles(tx, [coverFileId, videoFileId, ...imageFileIds, ...steps.map((step) => step.mediaFileId)]);
+    return tx.recipe.create({
+      data: {
+        ...recipePayload,
+        coverFileId,
+        videoFileId,
+        imageFileIds,
+        categoryId,
+        bizId: createBusinessId('recipe'),
+        code: nextCodeFromItems('recipe', codes),
+        sortOrder: parsed.data.sort,
+        ...importSource,
+        steps: { create: steps },
+        ingredients: { create: ingredients }
+      },
+      include: {
+        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
+      }
+    });
   });
   res.json(ok(serializeRecipe(created)));
 });
@@ -235,6 +253,10 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const { categoryId: _categoryId, ingredients: _ingredients, steps, source_type, source_name, source_recipe_id, source_url, ...recipePayload } = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
+    const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
+    const videoFileId = await resolveActiveFileId(tx, parsed.data.videoFileId, parsed.data.video);
+    const imageFileIds = await resolveActiveFileIds(tx, parsed.data.imageFileIds, parsed.data.images);
+    await lockActiveMediaFiles(tx, [coverFileId, videoFileId, ...imageFileIds, ...steps.map((step) => step.mediaFileId)]);
     const existing = await tx.recipe.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
     if (!existing) throw new HttpError('not found', 404, 404);
     const id = existing.id;
@@ -244,6 +266,9 @@ adminRecipesRouter.put('/:id', requireAdminAuth, async (req, res) => {
       where: { id },
       data: {
         ...recipePayload,
+        coverFileId,
+        videoFileId,
+        imageFileIds,
         categoryId,
         sortOrder: parsed.data.sort,
         importSourceType: source_type ?? null,

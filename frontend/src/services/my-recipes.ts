@@ -1,9 +1,12 @@
 import { loadAuthUser, syncAuthUserWithBackend } from './auth';
 import {
   createMobileMyRecipe,
+  deleteMobileMyRecipe,
   getMobileMyRecipe,
   listMobileMyRecipes,
   resolveAssetUrl,
+  updateMobileMyRecipe,
+  type MobileMyRecipeUpsertPayload,
   type ApiMyRecipe
 } from './public-api';
 
@@ -17,6 +20,10 @@ export interface MyRecipeIngredient {
 export interface MyRecipeStep {
   title: string;
   description: string;
+  image: string;
+  video: string;
+  mediaFileId: number | null;
+  mediaKind: 'IMAGE' | 'VIDEO' | null;
 }
 
 export interface MyRecipe {
@@ -24,6 +31,10 @@ export interface MyRecipe {
   name: string;
   description: string;
   image: string;
+  coverSource: string;
+  coverFileId: number | null;
+  video: string;
+  videoFileId: number | null;
   duration: string;
   flavor: string;
   updatedAt: string;
@@ -41,6 +52,10 @@ const mapApiMyRecipe = (recipe: ApiMyRecipe): MyRecipe => ({
   name: recipe.name,
   description: recipe.description,
   image: resolveAssetUrl(recipe.image),
+  coverSource: resolveAssetUrl(recipe.image, ''),
+  coverFileId: recipe.coverFileId,
+  video: resolveAssetUrl(recipe.video, ''),
+  videoFileId: recipe.videoFileId,
   duration: recipe.duration || '未填',
   flavor: recipe.flavor || '未填',
   updatedAt: recipe.updatedAt,
@@ -49,7 +64,14 @@ const mapApiMyRecipe = (recipe: ApiMyRecipe): MyRecipe => ({
   category: recipe.category || '私房菜',
   visibility: recipe.visibility || '仅自己可见',
   ingredients: recipe.ingredients.map((item) => ({ name: item.name, amount: item.amount })),
-  steps: recipe.steps.map((item) => ({ title: item.title, description: item.description })),
+  steps: recipe.steps.map((item) => ({
+    title: item.title,
+    description: item.description,
+    image: resolveAssetUrl(item.image, ''),
+    video: resolveAssetUrl(item.video, ''),
+    mediaFileId: item.mediaFileId,
+    mediaKind: item.mediaKind
+  })),
   note: recipe.note || ''
 });
 
@@ -71,21 +93,7 @@ export const findMyRecipeById = async (id: string): Promise<MyRecipe | null> => 
   return recipe ? mapApiMyRecipe(recipe) : null;
 };
 
-export const saveMyRecipe = async (payload: {
-  title: string;
-  subtitle?: string | null;
-  cover?: string | null;
-  description?: string | null;
-  duration?: string | null;
-  difficulty?: string | null;
-  flavor?: string | null;
-  category?: string | null;
-  visibility?: string | null;
-  notes?: string | null;
-  isDraft?: boolean;
-  ingredients: Array<{ sortIndex: number; name: string; amount?: string | null }>;
-  steps: Array<{ sortIndex: number; title?: string | null; description: string; image?: string | null; video?: string | null }>;
-}) => {
+export const saveMyRecipe = async (payload: MobileMyRecipeUpsertPayload) => {
   const user = await requireUser();
   return mapApiMyRecipe(
     await createMobileMyRecipe({
@@ -93,4 +101,14 @@ export const saveMyRecipe = async (payload: {
       userId: user.id
     })
   );
+};
+
+export const updateMyRecipe = async (id: string, payload: MobileMyRecipeUpsertPayload) => {
+  await requireUser();
+  return mapApiMyRecipe(await updateMobileMyRecipe(id, payload));
+};
+
+export const deleteMyRecipe = async (id: string) => {
+  await requireUser();
+  await deleteMobileMyRecipe(id);
 };

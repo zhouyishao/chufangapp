@@ -8,6 +8,7 @@ import { FilterPanel } from '../components/FilterPanel';
 import { ImagePreview } from '../components/ImagePreview';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 import { resolveMockList } from '../mockApi';
 
@@ -148,7 +149,7 @@ export const FilesPage = () => {
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => setNotice(`预览：${item.filename}`)}>预览</Button>
           <Button variant="ghost" onClick={() => setNotice(`复制地址：${item.url}`)}>复制地址</Button>
-          <Button variant="danger" onClick={() => setDeleting(item)}>删除</Button>
+          <PermissionGate permission="file:delete"><Button variant="danger" onClick={() => setDeleting(item)}>删除</Button></PermissionGate>
         </div>
       )
     }
@@ -160,7 +161,7 @@ export const FilesPage = () => {
       <PageHeader
         title="文件列表"
         description="管理图片库、OSS 文件、上传记录和引用关系，支持搜索、筛选、预览和删除。"
-        actions={<Button onClick={handleUpload}>上传图片</Button>}
+        actions={<PermissionGate permission="file:upload"><Button onClick={handleUpload}>上传图片</Button></PermissionGate>}
       />
 
       {notice ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}

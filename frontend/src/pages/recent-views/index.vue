@@ -5,9 +5,9 @@
         <app-icon name="arrow-left" size="26rpx" />
       </button>
       <view>
-        <text class="eyebrow">浏览轨迹</text>
         <text class="page-title">最近浏览</text>
       </view>
+      <button class="clear-button" @tap="showClearBlocker">清理记录</button>
     </view>
 
     <view v-if="loading" class="state-card glass-card">
@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import { listMobileViewHistories } from '../../services/public-api';
@@ -86,6 +86,14 @@ const recentItems = ref<RecentItem[]>([]);
 const loading = ref(false);
 const error = ref('');
 const needsLogin = ref(false);
+
+const guardPrivatePage = () => {
+  if (loadAuthUser()) return true;
+  uni.reLaunch({ url: '/pages/phone-login/index' });
+  return false;
+};
+
+guardPrivatePage();
 
 const formatDateGroup = (value: string) => {
   const date = new Date(value);
@@ -149,6 +157,7 @@ const viewGroups = computed<ViewGroup[]>(() => {
 });
 
 const loadRecentViews = async () => {
+  if (!guardPrivatePage()) return;
   loading.value = true;
   error.value = '';
   needsLogin.value = false;
@@ -177,6 +186,15 @@ const goToLogin = () => {
   uni.navigateTo({ url: '/pages/login/index' });
 };
 
+const showClearBlocker = () => {
+  uni.showModal({
+    title: '暂时无法清理',
+    content: '服务端暂未提供浏览记录清理接口。为避免云端记录仍然保留，这里不会只修改本地列表。',
+    showCancel: false,
+    confirmText: '知道了'
+  });
+};
+
 const goToItem = (item: RecentItem) => {
   if (item.targetType === 'recipe') {
     uni.navigateTo({ url: `/pages/recipe-detail/index?id=${item.targetId}` });
@@ -186,21 +204,41 @@ const goToItem = (item: RecentItem) => {
 };
 
 onShow(() => {
+  if (!guardPrivatePage()) return;
   void loadRecentViews();
+});
+
+onLoad(() => {
+  if (!guardPrivatePage()) return;
 });
 </script>
 
 <style scoped lang="scss">
 .list-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 72rpx 1fr auto;
   align-items: center;
   gap: 18rpx;
   margin-bottom: 24rpx;
+}
+
+.clear-button {
+  min-width: 120rpx;
+  min-height: 72rpx;
+  padding: 0 12rpx;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.clear-button::after {
+  border: 0;
 }
 
 .back-button {

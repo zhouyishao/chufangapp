@@ -9,6 +9,7 @@ import { FilterPanel } from '../components/FilterPanel';
 import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 
 type AuditStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -184,8 +185,8 @@ export const AuditCenterPage = ({ mode = 'pending' }: Props) => {
         <div className="flex flex-wrap justify-end gap-2">
           {item.auditStatus === 'PENDING' ? (
             <>
-              <Button variant="ghost" onClick={() => setPassing(item)}>通过</Button>
-              <Button variant="danger" onClick={() => { setRejecting(item); setRejectReason(''); }}>驳回</Button>
+              <PermissionGate permission="audit:manage"><Button variant="ghost" onClick={() => setPassing(item)}>通过</Button></PermissionGate>
+              <PermissionGate permission="audit:manage"><Button variant="danger" onClick={() => { setRejecting(item); setRejectReason(''); }}>驳回</Button></PermissionGate>
             </>
           ) : null}
         </div>

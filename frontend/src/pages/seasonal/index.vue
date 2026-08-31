@@ -23,7 +23,7 @@
 
     <view v-else-if="!seasonalFoods.length" class="state-card glass-card">
       <text class="state-title">暂无时令食材</text>
-      <text class="state-desc">后台还没有配置可展示的时令内容。</text>
+      <text class="state-desc">当前月份还没有推荐内容，稍后再来看看。</text>
     </view>
 
     <view v-else class="section-block">
@@ -108,7 +108,7 @@ onShow(() => {
 <style scoped lang="scss">
 .seasonal-page {
   min-height: 100vh;
-  padding-bottom: calc(80rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(80rpx + var(--app-safe-area-bottom));
 }
 
 .topbar {

@@ -1,16 +1,17 @@
 <template>
-  <view class="home-tab-bar glass-card">
-    <view
+  <view class="home-tab-bar app-fixed-glass" role="navigation" aria-label="主导航">
+    <button
       v-for="tab in tabs"
       :key="tab.id"
       :class="['home-tab-bar__item', { 'is-active': tab.active }]"
+      :aria-current="tab.active ? 'page' : undefined"
       @tap="handleTabClick(tab.id)"
     >
       <view class="icon-wrapper">
-        <app-icon class="tab-icon" :name="getTabIcon(tab.id)" size="24rpx" />
+        <app-icon class="tab-icon" :name="getTabIcon(tab.id)" :filled="tab.active" size="24px" />
       </view>
       <text class="home-tab-bar__label">{{ tab.label }}</text>
-    </view>
+    </button>
   </view>
 </template>
 
@@ -53,34 +54,44 @@ const handleTabClick = (tabId: string) => {
 <style scoped lang="scss">
 .home-tab-bar {
   position: fixed;
-  right: 32rpx;
-  bottom: 18rpx;
-  left: 32rpx;
+  bottom: max(10px, var(--app-safe-area-bottom));
+  left: 50%;
   z-index: 30;
   display: grid;
+  width: calc(100% - 24px);
+  max-width: 369px;
+  height: 70px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8rpx;
-  padding: 18rpx 14rpx calc(18rpx + env(safe-area-inset-bottom, 0));
-  background: rgba(255, 253, 252, 0.94);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: var(--app-shadow);
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 18px;
+  transform: translateX(-50%);
 }
 
 .home-tab-bar__item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6rpx;
-  padding: 10rpx 0 6rpx;
+  justify-content: center;
+  gap: 2px;
+  min-width: 64px;
+  min-height: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), opacity 180ms ease;
+}
+
+.home-tab-bar__item::after {
+  border: 0;
 }
 
 .home-tab-bar__item:active {
-  opacity: 0.72;
+  opacity: 0.78;
+  transform: scale(0.96);
 }
 
 .icon-wrapper {
@@ -88,25 +99,20 @@ const handleTabClick = (tabId: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 12rpx;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.is-active .icon-wrapper {
-  background: var(--app-accent-soft);
-  box-shadow: none;
-}
-
 .tab-icon {
-  width: 24rpx;
-  height: 24rpx;
+  width: 24px;
+  height: 24px;
   color: var(--app-text-secondary);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 180ms ease;
 }
 
 .is-active .tab-icon {

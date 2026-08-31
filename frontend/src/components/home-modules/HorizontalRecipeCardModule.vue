@@ -55,7 +55,7 @@ defineProps<{
 const resolveImage = (cover: string | null | undefined) => resolveAssetUrl(cover);
 
 const goToRecipe = (id: string) => {
-  uni.navigateTo({ url: `/pages/recipe-detail/index?id=${id}` });
+  uni.navigateTo({ url: `/pages/recipe-detail/index?id=${id}&from=home` });
 };
 
 const handleMore = () => {

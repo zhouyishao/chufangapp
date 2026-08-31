@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createIngredient, deleteIngredient, listCategories, listIngredients, setIngredientStatus, updateIngredient } from '../api';
+import { createIngredient, deleteIngredient, listCategories, listIngredients, setIngredientPublish, setIngredientStatus, updateIngredient } from '../api';
 import type { Ingredient, IngredientCategory } from '../types';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -11,6 +11,7 @@ import { FilterPanel } from '../components/FilterPanel';
 import { ImagePreview } from '../components/ImagePreview';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 import { UploadImage } from '../components/UploadImage';
 
@@ -295,6 +296,27 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
     }
   };
 
+  const handleQuickPublish = async (item: Ingredient) => {
+    try {
+      await setIngredientPublish(item.id, !item.isPublish);
+      setNotice(item.isPublish ? '已从 C 端隐藏' : '已在 C 端展示');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '操作失败');
+    }
+  };
+
+  const handleBatchPublish = async (isPublish: boolean) => {
+    if (!selectedIds.length) return;
+    try {
+      await Promise.all(selectedIds.map((id) => setIngredientPublish(id, isPublish)));
+      setNotice(isPublish ? '已批量在 C 端展示' : '已批量从 C 端隐藏');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '批量操作失败');
+    }
+  };
+
   const ingredientColumns: DataTableColumn<Ingredient>[] = [
     {
       key: 'select',
@@ -320,16 +342,18 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
       ? [{ key: 'seasonMonth', title: '月份', render: (item: Ingredient) => item.seasonMonth ?? '-' }]
       : []),
     { key: 'status', title: '状态', render: (item) => <StatusTag label={item.status === 'ACTIVE' ? '启用' : '禁用'} tone={item.status === 'ACTIVE' ? 'green' : 'gray'} /> },
+    { key: 'publish', title: 'C 端展示', render: (item) => <StatusTag label={item.isPublish ? '展示中' : '已隐藏'} tone={item.isPublish ? 'green' : 'gray'} /> },
     { key: 'sort', title: '排序', render: (item) => item.sort ?? '-' },
     { key: 'createdAt', title: '创建时间', render: (item) => new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) },
     {
       key: 'actions',
       title: '操作',
       render: (item) => (
-        <div className="flex min-w-[180px] justify-end gap-3">
-          <Button variant="ghost" onClick={() => openEdit(item)}>编辑</Button>
-          <Button variant="ghost" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{item.status === 'ACTIVE' ? '停用' : '启用'}</Button>
-          <Button variant="danger" onClick={() => setDeleting(item)}>删除</Button>
+        <div className="flex min-w-[250px] justify-end gap-2">
+          <PermissionGate permission="content:ingredient:update"><Button variant="ghost" onClick={() => openEdit(item)}>编辑</Button></PermissionGate>
+          <PermissionGate permission="content:ingredient:publish"><Button variant="ghost" onClick={() => void handleQuickPublish(item)}>{item.isPublish ? '隐藏' : '显示'}</Button></PermissionGate>
+          <PermissionGate permission="content:ingredient:publish"><Button variant="ghost" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{item.status === 'ACTIVE' ? '停用' : '启用'}</Button></PermissionGate>
+          <PermissionGate permission="content:ingredient:delete"><Button variant="danger" onClick={() => setDeleting(item)}>删除</Button></PermissionGate>
         </div>
       )
     }
@@ -342,10 +366,12 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
         description={pageConfig.description}
         actions={
           <>
-            <Button variant="ghost" disabled={!selectedIds.length || batchDeleting} onClick={() => void handleBatchDelete()}>
+            <PermissionGate permission="content:ingredient:publish"><Button variant="ghost" disabled={!selectedIds.length} onClick={() => void handleBatchPublish(true)}>批量显示</Button></PermissionGate>
+            <PermissionGate permission="content:ingredient:publish"><Button variant="ghost" disabled={!selectedIds.length} onClick={() => void handleBatchPublish(false)}>批量隐藏</Button></PermissionGate>
+            <PermissionGate permission="content:ingredient:delete"><Button variant="ghost" disabled={!selectedIds.length || batchDeleting} onClick={() => void handleBatchDelete()}>
               {batchDeleting ? '处理中...' : `批量删除${selectedIds.length ? ` (${selectedIds.length})` : ''}`}
-            </Button>
-            <Button onClick={() => navigate(pageConfig.createPath)}>新增{pageConfig.noun}</Button>
+            </Button></PermissionGate>
+            <PermissionGate permission="content:ingredient:create"><Button onClick={() => navigate(pageConfig.createPath)}>新增{pageConfig.noun}</Button></PermissionGate>
           </>
         }
       />
@@ -355,7 +381,7 @@ export const IngredientsPage = ({ variant = 'ingredient' }: { variant?: Ingredie
 
       <FilterPanel>
           <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-6">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`搜索${pageConfig.noun}名称...`} />
+            <Input value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} placeholder={`搜索${pageConfig.noun}名称...`} />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}

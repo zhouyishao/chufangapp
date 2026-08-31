@@ -2,19 +2,32 @@ import { type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createCategory, deleteCategory, listCategories, setCategoryStatus, updateCategory } from '../api';
-import type { IngredientCategory } from '../types';
+import { createCategory, deleteCategory, listCategories, reorderCategories, setCategoryStatus, updateCategory } from '../api';
+import type { CategorySummary, IngredientCategory } from '../types';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
+import { PermissionGate } from '../components/PermissionGate';
 import { StatusTag } from '../components/StatusTag';
 
 type Draft = { name: string; type: IngredientCategory['type']; sort: number; status: IngredientCategory['status']; isPublish: boolean };
 
 type CategoryTypeFilter = 'all' | IngredientCategory['type'];
+type CategoryLevelFilter = '' | 1 | 2;
+type CategoryPublishFilter = '' | 'true' | 'false';
 
 const emptyDraft: Draft = { name: '', type: 'RECIPE', sort: 0, status: 'ACTIVE', isPublish: true };
+const emptySummary: CategorySummary = {
+  total: 0,
+  firstLevel: 0,
+  secondLevel: 0,
+  active: 0,
+  disabled: 0,
+  published: 0,
+  hidden: 0,
+  emptyPublic: 0
+};
 
 const typeOptions: { key: CategoryTypeFilter; label: string; tone?: string }[] = [
   { key: 'all', label: '全部' },
@@ -61,6 +74,9 @@ export const CategoriesPage = () => {
   const [appliedQ, setAppliedQ] = useState('');
   const [typeFilter, setTypeFilter] = useState<CategoryTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<IngredientCategory['status'] | ''>('');
+  const [levelFilter, setLevelFilter] = useState<CategoryLevelFilter>('');
+  const [publishFilter, setPublishFilter] = useState<CategoryPublishFilter>('');
+  const [summary, setSummary] = useState<CategorySummary>(emptySummary);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<IngredientCategory | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<IngredientCategory | null>(null);
@@ -74,16 +90,14 @@ export const CategoriesPage = () => {
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
-  const stats = useMemo(() => {
-    const active = items.filter((item) => item.status === 'ACTIVE').length;
-    const disabled = items.filter((item) => item.status === 'DISABLED').length;
-    return {
-      total,
-      firstLevel: total,
-      active,
-      disabled
-    };
-  }, [items, total]);
+  const canSortCurrentResult = (
+    typeFilter !== 'all'
+    && statusFilter === ''
+    && publishFilter === ''
+    && appliedQ === ''
+    && page === 1
+    && total <= pageSize
+  );
 
   const refresh = async () => {
     setLoading(true);
@@ -95,10 +109,13 @@ export const CategoriesPage = () => {
         pageSize,
         q: appliedQ.trim() || undefined,
         type: typeFilter === 'all' ? undefined : typeFilter,
-        status: statusFilter || undefined
+        status: statusFilter || undefined,
+        level: levelFilter || undefined,
+        isPublish: publishFilter === '' ? undefined : publishFilter === 'true'
       });
       setItems(data.list);
       setTotal(data.total);
+      setSummary(data.summary);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
@@ -106,7 +123,7 @@ export const CategoriesPage = () => {
     }
   };
 
-  useEffect(() => { void refresh(); }, [page, pageSize, appliedQ, typeFilter, statusFilter]);
+  useEffect(() => { void refresh(); }, [page, pageSize, appliedQ, typeFilter, statusFilter, levelFilter, publishFilter]);
 
   const openCreate = () => { navigate('/taxonomies/categories/create'); };
   const openEdit = (item: IngredientCategory) => {
@@ -120,12 +137,21 @@ export const CategoriesPage = () => {
     setAppliedQ('');
     setTypeFilter('all');
     setStatusFilter('');
+    setLevelFilter('');
+    setPublishFilter('');
   };
 
   const handleSave = async () => {
     if (!canSave) return;
     try {
-      const payload = { name: draft.name.trim(), type: draft.type, sort: draft.sort, status: draft.status, isPublish: draft.isPublish };
+      const payload = {
+        name: draft.name.trim(),
+        type: draft.type,
+        parentId: editing?.parentId ?? null,
+        sort: draft.sort,
+        status: draft.status,
+        isPublish: draft.isPublish
+      };
       if (editing) await updateCategory(editing.id, payload);
       else await createCategory(payload);
       setDrawerOpen(false);
@@ -160,36 +186,22 @@ export const CategoriesPage = () => {
   };
 
   const moveCategory = async (item: IngredientCategory, direction: -1 | 1) => {
-    if (sortingId) return;
-    const currentIndex = items.findIndex((category) => category.id === item.id);
+    if (sortingId || !canSortCurrentResult) return;
+    const siblings = items.filter((category) => category.type === item.type && category.parentId === item.parentId);
+    const currentIndex = siblings.findIndex((category) => category.id === item.id);
     const targetIndex = currentIndex + direction;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= items.length) return;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) return;
 
-    const current = items[currentIndex];
-    const target = items[targetIndex];
-    const nextItems = [...items];
-    nextItems[currentIndex] = { ...target, sort: current.sort };
-    nextItems[targetIndex] = { ...current, sort: target.sort };
-    setItems(nextItems);
+    const orderedSiblings = [...siblings];
+    [orderedSiblings[currentIndex], orderedSiblings[targetIndex]] = [orderedSiblings[targetIndex], orderedSiblings[currentIndex]];
     setSortingId(item.id);
     setError(null);
     try {
-      await Promise.all([
-        updateCategory(current.id, {
-          name: current.name,
-          type: current.type,
-          sort: target.sort,
-          status: current.status,
-          isPublish: current.isPublish
-        }),
-        updateCategory(target.id, {
-          name: target.name,
-          type: target.type,
-          sort: current.sort,
-          status: target.status,
-          isPublish: target.isPublish
-        })
-      ]);
+      await reorderCategories({
+        type: item.type,
+        parentId: item.parentId,
+        orderedIds: orderedSiblings.map((category) => category.id)
+      });
       setNotice('分类排序已保存');
       await refresh();
     } catch (err) {
@@ -200,6 +212,11 @@ export const CategoriesPage = () => {
     }
   };
 
+  const siblingPosition = (item: IngredientCategory) => {
+    const siblings = items.filter((category) => category.type === item.type && category.parentId === item.parentId);
+    return { index: siblings.findIndex((category) => category.id === item.id), total: siblings.length };
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -207,7 +224,7 @@ export const CategoriesPage = () => {
           <h1 className="text-3xl font-semibold tracking-tight text-[#2f2f2f]">分类管理</h1>
           <p className="mt-2 text-sm text-[#8c8c8c]">统一管理菜谱、食材、水果、调料、酒水等内容分类，支持类型隔离、排序和启用状态控制。</p>
         </div>
-        <Button onClick={openCreate} className="bg-[#2f6f2f] hover:bg-[#235623]">＋ 新增分类</Button>
+        <PermissionGate permission="taxonomy:create"><Button onClick={openCreate} className="bg-[#2f6f2f] hover:bg-[#235623]">＋ 新增分类</Button></PermissionGate>
       </div>
 
       {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
@@ -240,10 +257,12 @@ export const CategoriesPage = () => {
             </div>
           </FilterField>
           
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_2fr_auto_auto] pt-2 border-t border-[#f5f1ea]">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_1fr_2fr_auto_auto] pt-2 border-t border-[#f5f1ea]">
             <FilterField label="层级">
-              <select disabled className="h-11 w-full rounded-xl border border-zinc-200 bg-[#f7f3ec] px-3 text-sm text-[#8c8c8c] outline-none">
-                <option>一级分类</option>
+              <select value={levelFilter} onChange={(event) => { setPage(1); setLevelFilter(event.target.value ? Number(event.target.value) as 1 | 2 : ''); }} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]">
+                <option value="">全部</option>
+                <option value="1">一级分类</option>
+                <option value="2">二级分类</option>
               </select>
             </FilterField>
             <FilterField label="状态">
@@ -251,6 +270,13 @@ export const CategoriesPage = () => {
                 <option value="">全部</option>
                 <option value="ACTIVE">启用</option>
                 <option value="DISABLED">停用</option>
+              </select>
+            </FilterField>
+            <FilterField label="App展示">
+              <select value={publishFilter} onChange={(event) => { setPage(1); setPublishFilter(event.target.value as CategoryPublishFilter); }} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-[#7a8b6f]">
+                <option value="">全部</option>
+                <option value="true">展示</option>
+                <option value="false">隐藏</option>
               </select>
             </FilterField>
             <FilterField label="关键词">
@@ -263,15 +289,13 @@ export const CategoriesPage = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon="▱" title="筛选结果" value={stats.total} suffix="个" />
-        <StatCard icon="▰" title="分类总数" value={stats.firstLevel} suffix="个" />
-        <StatCard icon="✓" title="本页启用" value={stats.active} suffix="个" tone="green" />
-        <StatCard icon="Ⅱ" title="本页停用" value={stats.disabled} suffix="个" tone="orange" />
+        <StatCard icon="▱" title="筛选结果" value={summary.total} suffix="个" />
+        <StatCard icon="▰" title="一级分类" value={summary.firstLevel} suffix="个" />
+        <StatCard icon="⌞" title="二级分类" value={summary.secondLevel} suffix="个" tone="green" />
+        <StatCard icon="!" title="无公开内容" value={summary.emptyPublic} suffix="个" tone="orange" />
       </div>
 
-      <div className="rounded-2xl border border-[#d6decd] bg-[#eef3ea] px-5 py-4 text-sm text-[#5f7f56]">
-        当前分类接口为一级扁平分类。内容模块、菜谱、食材等下游页面会按这里的“分类类型”读取对应分类；多级分类需要后端补充父级字段后再开放。
-      </div>
+      {!canSortCurrentResult ? <div className="rounded-2xl border border-[#e9e2d6] bg-[#fffaf3] px-5 py-4 text-sm text-[#8a6a47]">需要先选择一个具体分类类型，并切换到足以展示全部结果的每页条数，才可调整同级排序。</div> : null}
 
       <div className="overflow-hidden rounded-2xl border border-[#e9e2d6] bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -284,17 +308,18 @@ export const CategoriesPage = () => {
                 <th className="border-b border-[#e9e2d6] px-4 py-4">层级</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">排序</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">关联内容</th>
-                <th className="border-b border-[#e9e2d6] px-4 py-4">状态</th>
+                <th className="border-b border-[#e9e2d6] px-4 py-4">启用状态</th>
+                <th className="border-b border-[#e9e2d6] px-4 py-4">App展示</th>
                 <th className="border-b border-[#e9e2d6] px-4 py-4">更新时间</th>
                 <th className="sticky right-0 z-20 border-b border-[#e9e2d6] bg-[#fffdfc] px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]">操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="px-4 py-16 text-center text-[#8c8c8c]">加载中...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-16 text-center text-[#8c8c8c]">加载中...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-16 text-center text-[#8c8c8c]">暂无分类</td></tr>
-              ) : items.map((item, index) => (
+                <tr><td colSpan={10} className="px-4 py-16 text-center text-[#8c8c8c]">暂无分类</td></tr>
+              ) : items.map((item) => (
                     <tr key={item.id} className="transition hover:bg-[#fffdfc]">
                       <td className="border-b border-[#f1ece4] px-4 py-4"><input type="checkbox" /></td>
                       <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-4 font-medium">
@@ -303,11 +328,12 @@ export const CategoriesPage = () => {
                           onClick={() => setSelectedCategory(item)}
                           className="text-[#2f6f2f] hover:underline cursor-pointer font-medium"
                         >
-                          {item.name}
+                          <span className={item.level === 2 ? 'pl-5' : ''}>{item.name}</span>
                         </button>
+                        {item.parent?.name ? <div className="mt-1 pl-5 text-xs font-normal text-[#8c8c8c]">上级：{item.parent.name}</div> : null}
                       </td>
                       <td className="border-b border-[#f1ece4] px-4 py-4"><span className={`inline-flex rounded-md border px-2.5 py-1 text-xs ${typePillClass[item.type] ?? 'bg-[#f5f1ea] text-[#8c8c8c] border-[#e9e2d6]'}`}>{typeLabels[item.type] ?? item.type}</span></td>
-                      <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">1</td>
+                      <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">{item.level === 1 ? '一级' : '二级'}</td>
                       <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">
                         <div className="flex items-center gap-3">
                           <span className="min-w-8">{item.sort}</span>
@@ -315,7 +341,7 @@ export const CategoriesPage = () => {
                             <button
                               type="button"
                               className="h-4 text-xs hover:text-[#6f8663] disabled:cursor-not-allowed disabled:text-[#d9d2c6]"
-                              disabled={index === 0 || !!sortingId}
+                              disabled={!canSortCurrentResult || siblingPosition(item).index <= 0 || !!sortingId}
                               aria-label={`上移${item.name}`}
                               onClick={() => void moveCategory(item, -1)}
                             >
@@ -324,7 +350,7 @@ export const CategoriesPage = () => {
                             <button
                               type="button"
                               className="h-4 text-xs hover:text-[#6f8663] disabled:cursor-not-allowed disabled:text-[#d9d2c6]"
-                              disabled={index === items.length - 1 || !!sortingId}
+                              disabled={!canSortCurrentResult || siblingPosition(item).index >= siblingPosition(item).total - 1 || !!sortingId}
                               aria-label={`下移${item.name}`}
                               onClick={() => void moveCategory(item, 1)}
                             >
@@ -334,19 +360,17 @@ export const CategoriesPage = () => {
                         </div>
                       </td>
                       <td className="border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">
-                        {item.relatedCount && item.relatedCount > 0 ? (
-                          <span className="text-[#c27b48]">{item.relatedCount} 条</span>
-                        ) : (
-                          <span className="text-[#8c8c8c]">0 条</span>
-                        )}
+                        <div className={item.publicContentCount > 0 ? 'text-[#c27b48]' : 'text-[#8c8c8c]'}>公开 {item.publicContentCount} / 总计 {item.descendantContentCount}</div>
+                        <div className="mt-1 text-xs text-[#8c8c8c]">直属 {item.directContentCount} 条</div>
                       </td>
                       <td className="border-b border-[#f1ece4] px-4 py-4"><StatusTag label={item.status === 'ACTIVE' ? '启用' : '停用'} tone={item.status === 'ACTIVE' ? 'green' : 'orange'} /></td>
+                      <td className="border-b border-[#f1ece4] px-4 py-4"><StatusTag label={item.isPublish ? '展示' : '隐藏'} tone={item.isPublish ? 'green' : 'gray'} /></td>
                       <td className="whitespace-nowrap border-b border-[#f1ece4] px-4 py-4 text-[#2f2f2f]">{formatDate(item.updatedAt)}</td>
                       <td className="sticky right-0 z-10 whitespace-nowrap border-b border-[#f1ece4] bg-white px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(47,47,47,0.35)]">
                         <div className="flex items-center gap-4 text-sm">
-                          <button type="button" onClick={() => openEdit(item)} className="text-[#6f8b62] hover:text-[#2f6f2f]">编辑</button>
-                          <button type="button" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')} className="text-[#c27b48] hover:text-[#a35f2f]">{item.status === 'ACTIVE' ? '停用' : '启用'}</button>
-                          <button type="button" onClick={() => setDeleting(item)} className="text-red-500 hover:text-red-600">删除</button>
+                          <PermissionGate permission="taxonomy:update"><button type="button" onClick={() => openEdit(item)} className="text-[#6f8b62] hover:text-[#2f6f2f]">编辑</button></PermissionGate>
+                          <PermissionGate permission="taxonomy:status"><button type="button" onClick={() => void handleQuickStatus(item, item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')} className="text-[#c27b48] hover:text-[#a35f2f]">{item.status === 'ACTIVE' ? '停用' : '启用'}</button></PermissionGate>
+                          <PermissionGate permission="taxonomy:delete"><button type="button" onClick={() => setDeleting(item)} className="text-red-500 hover:text-red-600">删除</button></PermissionGate>
                         </div>
                       </td>
                     </tr>
@@ -373,19 +397,19 @@ export const CategoriesPage = () => {
         onClose={() => setDeleting(null)}
         description={
           deleting ? (
-            deleting.relatedCount && deleting.relatedCount > 0 ? (
+            deleting.descendantContentCount > 0 || deleting.childCount > 0 ? (
               <span className="text-red-500 font-medium">
-                该分类下有 {deleting.relatedCount} 条关联内容，不能删除。请先在相关内容中解除与该分类的绑定。
+                该分类及子分类共有 {deleting.descendantContentCount} 条关联内容，不能删除。请先解除内容绑定并处理子分类。
               </span>
             ) : (
               `删除分类「${deleting.name}」后将无法恢复。`
             )
           ) : null
         }
-        confirmText={deleting && deleting.relatedCount && deleting.relatedCount > 0 ? "我知道了" : "删除"}
-        danger={!(deleting && deleting.relatedCount && deleting.relatedCount > 0)}
+        confirmText={deleting && (deleting.descendantContentCount > 0 || deleting.childCount > 0) ? "我知道了" : "删除"}
+        danger={!(deleting && (deleting.descendantContentCount > 0 || deleting.childCount > 0))}
         onConfirm={
-          deleting && deleting.relatedCount && deleting.relatedCount > 0
+          deleting && (deleting.descendantContentCount > 0 || deleting.childCount > 0)
             ? () => setDeleting(null)
             : handleDelete
         }
@@ -413,6 +437,10 @@ export const CategoriesPage = () => {
                   </div>
                 </div>
                 <div>
+                  <div className="text-xs text-[#8c8c8c]">层级</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">{selectedCategory.level === 1 ? '一级分类' : `二级分类 · 上级 ${selectedCategory.parent?.name ?? '-'}`}</div>
+                </div>
+                <div>
                   <div className="text-xs text-[#8c8c8c]">排序值</div>
                   <div className="mt-1 text-sm text-[#2f2f2f]">{selectedCategory.sort}</div>
                 </div>
@@ -428,7 +456,8 @@ export const CategoriesPage = () => {
                 </div>
                 <div>
                   <div className="text-xs text-[#8c8c8c]">关联内容数</div>
-                  <div className="mt-1 text-sm text-[#2f2f2f]">{selectedCategory.relatedCount ?? 0} 条</div>
+                  <div className="mt-1 text-sm text-[#2f2f2f]">公开 {selectedCategory.publicContentCount} / 总计 {selectedCategory.descendantContentCount}</div>
+                  <div className="mt-1 text-xs text-[#8c8c8c]">直属 {selectedCategory.directContentCount} 条</div>
                 </div>
                 <div>
                   <div className="text-xs text-[#8c8c8c]">创建时间</div>
@@ -484,7 +513,7 @@ const PaginationFooter = ({ total, page, pageSize, totalPages, canPrev, canNext,
   <div className="flex items-center justify-between gap-4 border-t border-[#f1ece4] px-5 py-4 text-sm text-[#8c8c8c] overflow-x-auto whitespace-nowrap">
     <span>共 {total.toLocaleString('zh-CN')} 条</span>
     <div className="flex items-center gap-2">
-      <select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value={10}>10 条/页</option><option value={20}>20 条/页</option></select>
+      <select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"><option value={10}>10 条/页</option><option value={20}>20 条/页</option><option value={100}>100 条/页</option></select>
       <Button variant="ghost" disabled={!canPrev || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>‹</Button>
       <span className="rounded-lg bg-[#6f8b62] px-4 py-2 text-white">{page}</span>
       <span>/ {totalPages}</span>

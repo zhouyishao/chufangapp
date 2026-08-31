@@ -1,3 +1,5 @@
+import { getAuthToken, handleAuthExpired } from './auth-session';
+
 type ApiOk<T> = { code: 0; message: string; data: T };
 type ApiFail = { code: number; message: string; data: null };
 type ApiResponse<T> = ApiOk<T> | ApiFail;
@@ -17,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api';
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3002/api';
 const DEFAULT_IMAGE_URL =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 900 600%22%3E%3Crect width=%22900%22 height=%22600%22 fill=%22%23F5F1EA%22/%3E%3Cpath d=%22M210 382c78-96 155-144 231-144 74 0 137 44 249 144%22 fill=%22none%22 stroke=%22%237A8B6F%22 stroke-width=%2228%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%22648%22 cy=%22182%22 r=%2250%22 fill=%22%23E9E2D6%22/%3E%3Crect x=%22218%22 y=%22416%22 width=%22464%22 height=%2232%22 rx=%2216%22 fill=%22%23E9E2D6%22/%3E%3C/svg%3E';
 
@@ -48,29 +50,66 @@ export const resolveAssetUrl = (url: string | null | undefined, fallback = DEFAU
 };
 
 type RequestOptions = {
-  method?: UniApp.RequestOptions['method'];
+  method?: UniApp.RequestOptions['method'] | 'PATCH';
   data?: UniApp.RequestOptions['data'];
   header?: UniApp.RequestOptions['header'];
   timeout?: number;
+  auth?: boolean;
+  authToken?: string | null;
+  handleAuthExpired?: boolean;
 };
 
-const request = async <T>(path: string, options: RequestOptions = {}) => {
-  const result = await new Promise<ApiResponse<T>>((resolve, reject) => {
-    uni.request({
+export const apiRequest = async <T>(path: string, options: RequestOptions = {}) => {
+  const token =
+    options.authToken !== undefined
+      ? options.authToken
+      : options.auth === false
+        ? null
+        : getAuthToken();
+  const timeoutMs = options.timeout ?? 15000;
+  const response = await new Promise<{ data: ApiResponse<T>; statusCode: number }>((resolve, reject) => {
+    let settled = false;
+    let timeoutTimer: ReturnType<typeof setTimeout>;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      callback();
+    };
+    const requestTask = uni.request({
       url: `${API_BASE}${path}`,
-      method: options.method ?? 'GET',
+      method: (options.method ?? 'GET') as UniApp.RequestOptions['method'],
       data: options.data,
-      header: options.header,
-      timeout: options.timeout ?? 15000,
-      success: (res) => resolve(res.data as ApiResponse<T>),
-      fail: reject
+      header: {
+        ...options.header,
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      timeout: timeoutMs,
+      success: (res) => finish(() => resolve({ data: res.data as ApiResponse<T>, statusCode: res.statusCode })),
+      fail: (error) => finish(() => reject(error))
     });
+    timeoutTimer = setTimeout(() => {
+      finish(() => {
+        requestTask.abort?.();
+        reject(new ApiError('请求超时，请检查网络后重试', 408));
+      });
+    }, timeoutMs + 250);
   });
+
+  const result = response.data;
+  if (response.statusCode === 401 || result.code === 401) {
+    if (options.handleAuthExpired !== false) {
+      handleAuthExpired();
+    }
+    throw new ApiError(result.message || 'unauthorized', 401);
+  }
 
   if (result.code !== 0) throw new ApiError(result.message, result.code);
 
   return (result as ApiOk<T>).data;
 };
+
+const request = apiRequest;
 
 export type ApiHome = {
   banners: {
@@ -146,6 +185,7 @@ export type ApiHomeTopNav = {
   code?: string | null;
   name: string;
   navType: string;
+  contentType?: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'BEVERAGE' | 'SEASONING' | null;
   isDefault: boolean;
   sortOrder: number;
   style?: {
@@ -229,8 +269,9 @@ export const getHome = async () => {
   } satisfies ApiHome;
 };
 
-export const getHomeTopNavs = async () => {
-  const data = await request<ApiHomeTopNav[]>('/app/home/top-navs');
+export const getHomeTopNavs = async (params: { page?: 'home' | 'category' } = {}) => {
+  const suffix = params.page ? `?page=${encodeURIComponent(params.page)}` : '';
+  const data = await request<ApiHomeTopNav[]>(`/app/home/top-navs${suffix}`);
   return data;
 };
 
@@ -281,7 +322,7 @@ export type ApiRecipeDetail = ApiRecipeListItem & {
   calories: number | null;
   tips: string | null;
   steps: { id: number; sortIndex: number; title: string | null; description: string; image: string | null }[];
-  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null; ingredient?: { cover: string | null } | null }[];
+  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null; ingredient?: { cover: string | null; transparentImage: string | null } | null }[];
   beverages?: {
     recommendReason: string | null;
     sortOrder: number;
@@ -325,11 +366,26 @@ export type ApiIngredientListItem = {
   id: number;
   name: string;
   cover: string | null;
+  transparentImage: string | null;
+  displayImage: string | null;
   seasonMonth: string | null;
+  season: ApiIngredientSeasonPresentation;
   currentPrice: number | null;
   priceUnit: string | null;
   updatedAt: string;
   category?: { id: number; name: string; type: 'INGREDIENT' } | null;
+};
+
+export type ApiIngredientGuideItem = {
+  title: string;
+  description: string;
+};
+
+export type ApiIngredientSeasonPresentation = {
+  startMonth: number | null;
+  endMonth: number | null;
+  label: string;
+  isInSeason: boolean;
 };
 
 export type ApiIngredientDetail = ApiIngredientListItem & {
@@ -342,6 +398,9 @@ export type ApiIngredientDetail = ApiIngredientListItem & {
   relatedRecipes: unknown;
   priceSource: string | null;
   priceDate: string | null;
+  selectionGuide: ApiIngredientGuideItem[];
+  storageGuide: ApiIngredientGuideItem[];
+  eatingGuide: ApiIngredientGuideItem[];
 };
 
 export type ApiBeverageDetail = {
@@ -350,12 +409,22 @@ export type ApiBeverageDetail = {
   code?: string | null;
   name: string;
   coverImage: string | null;
+  transparentImage: string | null;
   categoryId: number | null;
   beverageType: string | null;
   isAlcoholic: boolean;
   alcoholDegree: number | null;
   description: string | null;
   category?: { id: number; name: string; type: string } | null;
+  kind: 'ORDINARY' | 'MIXED';
+  cocktailMethod: string | null;
+  baseSpirit: string | null;
+  glassType: string | null;
+  garnish: string | null;
+  instructions: string | null;
+  ingredientsV2: Array<{ id: number; name: string; amount: string | null; isBase: boolean; sortIndex: number }>;
+  tools: Array<{ id: number; name: string; sortIndex: number }>;
+  steps: Array<{ id: number; title: string; description: string; sortIndex: number; timerSeconds: number | null; tip: string | null }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -376,14 +445,24 @@ export const listIngredients = async (params: { page: number; pageSize: number; 
   const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
   if (params.q) qs.set('q', params.q);
   const data = await request<PageResult<ApiIngredientListItem>>(`/ingredients?${qs.toString()}`);
-  return { ...data, list: data.list.map((item) => ({ ...item, cover: resolveAssetUrl(item.cover) })) };
+  return {
+    ...data,
+    list: data.list.map((item) => ({
+      ...item,
+      cover: resolveAssetUrl(item.cover),
+      transparentImage: item.transparentImage ? resolveAssetUrl(item.transparentImage, '') : null,
+      displayImage: item.displayImage ? resolveAssetUrl(item.displayImage, '') : null
+    }))
+  };
 };
 
-export const getIngredient = async (id: number) => {
-  const data = await request<ApiIngredientDetail>(`/ingredients/${id}`);
+export const getIngredient = async (id: string | number) => {
+  const data = await request<ApiIngredientDetail>(`/ingredients/${encodeURIComponent(String(id))}`);
   return {
     ...data,
     cover: resolveAssetUrl(data.cover),
+    transparentImage: data.transparentImage ? resolveAssetUrl(data.transparentImage, '') : null,
+    displayImage: data.displayImage ? resolveAssetUrl(data.displayImage, '') : null,
     detailImages: Array.isArray(data.detailImages) ? data.detailImages.map((url) => resolveAssetUrl(url, data.cover ?? undefined)) : []
   };
 };
@@ -392,7 +471,99 @@ export const getBeverage = async (id: string) => {
   const data = await request<ApiBeverageDetail>(`/beverages/${encodeURIComponent(id)}`);
   return {
     ...data,
-    coverImage: resolveAssetUrl(data.coverImage)
+    coverImage: resolveAssetUrl(data.coverImage),
+    transparentImage: data.transparentImage ? resolveAssetUrl(data.transparentImage, '') : null
+  };
+};
+
+export type GuidedFlowDTO = {
+  id: string;
+  title: string;
+  totalMinutes?: number;
+  steps: Array<{
+    id: string;
+    order: number;
+    title: string;
+    description: string;
+    media?: {
+      fileId?: number;
+      url: string;
+      mimeType?: string;
+      width?: number;
+      height?: number;
+      durationSeconds?: number;
+    };
+    timerSeconds?: number;
+    tip?: string;
+  }>;
+};
+
+const buildRecipeGuidedFlow = (recipe: ApiRecipeDetail): GuidedFlowDTO => ({
+  id: String(recipe.id),
+  title: recipe.title,
+  totalMinutes: recipe.cookTime ?? undefined,
+  steps: (recipe.steps ?? [])
+    .slice()
+    .sort((left, right) => left.sortIndex - right.sortIndex)
+    .map((step, index) => ({
+      id: String(step.id),
+      order: index + 1,
+      title: step.title?.trim() || `步骤 ${index + 1}`,
+      description: step.description,
+      media: step.image
+        ? {
+            url: step.image,
+            mimeType: 'image/*'
+          }
+        : undefined
+    }))
+});
+
+const buildBeverageGuidedFlow = (beverage: ApiBeverageDetail): GuidedFlowDTO => ({
+  id: beverage.id,
+  title: beverage.name,
+  steps: (beverage.steps ?? [])
+    .slice()
+    .sort((left, right) => left.sortIndex - right.sortIndex)
+    .map((step, index) => ({
+      id: String(step.id),
+      order: index + 1,
+      title: step.title?.trim() || `步骤 ${index + 1}`,
+      description: step.description,
+      timerSeconds: step.timerSeconds ?? undefined,
+      tip: step.tip ?? undefined
+    }))
+});
+
+export const getRecipeGuidedFlow = async (id: string) => {
+  let data: GuidedFlowDTO;
+  try {
+    data = await request<GuidedFlowDTO>(`/recipes/${encodeURIComponent(id)}/guided-flow`);
+  } catch {
+    data = buildRecipeGuidedFlow(await getRecipe(id));
+  }
+  return {
+    ...data,
+    steps: data.steps.map((step) => ({
+      ...step,
+      media: step.media ? { ...step.media, url: resolveAssetUrl(step.media.url) } : undefined
+    }))
+  };
+};
+
+export const getBeverageGuidedFlow = async (id: string) => {
+  let data: GuidedFlowDTO;
+  try {
+    data = await request<GuidedFlowDTO>(`/beverages/${encodeURIComponent(id)}/guided-flow`);
+  } catch {
+    data = buildBeverageGuidedFlow(await getBeverage(id));
+  }
+  return {
+    ...data,
+    steps: data.steps.map((step) => ({
+      ...step,
+      media: step.media ? { ...step.media, url: resolveAssetUrl(step.media.url) } : undefined
+    }))
   };
 };
 
@@ -431,15 +602,21 @@ export type ApiMobileUser = {
   avatar: string | null;
 };
 
+export type ApiMobileAuthSession = {
+  user: ApiMobileUser;
+  accessToken: string;
+  expiresIn: number;
+};
+
 export const loginMobileAuth = async (payload: {
-  phone?: string;
-  openid?: string;
-  nickname?: string;
-  avatar?: string;
+  phone: string;
+  password: string;
 }) => {
-  return request<ApiMobileUser>('/mobile/auth/login', {
+  return request<ApiMobileAuthSession>('/mobile/auth/login', {
     method: 'POST',
-    data: payload
+    data: payload,
+    auth: false,
+    handleAuthExpired: false
   });
 };
 
@@ -462,13 +639,30 @@ type MobileActivityIngredient = {
   priceUnit: string | null;
 };
 
+type MobileActivityBeverage = {
+  id: number;
+  name: string;
+  cover: string | null;
+  beverageType: string | null;
+  alcoholDegree: string | null;
+};
+
+export type MobileContentTarget = {
+  targetType: 'RECIPE' | 'INGREDIENT' | 'FRUIT' | 'BEVERAGE' | 'SEASONING';
+  targetId: string | number;
+};
+
 export type ApiMobileFavorite = {
   id: number;
   userId: number;
   recipeId: number | null;
   ingredientId: number | null;
+  beverageId: number | null;
+  targetType: MobileContentTarget['targetType'];
+  targetId: string;
   recipe: MobileActivityRecipe | null;
   ingredient: MobileActivityIngredient | null;
+  beverage: MobileActivityBeverage | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -486,7 +680,8 @@ const resolveMobileActivityAssets = <T extends ApiMobileFavorite | ApiMobileView
           DEFAULT_IMAGE_URL
         )
       }
-    : null
+    : null,
+  beverage: item.beverage ? { ...item.beverage, cover: resolveAssetUrl(item.beverage.cover) } : null
 });
 
 export const listMobileFavorites = async (params: { userId: number; page?: number; pageSize?: number }) => {
@@ -499,7 +694,7 @@ export const listMobileFavorites = async (params: { userId: number; page?: numbe
   return { ...data, list: data.list.map(resolveMobileActivityAssets) };
 };
 
-export const addMobileFavorite = async (payload: { userId: number; recipeId?: number; ingredientId?: number }) => {
+export const addMobileFavorite = async (payload: ({ userId: number } & MobileContentTarget) | { userId: number; recipeId?: number; ingredientId?: number; beverageId?: number }) => {
   const data = await request<ApiMobileFavorite>('/mobile/favorites', {
     method: 'POST',
     data: payload
@@ -523,7 +718,7 @@ export const listMobileViewHistories = async (params: { userId: number; page?: n
   return { ...data, list: data.list.map(resolveMobileActivityAssets) };
 };
 
-export const addMobileViewHistory = async (payload: { userId: number; recipeId?: number; ingredientId?: number }) => {
+export const addMobileViewHistory = async (payload: ({ userId: number } & MobileContentTarget) | { userId: number; recipeId?: number; ingredientId?: number; beverageId?: number }) => {
   const data = await request<ApiMobileViewHistory>('/mobile/view-histories', {
     method: 'POST',
     data: payload
@@ -535,6 +730,7 @@ export type ApiSearchHistory = {
   id: number;
   userId: number;
   keyword: string;
+  searchCount: number;
   resultCount: number;
   createdAt: string;
   updatedAt: string;
@@ -591,6 +787,8 @@ export type ApiFamily = {
   id: number;
   name: string;
   avatar: string | null;
+  avatarFileId: number | null;
+  avatarSource?: string | null;
   city: string | null;
   district: string | null;
   description: string | null;
@@ -625,7 +823,7 @@ export const getMobileFamily = async (familyId: number) => {
   return request<ApiFamily>(`/mobile/families/${familyId}`);
 };
 
-export const updateMobileFamily = async (familyId: number, payload: { userId: number; name: string; description?: string | null }) => {
+export const updateMobileFamily = async (familyId: number, payload: { userId: number; name: string; description?: string | null; avatarFileId?: number | null }) => {
   return request<ApiFamily>(`/mobile/families/${familyId}`, { method: 'PUT', data: payload });
 };
 
@@ -651,6 +849,10 @@ export type ApiMyRecipeStep = {
   id: number;
   title: string;
   description: string;
+  image: string | null;
+  video: string | null;
+  mediaFileId: number | null;
+  mediaKind: 'IMAGE' | 'VIDEO' | null;
 };
 
 export type ApiMyRecipe = {
@@ -660,6 +862,9 @@ export type ApiMyRecipe = {
   name: string;
   description: string;
   image: string | null;
+  coverFileId: number | null;
+  video: string | null;
+  videoFileId: number | null;
   duration: string;
   flavor: string;
   updatedAt: string;
@@ -670,6 +875,34 @@ export type ApiMyRecipe = {
   note: string;
   ingredients: ApiMyRecipeIngredient[];
   steps: ApiMyRecipeStep[];
+};
+
+export type MobileMyRecipeUpsertPayload = {
+  userId?: number;
+  title: string;
+  subtitle?: string | null;
+  cover?: string | null;
+  coverFileId?: number | null;
+  video?: string | null;
+  videoFileId?: number | null;
+  description?: string | null;
+  duration?: string | null;
+  difficulty?: string | null;
+  flavor?: string | null;
+  category?: string | null;
+  visibility?: string | null;
+  notes?: string | null;
+  isDraft?: boolean;
+  ingredients: Array<{ sortIndex: number; name: string; amount?: string | null }>;
+  steps: Array<{
+    sortIndex: number;
+    title?: string | null;
+    description: string;
+    image?: string | null;
+    video?: string | null;
+    mediaFileId?: number | null;
+    mediaKind?: 'IMAGE' | 'VIDEO' | null;
+  }>;
 };
 
 export const listMobileMyRecipes = async (params: { userId: number; page?: number; pageSize?: number; q?: string }) => {
@@ -687,28 +920,68 @@ export const getMobileMyRecipe = async (recipeId: string, userId?: number) => {
   return request<ApiMyRecipe>(`/mobile/my-recipes/${encodeURIComponent(recipeId)}${qs}`);
 };
 
-export const createMobileMyRecipe = async (payload: {
-  userId: number;
-  title: string;
-  subtitle?: string | null;
-  cover?: string | null;
-  description?: string | null;
-  duration?: string | null;
-  difficulty?: string | null;
-  flavor?: string | null;
-  category?: string | null;
-  visibility?: string | null;
-  notes?: string | null;
-  isDraft?: boolean;
-  ingredients: Array<{ sortIndex: number; name: string; amount?: string | null }>;
-  steps: Array<{ sortIndex: number; title?: string | null; description: string; image?: string | null; video?: string | null }>;
-}) => {
+export const createMobileMyRecipe = async (payload: MobileMyRecipeUpsertPayload) => {
   return request<ApiMyRecipe>('/mobile/my-recipes', { method: 'POST', data: payload });
 };
+
+export const updateMobileMyRecipe = async (recipeId: string, payload: MobileMyRecipeUpsertPayload) =>
+  request<ApiMyRecipe>(`/mobile/my-recipes/${encodeURIComponent(recipeId)}`, {
+    method: 'PATCH',
+    data: payload
+  });
+
+export const deleteMobileMyRecipe = async (recipeId: string) =>
+  request<{ id: string }>(`/mobile/my-recipes/${encodeURIComponent(recipeId)}`, {
+    method: 'DELETE'
+  });
 
 export const saveMobileFamilyPreferences = async (familyId: number, payload: ApiFamilyPreference & { userId: number }) => {
   return request<ApiFamilyPreference>(`/mobile/families/${familyId}/preferences`, { method: 'PUT', data: payload });
 };
+
+export type ApiUserPreference = {
+  id: number;
+  userId: number;
+  kind: 'LIKE' | 'AVOID' | 'ALLERGY';
+  value: string;
+  shareScope: 'PRIVATE' | 'FAMILY';
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const listMobileUserPreferences = () => request<ApiUserPreference[]>('/mobile/preferences');
+
+export const replaceMobileUserPreferences = (items: Array<Pick<ApiUserPreference, 'kind' | 'value' | 'shareScope'>>) =>
+  request<ApiUserPreference[]>('/mobile/preferences', { method: 'PUT', data: { items } });
+
+export type ApiNotificationReceipt = {
+  id: number;
+  notificationId: number;
+  readAt: string | null;
+  deliveredAt: string | null;
+  notification: {
+    id: number;
+    type: 'SYSTEM' | 'FAMILY_EVENT' | 'MEAL_READY';
+    title: string;
+    body: string;
+    familyId: number | null;
+    createdAt: string;
+  };
+};
+
+export const listMobileNotifications = (params: { page?: number; pageSize?: number } = {}) => {
+  const qs = new URLSearchParams({ page: String(params.page ?? 1), pageSize: String(params.pageSize ?? 20) });
+  return request<PageResult<ApiNotificationReceipt>>(`/mobile/notifications?${qs.toString()}`);
+};
+
+export const markMobileNotificationRead = (notificationId: number) =>
+  request<{ id: number; readAt: string | null }>(`/mobile/notifications/${notificationId}/read`, { method: 'POST' });
+
+export const sendMobileMealReady = (familyId: number, payload: { idempotencyKey: string; title?: string; body?: string }) =>
+  request<{ id: number; dedupeKey: string; receipts: Array<{ id: number; userId: number }> }>(`/mobile/families/${familyId}/meal-ready`, {
+    method: 'POST',
+    data: payload
+  });
 
 export const removeMobileFamilyMember = async (memberId: number, userId: number) => {
   return request<ApiFamilyMember>(`/mobile/family-members/${memberId}`, { method: 'DELETE', data: { userId } });
@@ -875,10 +1148,12 @@ export const getPageModules = async (params: {
 export type HomeModuleItem = {
   id: string;
   code?: string;
-  type: 'recipe' | 'ingredient' | 'beverage' | 'category' | 'image';
+  type: 'recipe' | 'ingredient' | 'fruit' | 'seasoning' | 'beverage' | 'category' | 'image';
   title?: string;
   name?: string;
   cover: string | null;
+  transparentImage?: string | null;
+  displayImage?: string | null;
   subtitle?: string | null;
   buttonText?: string | null;
   jumpType?: string | null;
@@ -898,6 +1173,7 @@ export type HomeModuleItem = {
 export type HomeModule = {
   id: number;
   navId: number;
+  moduleKey?: string | null;
   title: string;
   subtitle: string | null;
   displayStyle: string;
@@ -912,13 +1188,16 @@ export type HomeModule = {
   items: HomeModuleItem[];
 };
 
-export const getHomeModules = async (navId: string) => {
-  const data = await request<HomeModule[]>(`/app/home/top-navs/${navId}/modules`);
+export const getHomeModules = async (navId: string, categoryId?: string) => {
+  const query = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
+  const data = await request<HomeModule[]>(`/app/home/top-navs/${navId}/modules${query}`);
   return data.map((mod) => ({
     ...mod,
     items: mod.items.map((item) => ({
       ...item,
-      cover: resolveAssetUrl(item.cover)
+      cover: item.cover ? resolveAssetUrl(item.cover) : null,
+      transparentImage: item.transparentImage ? resolveAssetUrl(item.transparentImage, '') : null,
+      displayImage: item.displayImage ? resolveAssetUrl(item.displayImage, '') : null
     }))
   }));
 };

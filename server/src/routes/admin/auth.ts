@@ -8,6 +8,7 @@ import { prisma } from '../../prisma';
 import { HttpError } from '../../http/errors';
 import { ok } from '../../http/response';
 import { requireAdminAuth } from '../../http/middleware/admin-auth';
+import { loadAdminAccess } from '../../security/admin-access';
 
 const loginSchema = z.object({
   username: z.string().trim().min(1).max(32),
@@ -34,6 +35,10 @@ adminAuthRouter.post('/login', async (req, res) => {
   const okPassword = await bcrypt.compare(password, admin.passwordHash);
   if (!okPassword) throw new HttpError('用户名或密码错误', 400, 400);
 
+  await prisma.admin.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
+  const access = await loadAdminAccess(admin.id);
+  if (!access) throw new HttpError('管理员尚未配置有效角色，请联系超级管理员', 403, 403);
+
   const token = jwt.sign({ sub: String(admin.id), username: admin.username }, config.jwtAdminSecret, {
     expiresIn: '7d'
   });
@@ -41,20 +46,14 @@ adminAuthRouter.post('/login', async (req, res) => {
   res.json(
     ok({
       token,
-      admin: { id: admin.id, username: admin.username, nickname: admin.nickname ?? null }
+      admin: access.admin,
+      role: access.role,
+      permissions: access.permissions
     })
   );
 });
 
 adminAuthRouter.get('/profile', requireAdminAuth, async (req, res) => {
-  const adminId = Number.parseInt(req.admin?.sub ?? '', 10);
-  if (!Number.isFinite(adminId)) throw new HttpError('unauthorized', 401, 401);
-
-  const admin = await prisma.admin.findFirst({
-    where: { id: adminId, deletedAt: null, status: 'ACTIVE' },
-    select: { id: true, username: true, nickname: true, createdAt: true, updatedAt: true }
-  });
-  if (!admin) throw new HttpError('unauthorized', 401, 401);
-
-  res.json(ok(admin));
+  if (!req.adminAccess) throw new HttpError('unauthorized', 401, 401);
+  res.json(ok(req.adminAccess));
 });

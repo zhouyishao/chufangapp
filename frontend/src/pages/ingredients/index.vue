@@ -1,739 +1,1055 @@
 <template>
-  <view class="app-page category-page">
-    <!-- 搜索框 -->
-    <view class="category-search" v-if="searchConfig">
-      <view class="category-search__bar" @tap="handleSearchTap">
-        <app-icon class="category-search__icon" name="search" size="18px" />
-        <text class="category-search__placeholder">{{ searchConfig.placeholder ?? '搜索菜谱、食材、水果、调料、酒水' }}</text>
-      </view>
-    </view>
+  <view class="app-page category-page category-prototype">
+    <header class="category-header">
+      <button
+        class="category-search"
+        type="button"
+        aria-label="搜索菜谱、食材、水果、饮品和调料"
+        @tap="handleSearchTap"
+      >
+        <app-icon name="search" size="20px" />
+        <text>{{ searchPlaceholder }}</text>
+      </button>
 
-    <!-- 顶部导航（动态，来自接口 top_nav） -->
-    <view class="category-topnav" v-if="topNavItems.length">
-      <scroll-view scroll-x enable-flex :show-scrollbar="false" class="category-topnav__scroll">
-        <view class="category-topnav__row">
-          <view
-            v-for="item in topNavItems"
-            :key="item.id"
-            :class="['category-topnav__tab', { 'category-topnav__tab--active': item.active }]"
-            @tap="handleTopNavTap(item)"
+      <nav v-if="primaryNavItems.length" class="category-primary-nav" aria-label="内容大分类">
+        <button
+          v-for="item in primaryNavItems"
+          :key="item.id"
+          :class="['category-primary-nav__item', { 'is-active': isPrimaryActive(item) }]"
+          type="button"
+          role="tab"
+          :aria-selected="isPrimaryActive(item)"
+          @tap="handleTopNavTap(item)"
+        >
+          {{ primaryLabel(item) }}
+        </button>
+      </nav>
+    </header>
+
+    <app-page-state v-if="loading" kind="loading" title="正在加载分类内容" />
+    <app-page-state
+      v-else-if="error"
+      kind="error"
+      title="分类内容加载失败"
+      :description="error"
+      action-text="重新加载"
+      @action="fetchModules"
+    />
+
+    <main v-else class="category-workspace">
+      <scroll-view
+        class="category-secondary-rail"
+        scroll-y
+        :scroll-into-view="railScrollIntoView"
+        :show-scrollbar="false"
+        aria-label="二级分类"
+      >
+        <view class="category-secondary-rail__inner">
+          <button
+            v-for="item in secondaryItems"
+            :key="item.key"
+            :id="railItemId(item)"
+            :class="['category-secondary-rail__item', { 'is-active': item.key === activeFilterKey }]"
+            type="button"
+            :aria-pressed="item.key === activeFilterKey"
+            @tap="handleFilterTap(item)"
           >
             {{ item.name }}
+          </button>
+        </view>
+      </scroll-view>
+
+      <scroll-view
+        class="category-content-pane"
+        scroll-y
+        :scroll-top="contentScrollTop"
+        :scroll-into-view="contentScrollIntoView"
+        lower-threshold="240"
+        :show-scrollbar="false"
+        @scroll="handleContentScroll"
+        @scrolltolower="loadNextCategorySection"
+      >
+        <view class="category-content-pane__inner">
+          <view v-if="!isCategoryStream" class="category-content-pane__summary">
+            <text>{{ activeSecondaryLabel }}</text>
+            <text>{{ contentItems.length }}项</text>
+          </view>
+
+          <section
+            v-for="section in visibleContentSections"
+            :id="sectionElementId(section.key)"
+            :key="section.key"
+            class="category-content-section"
+            :data-category-key="section.key"
+          >
+            <view v-if="isCategoryStream" class="category-content-section__heading">
+              <text>{{ section.name }}</text>
+              <text>{{ section.loading ? '加载中' : `${section.items.length}项` }}</text>
+            </view>
+
+            <view
+              v-if="section.items.length"
+              :class="['category-result-list', { 'is-recipe': isRecipeType }]"
+            >
+              <article
+                v-for="item in section.items"
+                :key="itemKey(item)"
+                :class="['category-content-card', { 'category-content-card--recipe': isRecipeType }]"
+                role="button"
+                tabindex="0"
+                @tap="openItem(item)"
+              >
+                <view class="category-content-card__media">
+                  <image
+                    v-if="hasUsableCover(item)"
+                    class="category-content-card__image"
+                    :src="itemCover(item)"
+                    mode="aspectFill"
+                    lazy-load
+                    @error="markImageFailed(item)"
+                  />
+                  <text v-else class="category-content-card__fallback">{{ itemInitial(item) }}</text>
+                </view>
+
+                <view class="category-content-card__body">
+                  <view class="category-content-card__heading">
+                    <text class="category-content-card__name">{{ itemTitle(item) }}</text>
+                    <text v-if="!isRecipeType && itemSeason(item)" class="category-content-card__season">
+                      {{ itemSeason(item) }}
+                    </text>
+                  </view>
+
+                  <text v-if="isRecipeType && itemDescription(item)" class="category-content-card__description">
+                    {{ itemDescription(item) }}
+                  </text>
+
+                  <view class="category-content-card__footer">
+                    <text class="category-content-card__meta">{{ itemMeta(item) }}</text>
+                    <button
+                      v-if="canAddToBasket(item)"
+                      class="category-basket-button"
+                      :class="{ 'is-added': basketAddedIds.has(itemKey(item)) }"
+                      type="button"
+                      :aria-label="basketAddedIds.has(itemKey(item)) ? `已加入菜篮：${itemTitle(item)}` : `加入菜篮：${itemTitle(item)}`"
+                      :aria-pressed="basketAddedIds.has(itemKey(item))"
+                      @tap.stop="addItemToBasket(item)"
+                    >
+                      <app-icon name="basket-action" size="19px" :filled="basketAddedIds.has(itemKey(item))" />
+                    </button>
+                  </view>
+                </view>
+              </article>
+            </view>
+
+            <view v-else-if="section.loading" class="category-content-section__state">
+              正在加载{{ section.name }}
+            </view>
+            <view v-else-if="section.error" class="category-content-section__state is-error">
+              <text>{{ section.error }}</text>
+              <button type="button" @tap="retryCategorySection(section.key)">重试</button>
+            </view>
+            <view v-else class="category-content-section__state">暂无当前分类内容</view>
+          </section>
+
+          <view v-if="isCategoryStream && categoryStreamLoading" class="category-stream-status">
+            正在加载下一分类
+          </view>
+          <view v-else-if="isCategoryStream && categoryStreamComplete" class="category-stream-status">
+            已浏览完全部分类
           </view>
         </view>
       </scroll-view>
-    </view>
+    </main>
 
-    <!-- 加载态 -->
-    <view v-if="loading" class="category-status">
-      <text class="category-status__text">加载中...</text>
-    </view>
-
-    <!-- 错误态 -->
-    <view v-else-if="error" class="category-status">
-      <text class="category-status__text category-status__text--error">{{ error }}</text>
-      <view class="category-status__retry" @tap="fetchModules">重试</view>
-    </view>
-
-    <!-- 正常内容 -->
-    <template v-else>
-      <!-- 分类筛选（动态，来自接口 category_filter） -->
-      <view class="category-filter" v-if="filterItems.length">
-        <scroll-view scroll-x enable-flex :show-scrollbar="false" class="category-filter__scroll">
-          <view class="category-filter__row">
-            <view
-              v-for="item in filterItems"
-              :key="item.key"
-              :class="['category-filter__chip', { 'category-filter__chip--active': item.key === activeFilterKey }]"
-              @tap="handleFilterTap(item)"
-            >
-              {{ item.name }}
-            </view>
-          </view>
-        </scroll-view>
-      </view>
-
-      <!-- 内容区：只渲染后台配置的 content_module，并按分类分组 -->
-      <view
-        v-for="section in contentSections"
-        :id="section.anchorId"
-        :key="section.key"
-        class="category-section"
-      >
-        <view v-if="section.title" class="category-section__header">
-          <text class="category-section__title">{{ section.title }}</text>
-        </view>
-
-        <template v-for="mod in section.modules" :key="mod.id">
-          <HomeModuleRenderer v-if="isLegacyContentModule(mod)" :modules="toHomeModuleList(mod)" />
-
-          <!-- LARGE_IMAGE_CAROUSEL -->
-          <view class="category-banner" v-if="isLargeImageModule(mod) && modImages(mod).length">
-            <view v-if="mod.showTitle !== false" class="category-banner__header">
-              <text class="category-banner__header-title">{{ mod.title }}</text>
-              <text v-if="mod.subtitle" class="category-banner__header-subtitle">{{ mod.subtitle }}</text>
-            </view>
-            <swiper
-              v-if="modImages(mod).length > 1"
-              class="category-banner__swiper"
-              :indicator-dots="false"
-              :autoplay="true"
-              :interval="4000"
-              :circular="true"
-              @change="handleBannerSwiperChange"
-            >
-              <swiper-item v-for="img in modImages(mod)" :key="getItemKey(img)">
-                <view class="category-banner__item" @tap="handleBannerTap(img)">
-                  <image class="category-banner__image" :src="getItemCover(img)" mode="aspectFill" />
-                  <view class="category-banner__copy" v-if="getItemTitle(img)">
-                    <text class="category-banner__title">{{ getItemTitle(img) }}</text>
-                    <text v-if="getItemSubtitle(img)" class="category-banner__subtitle">{{ getItemSubtitle(img) }}</text>
-                  </view>
-                </view>
-              </swiper-item>
-            </swiper>
-            <view class="category-banner__dots" v-if="modImages(mod).length > 1">
-              <view v-for="(dot, idx) in modImages(mod)" :key="getItemKey(dot)" :class="['category-banner__dot', { 'category-banner__dot--active': idx === bannerCurrent }]" />
-            </view>
-            <view v-else class="category-banner__single" @tap="handleBannerTap(modImages(mod)[0])">
-              <image class="category-banner__image" :src="getItemCover(modImages(mod)[0])" mode="aspectFill" />
-              <view class="category-banner__copy" v-if="getItemTitle(modImages(mod)[0])">
-                <text class="category-banner__title">{{ getItemTitle(modImages(mod)[0]) }}</text>
-                <text v-if="getItemSubtitle(modImages(mod)[0])" class="category-banner__subtitle">{{ getItemSubtitle(modImages(mod)[0]) }}</text>
-              </view>
-            </view>
-          </view>
-
-          <!-- FOUR_CARD_GRID -->
-          <view class="category-grid" v-if="isFourCardGridModule(mod) && modItems(mod).length">
-            <view v-if="mod.showTitle !== false" class="category-grid__header">
-              <text class="category-grid__header-title">{{ mod.title }}</text>
-              <text v-if="mod.subtitle" class="category-grid__header-subtitle">{{ mod.subtitle }}</text>
-            </view>
-            <view class="category-grid__items">
-              <view
-                v-for="item in modItems(mod)"
-                :key="getItemKey(item)"
-                class="category-grid__card"
-                @tap="handleGridTap(item)"
-              >
-                <image v-if="getItemCover(item)" class="category-grid__image" :src="getItemCover(item)" mode="aspectFill" />
-                <view class="category-grid__body">
-                  <text class="category-grid__name">{{ getItemTitle(item) }}</text>
-                  <text v-if="getItemSubtitle(item)" class="category-grid__subtitle">{{ getItemSubtitle(item) }}</text>
-                </view>
-              </view>
-            </view>
-          </view>
-        </template>
-      </view>
-
-      <view v-if="!contentSections.length && (topNavItems.length || filterItems.length)" class="category-status category-status--content">
-        <text class="category-status__text">暂无当前分类内容</text>
-      </view>
-
-      <!-- 空态 -->
-      <view v-if="!loading && !topNavItems.length && !filterItems.length && !contentSections.length" class="category-status">
-        <text class="category-status__text">暂无内容</text>
-      </view>
-    </template>
-
-    <!-- 底部导航 -->
     <home-tab-bar :tabs="bottomTabs" />
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
+import AppPageState from '../../components/app/app-page-state.vue';
 import HomeTabBar from '../../components/home/home-tab-bar.vue';
-import HomeModuleRenderer from '../../components/home-modules/HomeModuleRenderer.vue';
+import { addBasketItem, getIngredientBasketItemId } from '../../services/basket';
 import {
   getPageModules,
   type PageModule,
-  type PageModuleTopNavItem,
   type PageModuleCategoryFilterItem,
-  type HomeModule
+  type PageModuleTopNavItem
 } from '../../services/public-api';
 import type { HomeTab } from '../../types/home';
 
-// ====== 从接口提取数据的工具函数 ======
 type TopNavData = { activeKey: string; items: PageModuleTopNavItem[] };
 type FilterData = { activeKey: string; items: PageModuleCategoryFilterItem[] };
-
-const extractTopNavItems = (mods: PageModule[]): PageModuleTopNavItem[] =>
-  (mods.find(m => m.moduleType === 'top_nav')?.data as TopNavData | undefined)?.items ?? [];
-
-const extractFilterItems = (mods: PageModule[]): PageModuleCategoryFilterItem[] =>
-  (mods.find(m => m.moduleType === 'category_filter')?.data as FilterData | undefined)?.items ?? [];
-
-// ====== 内容模块提取（从 content_module moduleType） ======
 type ContentModuleData = {
   id: number;
-  navId: number;
   title: string;
-  subtitle: string | null;
   displayStyle: string;
   contentType: string;
-  contentSource: string;
   categoryId: number | null;
-  categoryName: string | null;
-  showTitle: boolean;
   sortOrder: number;
-  items: Array<Record<string, unknown>>;
+  status?: string;
+  items: CategoryItem[];
 };
-
-type ContentSection = {
-  key: string;
-  anchorId: string;
-  title: string;
-  modules: ContentModuleData[];
-};
-
-type TapTarget = Record<string, unknown> & {
-  link?: string | null;
-  targetType?: string | null;
-  targetId?: string | null;
-  jumpType?: string | null;
-  jumpTarget?: string | null;
-  type?: string | null;
+type CategoryItem = Record<string, unknown> & {
   id?: string | number;
+  type?: string | null;
+  title?: string | null;
+  name?: string | null;
+  cover?: string | null;
+  subtitle?: string | null;
+  description?: string | null;
+  duration?: string | null;
+  difficulty?: string | null;
+  seasonMonth?: string | null;
+  currentPrice?: number | null;
+  priceUnit?: string | null;
+};
+type CategorySection = {
+  key: string;
+  name: string;
+  filter: PageModuleCategoryFilterItem | null;
+  items: CategoryItem[];
+  loading: boolean;
+  error: string | null;
 };
 
-const extractContentModules = (mods: PageModule[]): ContentModuleData[] => {
-  const cm = mods.find(m => m.moduleType === 'content_module');
-  return (cm?.data as unknown as ContentModuleData[]) ?? [];
-};
-
-const isLargeImageModule = (mod: ContentModuleData) =>
-  mod.displayStyle === 'LARGE_IMAGE_CAROUSEL';
-
-const isFourCardGridModule = (mod: ContentModuleData) =>
-  mod.displayStyle === 'FOUR_CARD_GRID';
-
-const isLegacyContentModule = (mod: ContentModuleData) =>
-  ['HORIZONTAL_RECIPE_CARD', 'SEASONAL_INGREDIENT_CARD', 'IMAGE_TEXT_LIST', 'TWO_COLUMN_RECIPE_GRID'].includes(mod.displayStyle);
-
-const isSupportedContentModule = (mod: ContentModuleData) =>
-  isLegacyContentModule(mod) || isLargeImageModule(mod) || isFourCardGridModule(mod);
-
-const toHomeModuleList = (mod: ContentModuleData): HomeModule[] => [mod as unknown as HomeModule];
-
-const modImages = (mod: ContentModuleData): Array<Record<string, unknown>> =>
-  (mod.items ?? []).filter((item: Record<string, unknown>) => item.cover);
-
-const modItems = (mod: ContentModuleData): Array<Record<string, unknown>> =>
-  (mod.items ?? []).filter((item: Record<string, unknown>) => (item as { type?: string }).type !== 'system');
-
-const extractSearchConfig = (mods: PageModule[]): Record<string, unknown> | null =>
-  (mods.find(m => m.moduleType === 'search_bar')?.config as Record<string, unknown>) ?? null;
-
-const toText = (value: unknown) => (typeof value === 'string' ? value : '');
-const toNullableNumber = (value: unknown) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-const getItemKey = (item: Record<string, unknown>) => String(item.id ?? item.key ?? item.title ?? item.name ?? item.sortOrder ?? 'item');
-const getItemCover = (item: Record<string, unknown>) => toText(item.cover);
-const getItemTitle = (item: Record<string, unknown>) => toText(item.title) || toText(item.name);
-const getItemSubtitle = (item: Record<string, unknown>) => toText(item.subtitle) || toText(item.description);
-
-// ====== 状态 ======
 const modules = ref<PageModule[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const currentType = ref('recipe');
 const currentFilter = ref('recommend');
-const currentCategoryId = ref<number | undefined>(undefined);
-const bannerCurrent = ref(0);
+const currentCategoryId = ref<number | undefined>();
+const routeReady = ref(false);
+const contentScrollTop = ref(0);
+const contentScrollIntoView = ref('');
+const railScrollIntoView = ref('');
+const categorySections = ref<CategorySection[]>([]);
+const categoryStreamCandidates = ref<PageModuleCategoryFilterItem[]>([]);
+const categoryStreamLoading = ref(false);
+const categoryStreamComplete = ref(false);
+const failedImageIds = reactive(new Set<string>());
+const basketAddedIds = reactive(new Set<string>());
+let requestSequence = 0;
+let categoryStreamSequence = 0;
+let categoryScrollTimer: ReturnType<typeof setTimeout> | undefined;
 
-// ====== 派生数据 ======
-const topNavItems = computed(() => extractTopNavItems(modules.value));
-const filterItems = computed(() => extractFilterItems(modules.value));
-const contentModules = computed(() => extractContentModules(modules.value));
-const searchConfig = computed(() => extractSearchConfig(modules.value));
-const activeFilterKey = computed(() => currentFilter.value);
-const renderableContentModules = computed(() =>
-  contentModules.value
-    .filter((mod) => isSupportedContentModule(mod) && mod.items.length > 0)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-);
-const contentSections = computed<ContentSection[]>(() => {
-  if (!currentCategoryId.value) {
-    const recommendedModules = renderableContentModules.value.filter((mod) => !mod.categoryId);
-    return recommendedModules.length
-      ? [{ key: 'recommend', anchorId: 'section-recommend', title: '', modules: recommendedModules }]
-      : [];
-  }
-
-  const categoryModules = renderableContentModules.value.filter((mod) => mod.categoryId === currentCategoryId.value);
-
-  return categoryModules.length
-    ? [{
-        key: String(currentCategoryId.value),
-        anchorId: `section-category-${currentCategoryId.value}`,
-        title: '',
-        modules: categoryModules
-      }]
-    : [];
-});
-
-// ====== 底部导航 ======
-const bottomTabs = ref<HomeTab[]>([
+const bottomTabs: HomeTab[] = [
   { id: 'home', label: '首页', active: false },
   { id: 'categories', label: '分类', active: true },
-  { id: 'basket', label: '菜篮子', active: false },
+  { id: 'basket', label: '菜篮', active: false },
   { id: 'mine', label: '我的', active: false }
-]);
+];
 
-// ====== 数据加载 ======
+const extractTopNavItems = (mods: PageModule[]) =>
+  (mods.find((item) => item.moduleType === 'top_nav')?.data as TopNavData | undefined)?.items ?? [];
+
+const extractFilterItems = (mods: PageModule[]) =>
+  (mods.find((item) => item.moduleType === 'category_filter')?.data as FilterData | undefined)?.items ?? [];
+
+const extractCategoryFilterData = (mods: PageModule[]) =>
+  mods.find((item) => item.moduleType === 'category_filter')?.data as FilterData | undefined;
+
+const extractContentModules = (mods: PageModule[]) =>
+  ((mods.find((item) => item.moduleType === 'content_module')?.data as unknown as ContentModuleData[]) ?? []);
+
+const primaryOrder = ['菜谱', '食材', '水果', '饮品', '调料'];
+const normalizedPrimaryType = (item: PageModuleTopNavItem) =>
+  String(item.contentType ?? item.code ?? item.name).toLowerCase();
+const primaryLabel = (item: PageModuleTopNavItem) => {
+  const type = normalizedPrimaryType(item);
+  if (type.includes('recipe') || item.name.includes('菜谱')) return '菜谱';
+  if (type.includes('fruit') || item.name.includes('水果')) return '水果';
+  if (type.includes('beverage') || type.includes('drink') || /饮品|酒水/.test(item.name)) return '饮品';
+  if (type.includes('season') || item.name.includes('调料')) return '调料';
+  return '食材';
+};
+const primaryNavItems = computed(() =>
+  [...extractTopNavItems(modules.value)]
+    .sort((left, right) =>
+      primaryOrder.indexOf(primaryLabel(left)) - primaryOrder.indexOf(primaryLabel(right))
+    )
+    .slice(0, 5)
+);
+const secondaryItems = computed(() => extractFilterItems(modules.value));
+const activeFilterKey = computed(() => currentFilter.value);
+const activeSecondaryLabel = computed(
+  () => secondaryItems.value.find((item) => item.key === activeFilterKey.value)?.name ?? '全部'
+);
+const searchPlaceholder = computed(() => {
+  const config = modules.value.find((item) => item.moduleType === 'search_bar')?.config;
+  return typeof config?.placeholder === 'string'
+    ? config.placeholder.replace('酒水', '饮品')
+    : '搜索菜谱、食材、水果、饮品、调料';
+});
+const isRecipeType = computed(() => currentType.value.toLowerCase().includes('recipe'));
+const getItemLabel = (item: CategoryItem) => String(item.title ?? item.name ?? '').trim();
+const isRenderableContentItem = (item: CategoryItem) => {
+  const type = String(item.type ?? currentType.value).toLowerCase();
+  return Boolean(item.id && getItemLabel(item) && !/^\d+$/.test(getItemLabel(item)) && !['system', 'image'].includes(type));
+};
+const contentItems = computed(() =>
+  extractContentModules(modules.value)
+    .filter((module) => module.status !== 'DISABLED')
+    .filter((module) => !currentCategoryId.value || module.categoryId === currentCategoryId.value)
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .flatMap((module) => module.items ?? [])
+    .filter(isRenderableContentItem)
+);
+const isCategoryStream = computed(() => Boolean(currentCategoryId.value));
+const visibleContentSections = computed<CategorySection[]>(() => {
+  if (isCategoryStream.value) return categorySections.value;
+  return [{
+    key: 'recommend',
+    name: activeSecondaryLabel.value,
+    filter: null,
+    items: contentItems.value,
+    loading: false,
+    error: null
+  }];
+});
+
+const itemKey = (item: CategoryItem) => String(item.id ?? item.title ?? item.name ?? 'item');
+const itemTitle = (item: CategoryItem) => getItemLabel(item);
+const itemCover = (item: CategoryItem) => {
+  const record = item as CategoryItem & { displayImage?: unknown; transparentImage?: unknown };
+  if (typeof record.displayImage === 'string' && record.displayImage) return record.displayImage;
+  if (typeof record.transparentImage === 'string' && record.transparentImage) return record.transparentImage;
+  return typeof item.cover === 'string' ? item.cover : '';
+};
+const itemDescription = (item: CategoryItem) => String(item.subtitle ?? item.description ?? '');
+const itemSeason = (item: CategoryItem) => {
+  const season = (item as CategoryItem & { season?: { label?: unknown } }).season;
+  return typeof season?.label === 'string' ? season.label : String(item.seasonMonth ?? '');
+};
+const itemInitial = (item: CategoryItem) => itemTitle(item).trim().slice(0, 1);
+const hasUsableCover = (item: CategoryItem) => Boolean(itemCover(item) && !failedImageIds.has(itemKey(item)));
+const markImageFailed = (item: CategoryItem) => failedImageIds.add(itemKey(item));
+const itemMeta = (item: CategoryItem) => {
+  if (isRecipeType.value) {
+    return [item.duration, item.difficulty].filter(Boolean).join(' · ') || '查看做法';
+  }
+  if (typeof item.currentPrice === 'number') {
+    const unit = item.priceUnit ? `/${String(item.priceUnit).replace('500g', '斤')}` : '/斤';
+    return `约 ¥${item.currentPrice}${unit}`;
+  }
+  return itemDescription(item) || '查看详情';
+};
+const canAddToBasket = (item: CategoryItem) =>
+  item.type !== 'image' && Boolean(item.id);
+
+const topNavType = (item: PageModuleTopNavItem) => normalizedPrimaryType(item);
+const isPrimaryActive = (item: PageModuleTopNavItem) => topNavType(item) === currentType.value;
+const resetContentScroll = () => {
+  contentScrollIntoView.value = '';
+  contentScrollTop.value = 0;
+};
+const handleContentScroll = (event: { detail: { scrollTop: number } }) => {
+  contentScrollTop.value = event.detail.scrollTop;
+  if (!isCategoryStream.value) return;
+  if (categoryScrollTimer) clearTimeout(categoryScrollTimer);
+  categoryScrollTimer = setTimeout(updateActiveCategoryFromViewport, 80);
+};
+
+const sectionElementId = (key: string) => `category-section-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+const railItemId = (item: PageModuleCategoryFilterItem) => `category-rail-${item.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+const categoryItemsFromModules = (mods: PageModule[], categoryId?: number) =>
+  extractContentModules(mods)
+    .filter((module) => module.status !== 'DISABLED')
+    .filter((module) => !categoryId || module.categoryId === categoryId)
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .flatMap((module) => module.items ?? [])
+    .filter(isRenderableContentItem);
+
+const syncActiveCategory = (item: PageModuleCategoryFilterItem) => {
+  currentFilter.value = item.key;
+  currentCategoryId.value = item.categoryId;
+  railScrollIntoView.value = railItemId(item);
+};
+
+const jumpToCategorySection = async (item: PageModuleCategoryFilterItem) => {
+  syncActiveCategory(item);
+  contentScrollIntoView.value = '';
+  await nextTick();
+  contentScrollIntoView.value = sectionElementId(item.key);
+};
+
+const fetchCategorySectionItems = async (item: PageModuleCategoryFilterItem) => {
+  const result = await getPageModules({
+    page: 'category',
+    type: currentType.value,
+    filter: item.key,
+    categoryId: item.categoryId
+  });
+  return categoryItemsFromModules(result, item.categoryId);
+};
+
+const loadNextCategorySection = async () => {
+  if (!isCategoryStream.value || categoryStreamLoading.value || categoryStreamComplete.value) return;
+  const nextFilter = categoryStreamCandidates.value[categorySections.value.length];
+  if (!nextFilter) {
+    categoryStreamComplete.value = true;
+    return;
+  }
+
+  const streamSequence = categoryStreamSequence;
+  const section: CategorySection = {
+    key: nextFilter.key,
+    name: nextFilter.name,
+    filter: nextFilter,
+    items: [],
+    loading: true,
+    error: null
+  };
+  categorySections.value.push(section);
+  categoryStreamLoading.value = true;
+  try {
+    const items = await fetchCategorySectionItems(nextFilter);
+    if (streamSequence !== categoryStreamSequence) return;
+    section.items = items;
+  } catch (reason) {
+    if (streamSequence !== categoryStreamSequence) return;
+    section.error = reason instanceof Error ? reason.message : `${nextFilter.name}加载失败`;
+  } finally {
+    if (streamSequence === categoryStreamSequence) {
+      section.loading = false;
+      categoryStreamLoading.value = false;
+      categoryStreamComplete.value = categorySections.value.length >= categoryStreamCandidates.value.length;
+    }
+  }
+};
+
+const startCategoryStream = async (item: PageModuleCategoryFilterItem, initialItems?: CategoryItem[]) => {
+  categoryStreamSequence += 1;
+  const categories = secondaryItems.value.filter((candidate) => candidate.type === 'category');
+  const startIndex = categories.findIndex((candidate) => candidate.key === item.key);
+  categoryStreamCandidates.value = startIndex >= 0 ? categories.slice(startIndex) : [item];
+  categorySections.value = [];
+  categoryStreamComplete.value = false;
+  categoryStreamLoading.value = false;
+  syncActiveCategory(item);
+  resetContentScroll();
+
+  if (initialItems) {
+    categorySections.value.push({
+      key: item.key,
+      name: item.name,
+      filter: item,
+      items: initialItems,
+      loading: false,
+      error: null
+    });
+  } else {
+    await loadNextCategorySection();
+  }
+  if (!categoryStreamComplete.value) void loadNextCategorySection();
+};
+
+const retryCategorySection = async (key: string) => {
+  const section = categorySections.value.find((candidate) => candidate.key === key);
+  if (!section?.filter || section.loading) return;
+  section.loading = true;
+  section.error = null;
+  try {
+    section.items = await fetchCategorySectionItems(section.filter);
+  } catch (reason) {
+    section.error = reason instanceof Error ? reason.message : `${section.name}加载失败`;
+  } finally {
+    section.loading = false;
+  }
+};
+
+const updateActiveCategoryFromViewport = () => {
+  if (!isCategoryStream.value || !categorySections.value.length) return;
+  const query = uni.createSelectorQuery();
+  query.select('.category-content-pane').boundingClientRect();
+  query.selectAll('.category-content-section').boundingClientRect();
+  query.exec((result: Array<{ top?: number } | Array<{ top?: number; id?: string }>>) => {
+    const pane = result[0] as { top?: number } | undefined;
+    const sections = result[1] as Array<{ top?: number; id?: string }> | undefined;
+    if (!pane || !sections?.length) return;
+    const anchor = Number(pane.top ?? 0) + 20;
+    let activeIndex = 0;
+    sections.forEach((rect, index) => {
+      if (Number(rect.top ?? Infinity) <= anchor) activeIndex = index;
+    });
+    const active = categorySections.value[activeIndex]?.filter;
+    if (active && active.key !== currentFilter.value) syncActiveCategory(active);
+  });
+};
+
 const fetchModules = async () => {
+  const sequence = ++requestSequence;
   loading.value = true;
   error.value = null;
   try {
-    const params: Record<string, string | number> = {
+    const params: { page: string; type: string; filter: string; categoryId?: number } = {
       page: 'category',
       type: currentType.value,
       filter: currentFilter.value
     };
-    if (currentCategoryId.value) {
-      params.categoryId = currentCategoryId.value;
+    if (currentCategoryId.value) params.categoryId = currentCategoryId.value;
+    const result = await getPageModules(params);
+    if (sequence === requestSequence) {
+      modules.value = result;
+      const activeFilter = extractCategoryFilterData(result)?.activeKey;
+      if (currentCategoryId.value && activeFilter) currentFilter.value = activeFilter;
+      if (currentCategoryId.value) {
+        const activeCategory = extractFilterItems(result).find((item) =>
+          item.type === 'category' && (item.categoryId === currentCategoryId.value || item.key === currentFilter.value)
+        );
+        if (activeCategory) {
+          await startCategoryStream(activeCategory, categoryItemsFromModules(result, activeCategory.categoryId));
+        }
+      }
     }
-    const result = await getPageModules(params as { page?: string; type?: string; filter?: string; categoryId?: number });
-    modules.value = result;
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败';
+  } catch (reason) {
+    if (sequence !== requestSequence) return;
     modules.value = [];
+    error.value = reason instanceof Error ? reason.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (sequence === requestSequence) loading.value = false;
     uni.stopPullDownRefresh();
   }
 };
 
-// ====== 顶部导航点击 ======
 const handleTopNavTap = (item: PageModuleTopNavItem) => {
-  const nextType = item.contentType ?? item.name;
+  const nextType = topNavType(item);
   if (nextType === currentType.value) return;
   currentType.value = nextType;
   currentFilter.value = 'recommend';
   currentCategoryId.value = undefined;
+  categoryStreamSequence += 1;
+  categorySections.value = [];
+  categoryStreamCandidates.value = [];
+  categoryStreamComplete.value = false;
+  resetContentScroll();
   void fetchModules();
 };
 
-// ====== 分类筛选点击 ======
 const handleFilterTap = (item: PageModuleCategoryFilterItem) => {
-  currentFilter.value = item.type === 'system' ? 'recommend' : item.key;
-  currentCategoryId.value = item.type === 'category' ? item.categoryId : undefined;
-  void fetchModules();
-};
-
-// ====== Banner 切换 ======
-const handleBannerSwiperChange = (e: { detail: { current: number } }) => {
-  bannerCurrent.value = e.detail.current;
-};
-
-// ====== Banner 点击 ======
-const handleBannerTap = (banner: TapTarget) => {
-  const link = banner.link ?? (banner.jumpType === 'EXTERNAL_LINK' ? banner.jumpTarget : null);
-  if (typeof link === 'string' && link) {
-    if (link.startsWith('/pages/')) {
-      uni.navigateTo({ url: link });
-      return;
-    }
-    uni.navigateTo({ url: `/pages/recommendations/index?url=${encodeURIComponent(link)}` });
+  if (item.type === 'system') {
+    currentFilter.value = 'recommend';
+    currentCategoryId.value = undefined;
+    categoryStreamSequence += 1;
+    categorySections.value = [];
+    categoryStreamCandidates.value = [];
+    categoryStreamComplete.value = false;
+    resetContentScroll();
+    void fetchModules();
     return;
   }
 
-  const targetType = banner.targetType ?? banner.jumpType;
-  const targetId = banner.targetId ?? banner.jumpTarget ?? banner.id;
-  if ((targetType === 'RECIPE' || banner.type === 'recipe') && targetId) {
-    uni.navigateTo({ url: `/pages/recipe-detail/index?id=${targetId}` });
-  } else if ((targetType === 'INGREDIENT' || banner.type === 'ingredient') && targetId) {
-    uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${targetId}` });
-  } else if ((targetType === 'BEVERAGE' || banner.type === 'beverage') && targetId) {
-    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${targetId}` });
-  } else if ((targetType === 'CONTENT_DETAIL') && targetId) {
-    const type = toText(banner.type);
-    if (type === 'beverage') {
-      uni.navigateTo({ url: `/pages/beverage-detail/index?id=${targetId}` });
-    } else {
-      uni.navigateTo({ url: type === 'recipe' ? `/pages/recipe-detail/index?id=${targetId}` : `/pages/ingredient-detail/index?id=${targetId}` });
-    }
-  } else if ((targetType === 'CATEGORY' || targetType === 'CATEGORY_PAGE') && targetId) {
-    const categoryId = toNullableNumber(targetId);
-    const item = filterItems.value.find((filter) => filter.categoryId === categoryId);
-    if (item) handleFilterTap(item);
-  } else if (targetType === 'BASKET') {
-    uni.switchTab({ url: '/pages/basket/index' });
+  if (categorySections.value.some((section) => section.key === item.key)) {
+    void jumpToCategorySection(item);
+    return;
+  }
+  void startCategoryStream(item);
+};
+
+const handleSearchTap = () => uni.navigateTo({ url: '/pages/search/index' });
+
+const openItem = (item: CategoryItem) => {
+  const id = itemKey(item);
+  const type = String(item.type ?? currentType.value).toLowerCase();
+  if (type.includes('recipe')) {
+    uni.navigateTo({ url: `/pages/recipe-detail/index?id=${id}` });
+  } else if (type.includes('beverage') || type.includes('drink')) {
+    uni.navigateTo({ url: `/pages/beverage-detail/index?id=${id}` });
+  } else if (type.includes('fruit')) {
+    uni.navigateTo({ url: `/pages/fruit-detail/index?id=${id}` });
+  } else if (type.includes('season')) {
+    uni.navigateTo({ url: `/pages/seasoning-detail/index?id=${id}` });
+  } else {
+    uni.navigateTo({ url: `/pages/ingredient-detail/index?id=${id}` });
   }
 };
 
-// ====== 四宫格点击 ======
-const handleGridTap = (item: Record<string, unknown>) => {
-  handleBannerTap(item as TapTarget);
+const addItemToBasket = async (item: CategoryItem) => {
+  const key = itemKey(item);
+  if (basketAddedIds.has(key)) {
+    uni.showToast({ title: '已在菜篮中', icon: 'none' });
+    return;
+  }
+  try {
+    const recipe = isRecipeType.value;
+    await addBasketItem({
+      id: recipe ? `recipe-${key}` : getIngredientBasketItemId(key),
+      recipeId: recipe ? key : 'ingredient',
+      recipeName: recipe ? itemTitle(item) : '单独添加',
+      name: itemTitle(item),
+      amountText: '适量',
+      checked: false,
+      ingredientId: recipe ? undefined : key
+    });
+    basketAddedIds.add(key);
+    uni.showToast({ title: '已加入菜篮', icon: 'success' });
+  } catch (reason) {
+    uni.showToast({ title: reason instanceof Error ? reason.message : '加入失败', icon: 'none' });
+  }
 };
 
-// ====== 搜索 ======
-const handleSearchTap = () => {
-  uni.navigateTo({ url: '/pages/search/index' });
-};
-
-// ====== 生命周期 ======
-onMounted(() => {
+const initializeRoute = (query?: Record<string, string | undefined>) => {
+  if (routeReady.value) return;
+  if (query?.type) currentType.value = query.type;
+  if (query?.filter) currentFilter.value = query.filter;
+  const categoryId = Number(query?.categoryId);
+  if (Number.isFinite(categoryId)) currentCategoryId.value = categoryId;
+  routeReady.value = true;
   void fetchModules();
+};
+
+const parseH5RouteQuery = (): Record<string, string> => {
+  if (typeof window === 'undefined') return {};
+  const queryString = window.location.hash.split('?')[1] ?? '';
+  return Object.fromEntries(new URLSearchParams(queryString));
+};
+
+onLoad((query?: Record<string, string | undefined>) => {
+  initializeRoute(query);
+});
+
+onMounted(() => {
+  if (routeReady.value) return;
+  initializeRoute(parseH5RouteQuery());
 });
 
 onShow(() => {
+  if (!routeReady.value || !modules.value.length) return;
+  if (isCategoryStream.value && categorySections.value.length) return;
   void fetchModules();
 });
 
 onPullDownRefresh(() => {
+  if (isCategoryStream.value) {
+    const active = secondaryItems.value.find((item) => item.key === currentFilter.value);
+    if (active) {
+      void startCategoryStream(active).finally(() => uni.stopPullDownRefresh());
+      return;
+    }
+  }
   void fetchModules();
 });
 </script>
 
 <style scoped lang="scss">
 .category-page {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--app-bg);
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
 }
 
-// ====== 搜索框 ======
-.category-search {
-  padding: 36rpx 24rpx 16rpx;
-}
-
-.category-search__bar {
-  display: flex;
-  align-items: center;
-  height: 92rpx;
-  padding: 0 36rpx;
-  border-radius: 46rpx;
-  background: rgba(255, 253, 252, 0.82);
-  border: 1px solid rgba(183, 174, 161, 0.24);
-}
-
-.category-search__icon {
-  margin-right: 16rpx;
-  color: var(--text-placeholder);
-}
-
-.category-search__placeholder {
-  color: var(--text-placeholder);
-  font-size: var(--font-size-body-sm);
-  line-height: var(--line-tabbar);
-}
-
-// ====== 顶部导航 ======
-.category-topnav {
-  padding: 0 24rpx;
-}
-
-.category-topnav__scroll {
-  white-space: nowrap;
-}
-
-.category-topnav__row {
-  display: flex;
-  align-items: center;
-  gap: 36rpx;
-  width: max-content;
-  min-width: 100%;
-  padding: 8rpx 0 16rpx;
-}
-
-.category-topnav__tab {
-  display: flex;
-  align-items: center;
+.category-header {
+  position: relative;
+  z-index: 2;
   flex: 0 0 auto;
-  padding-bottom: 8rpx;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-medium);
-  line-height: var(--line-tabbar);
-  white-space: nowrap;
-  transition: color 180ms ease;
+  padding: calc(var(--app-safe-area-top) + 10px) 20px 0;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-bg);
 }
 
-.category-topnav__tab--active {
+.category-search {
+  display: flex;
+  width: 100%;
+  height: 46px;
+  margin: 0;
+  padding: 0 14px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(183, 174, 161, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 253, 252, 0.72);
+  color: var(--text-tertiary);
+  text-align: left;
+}
+
+.category-search::after,
+.category-primary-nav__item::after,
+.category-secondary-rail__item::after,
+.category-basket-button::after {
+  border: 0;
+}
+
+.category-search text {
+  overflow: hidden;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-primary-nav {
+  display: grid;
+  margin: 14px -20px 0;
+  padding: 0 20px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.category-primary-nav__item {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 52px;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-medium);
+  line-height: var(--line-list-title);
+  white-space: nowrap;
+}
+
+.category-primary-nav__item.is-active {
   color: var(--text-brand);
   font-weight: var(--font-semibold);
-  border-bottom: 4rpx solid var(--text-brand);
 }
 
-// ====== 状态 ======
-.category-status {
+.category-primary-nav__item.is-active::before {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  right: 20px;
+  left: 20px;
+  width: auto;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--text-brand);
+  content: '';
+  transform: none;
+}
+
+.category-workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: 96px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.category-secondary-rail,
+.category-content-pane {
+  height: 100%;
+  min-height: 0;
+}
+
+.category-secondary-rail {
+  border-right: 1px solid var(--app-border);
+  background: rgba(239, 235, 227, 0.66);
+}
+
+.category-secondary-rail__inner {
   display: flex;
+  padding: 12px 0 112px;
   flex-direction: column;
+}
+
+.category-secondary-rail__item {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 6px;
   align-items: center;
   justify-content: center;
-  min-height: 40vh;
-  padding: 48rpx 32rpx;
-}
-
-.category-status__text {
-  color: var(--text-placeholder);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-caption);
-}
-
-.category-status__text--error {
-  color: var(--app-danger);
-}
-
-.category-status__retry {
-  margin-top: 24rpx;
-  padding: 16rpx 40rpx;
-  border-radius: 28rpx;
-  background: var(--text-brand);
-  color: var(--text-white);
-  font-size: var(--font-size-caption);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-body-sm);
   font-weight: var(--font-medium);
+  line-height: var(--line-body-sm);
+  text-align: center;
 }
 
-// ====== 分类筛选 ======
-.category-filter {
-  padding: 14rpx 24rpx 20rpx;
+.category-secondary-rail__item.is-active {
+  background: rgba(122, 139, 111, 0.075);
+  color: var(--text-brand);
+  font-weight: var(--font-semibold);
 }
 
-.category-filter__scroll {
-  white-space: nowrap;
+.category-content-pane {
+  min-width: 0;
 }
 
-.category-filter__row {
+.category-content-pane__inner {
+  padding: 10px 12px 118px;
+}
+
+.category-content-pane__summary {
   display: flex;
+  min-height: 40px;
+  padding: 10px 0 5px;
   align-items: center;
-  gap: 16rpx;
-  width: max-content;
-  min-width: 100%;
-}
-
-.category-filter__chip {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  height: 56rpx;
-  padding: 0 24rpx;
-  border-radius: 28rpx;
-  background: var(--app-surface-strong);
-  border: 1px solid var(--app-border);
+  justify-content: space-between;
   color: var(--text-tertiary);
   font-size: var(--font-size-caption);
   font-weight: var(--font-medium);
-  line-height: var(--line-tabbar);
-  white-space: nowrap;
-  transition: all 180ms ease;
+  line-height: var(--line-caption);
 }
 
-.category-filter__chip--active {
-  background: var(--text-brand);
-  border-color: var(--text-brand);
-  color: var(--text-white);
+.category-content-section + .category-content-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--app-border);
 }
 
-// ====== 内容分组 ======
-.category-section {
-  scroll-margin-top: 24rpx;
-}
-
-.category-section__header {
-  padding: 24rpx 24rpx 4rpx;
-}
-
-.category-section__title {
+.category-content-section__heading {
+  display: flex;
+  min-height: 40px;
+  padding: 7px 0 9px;
+  align-items: center;
+  justify-content: space-between;
   color: var(--text-primary);
-  font-size: var(--font-size-section-title);
+  font-size: var(--font-size-list-title);
   font-weight: var(--font-semibold);
-  line-height: var(--line-section-title);
+  line-height: var(--line-list-title);
 }
 
-// ====== 大矩形图片模块 ======
-.category-banner {
-  margin: 20rpx 24rpx 24rpx;
-  position: relative;
+.category-content-section__heading text:last-child {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-regular);
+  line-height: var(--line-tag);
 }
 
-.category-banner__header {
-  margin-bottom: 16rpx;
-  padding: 0;
-}
-
-.category-banner__header-title {
-  color: var(--text-primary);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-section-title);
-}
-
-.category-banner__header-subtitle {
-  display: block;
-  margin-top: 6rpx;
-  color: var(--text-placeholder);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-}
-
-.category-banner__swiper {
-  width: 100%;
-  height: 248rpx;
-  border-radius: 32rpx;
-  overflow: hidden;
-}
-
-.category-banner__single {
-  width: 100%;
-  height: 248rpx;
-  border-radius: 32rpx;
-  overflow: hidden;
-  position: relative;
-}
-
-.category-banner__item {
-  position: relative;
-  width: 100%;
-  height: 248rpx;
-}
-
-.category-banner__image {
-  width: 100%;
-  height: 248rpx;
-}
-
-.category-banner__dots {
-  position: absolute;
-  bottom: 16rpx;
-  left: 50%;
-  transform: translateX(-50%);
+.category-content-section__state,
+.category-stream-status {
   display: flex;
-  gap: 10rpx;
-  z-index: 5;
-}
-
-.category-banner__dot {
-  width: 10rpx;
-  height: 10rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.45);
-  transition: all 200ms ease;
-}
-
-.category-banner__dot--active {
-  background: #fff;
-  width: 20rpx;
-  border-radius: 5rpx;
-}
-
-.category-banner__copy {
-  position: absolute;
-  left: 28rpx;
-  right: 28rpx;
-  bottom: 28rpx;
-  display: flex;
-  flex-direction: column;
-  z-index: 3;
-}
-
-.category-banner__title {
-  color: var(--text-white);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-section-title);
-  text-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.22);
-}
-
-.category-banner__subtitle {
-  margin-top: 10rpx;
-  color: rgba(255, 253, 252, 0.88);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-  text-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.16);
-}
-
-// ====== 四宫格模块 ======
-.category-grid {
-  padding: 8rpx 24rpx 32rpx;
-}
-
-.category-grid__header {
-  margin-bottom: 16rpx;
-}
-
-.category-grid__header-title {
-  color: var(--text-primary);
-  font-size: var(--font-size-section-title);
-  font-weight: var(--font-semibold);
-  line-height: var(--line-section-title);
-}
-
-.category-grid__header-subtitle {
-  display: block;
-  margin-top: 6rpx;
-  color: var(--text-placeholder);
-  font-size: var(--font-size-caption);
-  line-height: var(--line-body-sm);
-}
-
-.category-grid__items {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16rpx;
-}
-
-.category-grid__card {
-  display: flex;
-  flex-direction: column;
-  min-height: 188rpx;
-  overflow: hidden;
-  border-radius: 24rpx;
-  background: var(--app-surface-strong);
-  border: 1px solid var(--app-border);
-  transition: opacity 150ms ease;
-}
-
-.category-grid__card:active {
-  opacity: 0.7;
-}
-
-.category-grid__image {
-  width: 100%;
-  height: 92rpx;
-  background: var(--app-surface);
-}
-
-.category-grid__body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  min-height: 88px;
+  padding: 18px 10px;
+  align-items: center;
   justify-content: center;
-  width: 100%;
-  min-width: 0;
-  padding: 12rpx 10rpx;
-}
-
-.category-grid__name {
-  color: var(--text-primary);
+  color: var(--text-tertiary);
   font-size: var(--font-size-caption);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-regular);
   line-height: var(--line-caption);
   text-align: center;
+}
+
+.category-content-section__state.is-error {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.category-content-section__state button {
+  min-width: 76px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-surface-strong);
+  color: var(--text-brand);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-caption);
+}
+
+.category-content-section__state button::after {
+  border: 0;
+}
+
+.category-stream-status {
+  min-height: 64px;
+}
+
+.category-result-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 10px;
+}
+
+.category-result-list.is-recipe {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.category-content-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
   overflow: hidden;
+  border-radius: 14px;
+  background: var(--app-surface-strong);
+}
+
+.category-content-card--recipe {
+  display: grid;
+  min-height: 108px;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.category-content-card__media {
+  position: relative;
+  display: flex;
+  width: 100%;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--app-muted);
+}
+
+.category-content-card--recipe .category-content-card__media {
+  width: 84px;
+  height: 84px;
+  border-radius: 12px;
+}
+
+.category-content-card__image {
+  width: 100%;
+  height: 100%;
+}
+
+.category-content-card__fallback {
+  color: var(--text-brand);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-card-title);
+}
+
+.category-content-card__body {
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  padding: 10px 10px 11px;
+  flex-direction: column;
+}
+
+.category-content-card--recipe .category-content-card__body {
+  min-height: 108px;
+  padding: 12px 0 12px 11px;
+  justify-content: center;
+}
+
+.category-content-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.category-content-card__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-card-title);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.category-grid__subtitle {
-  display: block;
-  margin-top: 4rpx;
-  color: var(--text-placeholder);
-  font-size: var(--font-size-tabbar);
+.category-content-card__season {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
   font-weight: var(--font-regular);
-  line-height: var(--line-tabbar);
-  text-align: center;
+  line-height: var(--line-tag);
+}
+
+.category-content-card__description {
+  display: -webkit-box;
+  margin-top: 2px;
   overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-regular);
+  line-height: var(--line-caption);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.category-content-card__footer {
+  display: flex;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.category-content-card__meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-regular);
+  line-height: var(--line-tag);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.category-basket-button {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: -8px -4px -8px 0;
+  padding: 0;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-brand);
+}
+
+.category-basket-button.is-added {
+  background: rgba(122, 139, 111, 0.12);
+}
+
+@media (max-width: 374px) {
+  .category-header {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .category-workspace {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .category-content-pane {
+    padding: 0;
+  }
+
+  .category-content-pane__inner {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .category-content-card--recipe {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .category-content-card--recipe .category-content-card__media {
+    width: 78px;
+    height: 78px;
+  }
+}
+
+@media (min-width: 430px) {
+  .category-page {
+    max-width: 430px;
+    margin: 0 auto;
+  }
 }
 </style>

@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 import { CategoryType, PrismaClient, TagScope, type Prisma } from '@prisma/client';
 import { createBusinessId, formatCode, type BusinessKind } from '../src/lib/business-id';
+import { ADMIN_PERMISSION_CATALOG, SYSTEM_ROLE_PRESETS } from '../src/security/admin-permissions';
 
 const url = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/chufangapp?schema=public';
 const prisma = new PrismaClient({
@@ -10,14 +11,7 @@ const prisma = new PrismaClient({
 });
 
 const adminPassword = 'admin123';
-
-const ensureRole = async (data: Prisma.RoleCreateInput) => {
-  return prisma.role.upsert({
-    where: { name: data.name },
-    create: data,
-    update: {}
-  });
-};
+const mobileAcceptancePassword = 'user12345';
 
 const ensureAdmin = async (username: string, password: string, nickname: string) => {
   const passwordHash = await bcrypt.hash(password, 10);
@@ -62,13 +56,85 @@ const replaceByTitle = async <T>(
 };
 
 const main = async () => {
-  const superAdminRole = await ensureRole({ name: 'SUPER_ADMIN', description: 'Super admin' });
+  const mobileAcceptancePasswordHash = await bcrypt.hash(mobileAcceptancePassword, 10);
+  const permissionByKey = new Map<string, { id: number }>();
+  for (const item of ADMIN_PERMISSION_CATALOG) {
+    const permission = await prisma.permission.upsert({
+      where: { key: item.key },
+      create: {
+        key: item.key,
+        name: item.name,
+        module: item.module,
+        action: item.action,
+        description: `${item.moduleName} · ${item.name}`,
+        sort: item.sort,
+        status: 'ACTIVE'
+      },
+      update: {
+        name: item.name,
+        module: item.module,
+        action: item.action,
+        description: `${item.moduleName} · ${item.name}`,
+        sort: item.sort,
+        status: 'ACTIVE',
+        deletedAt: null
+      },
+      select: { id: true }
+    });
+    permissionByKey.set(item.key, permission);
+  }
+
+  const systemRoles = new Map<string, { id: number }>();
+  for (const preset of SYSTEM_ROLE_PRESETS) {
+    const role = await prisma.role.upsert({
+      where: { code: preset.code },
+      create: {
+        code: preset.code,
+        name: preset.name,
+        description: preset.description,
+        isSystem: true,
+        status: 'ACTIVE'
+      },
+      update: {
+        name: preset.name,
+        description: preset.description,
+        isSystem: true,
+        status: 'ACTIVE',
+        deletedAt: null
+      },
+      select: { id: true }
+    });
+    systemRoles.set(preset.code, role);
+
+    if (preset.code !== 'SUPER_ADMIN') {
+      const selectedIds = preset.permissions.map((key) => permissionByKey.get(key)?.id).filter((id): id is number => typeof id === 'number');
+      await prisma.rolePermission.updateMany({
+        where: { roleId: role.id, permissionId: { notIn: selectedIds }, deletedAt: null },
+        data: { status: 'DISABLED', deletedAt: new Date() }
+      });
+      for (const permissionId of selectedIds) {
+        await prisma.rolePermission.upsert({
+          where: { roleId_permissionId: { roleId: role.id, permissionId } },
+          create: { roleId: role.id, permissionId, status: 'ACTIVE' },
+          update: { status: 'ACTIVE', deletedAt: null }
+        });
+      }
+    }
+  }
+
+  const superAdminRole = systemRoles.get('SUPER_ADMIN');
+  if (!superAdminRole) throw new Error('SUPER_ADMIN role seed failed');
   const admin = await ensureAdmin('admin', adminPassword, '管理员');
+
+  await prisma.adminRole.updateMany({
+    where: { adminId: admin.id, roleId: { not: superAdminRole.id }, deletedAt: null },
+    data: { status: 'DISABLED', deletedAt: new Date() }
+  });
 
   await prisma.adminRole.upsert({
     where: { adminId_roleId: { adminId: admin.id, roleId: superAdminRole.id } },
     create: { adminId: admin.id, roleId: superAdminRole.id },
-    update: {}
+    update: { status: 'ACTIVE', deletedAt: null }
   });
 
   const ingredientCategory = await ensureCategory('INGREDIENT', '蔬菜', 100);
@@ -76,27 +142,24 @@ const main = async () => {
 
   // ====== 分类页默认分类数据 ======
   // 菜谱分类
-  const recipeCategoryNames = ['家常菜', '快手菜', '下饭菜', '汤羹', '早餐', '宴客菜'];
+  const recipeCategoryNames = ['家常菜', '素菜', '凉菜', '汤羹', '主食', '早餐', '烘焙甜点'];
   for (const [index, name] of recipeCategoryNames.entries()) await ensureCategory('RECIPE', name, 100 - index);
 
   // 食材分类
-  const ingredientCategoryNames = ['蔬菜', '肉禽蛋', '水产海鲜', '豆制品', '主食米面', '干货菌菇', '半成品'];
+  const ingredientCategoryNames = ['蔬菜', '菌菇', '豆制品', '肉禽蛋', '水产海鲜', '主食粮油', '干货', '奶制品', '半成品'];
   for (const [index, name] of ingredientCategoryNames.entries()) await ensureCategory('INGREDIENT', name, 100 - index);
 
   // 水果分类
-  const fruitCategoryNames = ['时令水果', '热带水果', '柑橘类', '浆果类', '瓜果类', '核果类', '仁果类'];
+  const fruitCategoryNames = ['苹果类', '梨类', '桃类', '李杏梅樱桃类', '柑橘类', '葡萄类', '浆果及猕猴桃类', '瓜果类', '香蕉芒果类', '热带水果', '亚热带及特色水果'];
   for (const [index, name] of fruitCategoryNames.entries()) await ensureCategory('FRUIT', name, 100 - index);
 
   // 调料分类
-  const seasoningCategoryNames = ['基础调味', '酱料', '香辛料', '复合调味', '腌制调料', '烘焙调料'];
+  const seasoningCategoryNames = ['盐类', '糖与甜味剂', '酱油与咸鲜液体调味', '醋类', '中式酱料与发酵调味', '基础香辛料', '辣椒与辣味香辛料', '香草与芳香叶', '复合香辛料', '鲜味与汤料', '食用油与动物油脂', '烹调酒与酒味调料', '西式与国际酱料', '日韩调味', '东南亚与南亚调味', '烘焙与甜点调味', '火锅与复合底料', '腌渍与调味配料'];
   for (const [index, name] of seasoningCategoryNames.entries()) await ensureCategory('SEASONING', name, 100 - index);
 
   // 酒水分类
-  const beverageCategoryNames = ['白酒', '红酒', '啤酒', '鸡尾酒', '茶饮', '果汁', '咖啡', '乳饮', '调制饮品', '自制饮品', '其他'];
+  const beverageCategoryNames = ['茶饮', '咖啡', '果蔬饮', '乳饮', '调制饮品', '自制饮品', '酒类'];
   for (const [index, name] of beverageCategoryNames.entries()) await ensureCategory('BEVERAGE', name, 100 - index);
-
-  // 保留旧的通用分类（向后兼容）
-  await ensureCategory('INGREDIENT', '应季食材', 50);
 
   // 酒水主分类（用于seed后续beverage数据关联）
   const beverageCategory = await ensureCategory('BEVERAGE', '茶饮', 100);
@@ -294,8 +357,8 @@ const main = async () => {
     }),
     await prisma.user.upsert({
       where: { phone: '13956785678' },
-      create: { ...(await identityFor('user', () => prisma.user.findMany({ select: { code: true } }))), phone: '13956785678', nickname: '张三', avatar: null, gender: 'male', sourceType: 'USER' },
-      update: { nickname: '张三', gender: 'male' }
+      create: { ...(await identityFor('user', () => prisma.user.findMany({ select: { code: true } }))), phone: '13956785678', nickname: '张三', avatar: null, gender: 'male', passwordHash: mobileAcceptancePasswordHash, sourceType: 'USER' },
+      update: { nickname: '张三', gender: 'male', passwordHash: mobileAcceptancePasswordHash }
     }),
     await prisma.user.upsert({
       where: { phone: '13724682468' },
@@ -704,7 +767,9 @@ const main = async () => {
   });
 
   await prisma.favorite.deleteMany({ where: { userId: user.id, recipeId: recipe.id } });
-  await prisma.favorite.create({ data: { userId: user.id, recipeId: recipe.id } });
+  await prisma.favorite.create({
+    data: { userId: user.id, recipeId: recipe.id, targetType: 'RECIPE', targetId: String(recipe.id) }
+  });
 
   // ====== 资源接口管理表初始化数据 ======
   console.log('Seeding resource apps...');

@@ -15,7 +15,12 @@
     <view class="action-card glass-card">
       <button class="primary-button" @tap="goToPhoneLogin">账号密码登录</button>
       <button class="secondary-button" @tap="goToRegister">注册新账号</button>
-      <text class="agreement">登录即代表同意服务协议和隐私政策</text>
+      <view class="agreement">
+        <text>登录即代表同意</text>
+        <button class="agreement-link" @tap="goLegal('terms')">服务协议</button>
+        <text>和</text>
+        <button class="agreement-link" @tap="goLegal('privacy')">隐私政策</button>
+      </view>
     </view>
 
     <view class="benefit-list">
@@ -51,33 +56,46 @@ const goToPhoneLogin = () => {
 const goToRegister = () => {
   uni.navigateTo({ url: '/pages/register/index' });
 };
+
+const goLegal = (type: 'terms' | 'privacy') => {
+  uni.navigateTo({ url: `/pages/legal/index?type=${type}` });
+};
 </script>
 
 <style scoped lang="scss">
 .auth-page {
   min-height: 100vh;
-  padding: calc(var(--status-bar-height) + 22rpx) 30rpx 60rpx;
+  padding: calc(var(--app-safe-area-top) + 22rpx) 30rpx 60rpx;
   background:
     radial-gradient(circle at 72% 4%, rgba(255, 253, 252, 0.98), transparent 34%),
     var(--app-bg);
 }
 
 .topbar {
+  display: flex;
+  min-height: 72rpx;
+  align-items: center;
+  justify-content: flex-start;
   margin-bottom: 18rpx;
 }
 
 .back-button {
   display: flex;
+  flex: 0 0 72rpx;
   align-items: center;
   justify-content: center;
   width: 72rpx;
   height: 72rpx;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   border: 0;
   border-radius: 50%;
   background: #fffdfc;
   color: var(--app-text);
   font-size: var(--font-size-card-title);
   font-weight: var(--font-medium);
+  line-height: 1;
   box-shadow: 0 12rpx 30rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -100,6 +118,31 @@ const goToRegister = () => {
 .benefit-title,
 .benefit-desc {
   display: block;
+}
+
+.agreement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+
+.agreement-link {
+  display: inline-flex;
+  width: auto;
+  min-height: 44px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-primary);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.agreement-link::after {
+  border: 0;
 }
 
 .eyebrow {
@@ -127,25 +170,40 @@ const goToRegister = () => {
   margin-top: 22rpx;
 }
 
-.primary-button,
-.secondary-button {
+.primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 88rpx;
+  margin: 0;
+  padding: 0 24rpx;
+  box-sizing: border-box;
   border: 0;
   border-radius: var(--app-radius-button);
+  line-height: var(--line-list-title);
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-semibold);
-}
-
-.primary-button {
   background: var(--app-accent);
   color: var(--text-white);
 }
 
 .secondary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 88rpx;
   margin-top: 16rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--app-radius-button);
   background: #e9e2d6;
   color: var(--app-text);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-list-title);
 }
 
 .agreement {

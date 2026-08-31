@@ -2,9 +2,19 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { HttpError } from '../../http/errors';
+import { requireAppAuth } from '../../http/middleware/app-auth';
+import { resolveRequestUserId } from '../../http/request-user';
 import { ok, type PageResult } from '../../http/response';
+import { createOrLoadByUniqueKey } from '../../services/idempotent-create';
 import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextCodeFromItems } from '../../lib/business-id';
 import { prisma } from '../../prisma';
+import { buildAppAuthSession } from '../../services/app-token';
+import { buildBasketListWhere, canAccessBasketItem } from '../../services/basket-access';
+import { canChangeFamilyRole, canInviteFamilyMember, canRemoveFamilyMember } from '../../services/family-permissions';
+import { resolveContentTarget } from '../../services/content-target';
+import { lockOwnedActiveMediaFiles } from '../../services/file-mutation';
+import { getMobileProfile, updateMobileProfile } from '../../services/mobile-profile';
+import { compareMobilePassword } from '../../services/mobile-password';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -27,21 +37,39 @@ const publicRecipeWhere = {
 };
 
 const favoriteTargetSchema = z.object({
-  userId: z.coerce.number().int().positive(),
+  userId: z.coerce.number().int().positive().optional(),
+  targetType: z.enum(['RECIPE', 'INGREDIENT', 'FRUIT', 'BEVERAGE', 'SEASONING']).optional(),
+  targetId: z.union([z.string().trim().min(1), z.coerce.number().int().positive()]).optional(),
   recipeId: z.coerce.number().int().positive().nullable().optional(),
-  ingredientId: z.coerce.number().int().positive().nullable().optional()
+  ingredientId: z.coerce.number().int().positive().nullable().optional(),
+  beverageId: z.coerce.number().int().positive().nullable().optional()
 });
 
-const assertSingleTarget = (recipeId?: number | null, ingredientId?: number | null) => {
-  if ((recipeId && ingredientId) || (!recipeId && !ingredientId)) {
-    throw new HttpError('请选择一个收藏或浏览对象', 400, 400);
+const assertPublicContentTarget = async (target: ReturnType<typeof resolveContentTarget>) => {
+  const id = Number(target.targetId);
+  if (target.targetType === 'RECIPE') {
+    const found = await prisma.recipe.findFirst({ where: { id, ...publicRecipeWhere }, select: { id: true } });
+    if (!found) throw new HttpError('内容不存在或已下架', 404, 404);
+    return;
   }
+  if (target.targetType === 'BEVERAGE') {
+    const found = await prisma.beverage.findFirst({ where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE' }, select: { id: true } });
+    if (!found) throw new HttpError('内容不存在或已下架', 404, 404);
+    return;
+  }
+  const found = await prisma.ingredient.findFirst({
+    where: { id, deletedAt: null, isPublish: true, status: 'ACTIVE' },
+    select: { category: { select: { type: true } } }
+  });
+  if (!found) throw new HttpError('内容不存在或已下架', 404, 404);
+  if (target.targetType === 'FRUIT' && found.category?.type !== 'FRUIT') throw new HttpError('内容类型不匹配', 400, 400);
+  if (target.targetType === 'SEASONING' && found.category?.type !== 'SEASONING') throw new HttpError('内容类型不匹配', 400, 400);
 };
 
 const userIdSchema = z.object({ userId: z.coerce.number().int().positive() });
 
 const ingredientPriceRecordSchema = z.object({
-  userId: z.coerce.number().int().positive(),
+  userId: z.coerce.number().int().positive().optional(),
   ingredientId: z.coerce.number().int().positive(),
   price: z.coerce.number().finite().positive(),
   unit: z.string().trim().min(1).max(20),
@@ -62,14 +90,19 @@ const myRecipeStepSchema = z.object({
   title: z.string().trim().max(120).nullable().optional(),
   description: z.string().trim().min(1).max(500),
   image: z.string().trim().max(255).nullable().optional(),
-  video: z.string().trim().max(255).nullable().optional()
+  video: z.string().trim().max(255).nullable().optional(),
+  mediaFileId: z.coerce.number().int().positive().nullable().optional(),
+  mediaKind: z.enum(['IMAGE', 'VIDEO']).nullable().optional()
 });
 
 const myRecipeUpsertSchema = z.object({
-  userId: z.coerce.number().int().positive(),
+  userId: z.coerce.number().int().positive().optional(),
   title: z.string().trim().min(1).max(120),
   subtitle: z.string().trim().max(255).nullable().optional(),
   cover: z.string().trim().max(255).nullable().optional(),
+  coverFileId: z.coerce.number().int().positive().nullable().optional(),
+  video: z.string().trim().max(255).nullable().optional(),
+  videoFileId: z.coerce.number().int().positive().nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   duration: z.string().trim().max(40).nullable().optional(),
   difficulty: z.string().trim().max(20).nullable().optional(),
@@ -89,6 +122,7 @@ const purchaseItemInclude = {
 };
 
 const familyInclude = {
+  avatarFile: { select: { id: true, url: true, mimeType: true, width: true, height: true } },
   owner: { select: { id: true, nickname: true, phone: true, avatar: true } },
   members: {
     where: { deletedAt: null, memberStatus: 'ACTIVE' as const },
@@ -152,6 +186,8 @@ const toFamily = (family: {
   id: number;
   name: string;
   avatar: string | null;
+  avatarFileId: number | null;
+  avatarFile?: { id: number; url: string; mimeType: string; width: number | null; height: number | null } | null;
   city: string | null;
   district: string | null;
   description: string | null;
@@ -177,6 +213,8 @@ const toFamily = (family: {
   id: family.id,
   name: family.name,
   avatar: family.avatar,
+  avatarFileId: family.avatarFileId,
+  avatarSource: family.avatarFile?.url ?? family.avatar,
   city: family.city,
   district: family.district,
   description: family.description,
@@ -208,6 +246,9 @@ const toMyRecipe = (recipe: {
   title: string;
   subtitle: string | null;
   cover: string | null;
+  coverFileId: number | null;
+  video: string | null;
+  videoFileId: number | null;
   description: string | null;
   cookTime: number | null;
   difficulty: string | null;
@@ -224,6 +265,8 @@ const toMyRecipe = (recipe: {
     description: string;
     image: string | null;
     video: string | null;
+    mediaFileId: number | null;
+    mediaKind: 'IMAGE' | 'VIDEO' | null;
   }>;
   ingredients?: Array<{
     id: number;
@@ -239,6 +282,9 @@ const toMyRecipe = (recipe: {
   name: recipe.title,
   description: recipe.description ?? recipe.subtitle ?? '',
   image: recipe.cover,
+  coverFileId: recipe.coverFileId,
+  video: recipe.video,
+  videoFileId: recipe.videoFileId,
   duration: recipe.cookTime ? `${recipe.cookTime} 分钟` : '',
   flavor: recipe.taste ?? '',
   updatedAt: recipe.updatedAt.toISOString().slice(0, 10),
@@ -255,7 +301,11 @@ const toMyRecipe = (recipe: {
   steps: (recipe.steps ?? []).map((step) => ({
     id: step.id,
     title: step.title ?? `步骤 ${step.sortIndex}`,
-    description: step.description
+    description: step.description,
+    image: step.image,
+    video: step.video,
+    mediaFileId: step.mediaFileId,
+    mediaKind: step.mediaKind
   }))
 });
 
@@ -263,31 +313,36 @@ export const apiMobileRouter = Router();
 
 apiMobileRouter.post('/auth/login', async (req, res) => {
   const schema = z.object({
-    phone: z.string().trim().max(32).optional(),
-    openid: z.string().trim().max(80).optional(),
-    nickname: z.string().trim().max(60).optional(),
-    avatar: z.string().trim().max(255).optional()
+    phone: z.string().trim().regex(/^1[3-9]\d{9}$/, '手机号格式不正确'),
+    password: z.string().min(8).max(72)
   });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success || (!parsed.data.phone && !parsed.data.openid)) throw new HttpError('参数错误', 400, 400);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
-  const user = parsed.data.phone
-    ? await prisma.user.upsert({
-        where: { phone: parsed.data.phone },
-        create: { ...parsed.data, sourceType: 'USER' },
-        update: { nickname: parsed.data.nickname, avatar: parsed.data.avatar }
-      })
-    : await prisma.user.upsert({
-        where: { openid: parsed.data.openid },
-        create: { ...parsed.data, sourceType: 'USER' },
-        update: { nickname: parsed.data.nickname, avatar: parsed.data.avatar }
-      });
+  const user = await prisma.user.findFirst({
+    where: { phone: parsed.data.phone, deletedAt: null }
+  });
+
+  if (!user) throw new HttpError('手机号或密码错误', 401, 401);
 
   if (user.status === 'DISABLED') {
     throw new HttpError('该账户已被禁用，无法登录，请联系管理员。', 403, 403);
   }
 
-  res.json(ok(user));
+  if (!user.passwordHash) {
+    throw new HttpError('账号尚未设置密码，请联系管理员', 403, 403);
+  }
+
+  const passwordMatches = await compareMobilePassword(parsed.data.password, user.passwordHash);
+  if (!passwordMatches) throw new HttpError('手机号或密码错误', 401, 401);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() }
+  });
+
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  res.json(ok(buildAppAuthSession(safeUser)));
 });
 
 apiMobileRouter.get('/home', async (_req, res) => {
@@ -360,10 +415,11 @@ apiMobileRouter.get('/home', async (_req, res) => {
   res.json(ok({ banners, recommendations, seasonalFoods, categories, menus, channels }));
 });
 
-apiMobileRouter.get('/my-recipes', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive() }).safeParse(req.query);
+apiMobileRouter.get('/my-recipes', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize, q } = parsed.data;
+  const { page, pageSize, q } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = {
     deletedAt: null,
@@ -387,14 +443,15 @@ apiMobileRouter.get('/my-recipes', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.get('/my-recipes/:id', async (req, res) => {
+apiMobileRouter.get('/my-recipes/:id', requireAppAuth, async (req, res) => {
   const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const recipe = await prisma.recipe.findFirst({
     where: {
       ...buildPublicIdWhere(req.params.id),
       deletedAt: null,
-      ...(parsed.data.userId ? { authorId: parsed.data.userId } : {})
+      authorId: userId
     },
     include: {
       steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
@@ -405,56 +462,172 @@ apiMobileRouter.get('/my-recipes/:id', async (req, res) => {
   res.json(ok(toMyRecipe(recipe)));
 });
 
-apiMobileRouter.post('/my-recipes', async (req, res) => {
+apiMobileRouter.post('/my-recipes', requireAppAuth, async (req, res) => {
   const parsed = myRecipeUpsertSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const codes = await prisma.recipe.findMany({ select: { code: true } });
   const cookTimeText = parsed.data.duration ?? '';
   const cookTime = Number.parseInt(cookTimeText.match(/\d+/)?.[0] ?? '', 10);
-  const created = await prisma.recipe.create({
-    data: {
-      bizId: createBusinessId('recipe'),
-      code: nextCodeFromItems('recipe', codes),
-      title: parsed.data.title,
-      subtitle: parsed.data.subtitle ?? null,
-      cover: parsed.data.cover ?? null,
-      description: parsed.data.description ?? null,
-      cookTime: Number.isFinite(cookTime) ? cookTime : null,
-      difficulty: parsed.data.difficulty ?? null,
-      taste: parsed.data.flavor ?? null,
-      scene: parsed.data.category ?? null,
-      tips: parsed.data.notes ?? null,
-      sourceName: parsed.data.visibility ?? null,
-      authorId: parsed.data.userId,
-      isDraft: parsed.data.isDraft,
-      isPublish: false,
-      status: 'ACTIVE',
-      auditStatus: 'DRAFT',
-      sourceType: 'USER',
-      steps: {
-        create: parsed.data.steps.map((step) => ({
-          sortIndex: step.sortIndex,
-          title: step.title ?? null,
-          description: step.description,
-          image: step.image ?? null,
-          video: step.video ?? null,
-          duration: null
-        }))
+  const mediaFileIds = [
+    parsed.data.coverFileId,
+    parsed.data.videoFileId,
+    ...parsed.data.steps.map((step) => step.mediaFileId)
+  ];
+  const created = await prisma.$transaction(async (transaction) => {
+    await lockOwnedActiveMediaFiles(transaction, mediaFileIds, userId);
+    return transaction.recipe.create({
+      data: {
+        bizId: createBusinessId('recipe'),
+        code: nextCodeFromItems('recipe', codes),
+        title: parsed.data.title,
+        subtitle: parsed.data.subtitle ?? null,
+        cover: parsed.data.cover ?? null,
+        coverFileId: parsed.data.coverFileId ?? null,
+        video: parsed.data.video ?? null,
+        videoFileId: parsed.data.videoFileId ?? null,
+        description: parsed.data.description ?? null,
+        cookTime: Number.isFinite(cookTime) ? cookTime : null,
+        difficulty: parsed.data.difficulty ?? null,
+        taste: parsed.data.flavor ?? null,
+        scene: parsed.data.category ?? null,
+        tips: parsed.data.notes ?? null,
+        sourceName: parsed.data.visibility ?? null,
+        authorId: userId,
+        isDraft: parsed.data.isDraft,
+        isPublish: false,
+        status: 'ACTIVE',
+        auditStatus: 'DRAFT',
+        sourceType: 'USER',
+        steps: {
+          create: parsed.data.steps.map((step) => ({
+            sortIndex: step.sortIndex,
+            title: step.title ?? null,
+            description: step.description,
+            image: step.image ?? null,
+            video: step.video ?? null,
+            mediaFileId: step.mediaFileId ?? null,
+            mediaKind: step.mediaKind ?? null,
+            duration: null
+          }))
+        },
+        ingredients: {
+          create: parsed.data.ingredients.map((item) => ({
+            sortIndex: item.sortIndex,
+            name: item.name,
+            amount: item.amount ?? null
+          }))
+        }
       },
-      ingredients: {
-        create: parsed.data.ingredients.map((item) => ({
-          sortIndex: item.sortIndex,
-          name: item.name,
-          amount: item.amount ?? null
-        }))
+      include: {
+        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
       }
-    },
-    include: {
-      steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
-      ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
-    }
+    });
   });
   res.json(ok(toMyRecipe(created)));
+});
+
+apiMobileRouter.patch('/my-recipes/:id', requireAppAuth, async (req, res) => {
+  const parsed = myRecipeUpsertSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const cookTimeText = parsed.data.duration ?? '';
+  const cookTime = Number.parseInt(cookTimeText.match(/\d+/)?.[0] ?? '', 10);
+  const mediaFileIds = [
+    parsed.data.coverFileId,
+    parsed.data.videoFileId,
+    ...parsed.data.steps.map((step) => step.mediaFileId)
+  ];
+
+  const updated = await prisma.$transaction(async (transaction) => {
+    const existing = await transaction.recipe.findFirst({
+      where: {
+        ...buildPublicIdWhere(req.params.id),
+        deletedAt: null,
+        authorId: userId
+      },
+      select: { id: true }
+    });
+    if (!existing) throw new HttpError('食谱不存在', 404, 404);
+
+    await lockOwnedActiveMediaFiles(transaction, mediaFileIds, userId);
+    await transaction.recipeIngredient.deleteMany({ where: { recipeId: existing.id } });
+    await transaction.recipeStep.deleteMany({ where: { recipeId: existing.id } });
+
+    return transaction.recipe.update({
+      where: { id: existing.id },
+      data: {
+        title: parsed.data.title,
+        subtitle: parsed.data.subtitle ?? null,
+        cover: parsed.data.cover ?? null,
+        coverFileId: parsed.data.coverFileId ?? null,
+        video: parsed.data.video ?? null,
+        videoFileId: parsed.data.videoFileId ?? null,
+        description: parsed.data.description ?? null,
+        cookTime: Number.isFinite(cookTime) ? cookTime : null,
+        difficulty: parsed.data.difficulty ?? null,
+        taste: parsed.data.flavor ?? null,
+        scene: parsed.data.category ?? null,
+        tips: parsed.data.notes ?? null,
+        sourceName: parsed.data.visibility ?? null,
+        isDraft: parsed.data.isDraft,
+        isPublish: false,
+        auditStatus: 'DRAFT',
+        updatedBy: userId,
+        steps: {
+          create: parsed.data.steps.map((step) => ({
+            sortIndex: step.sortIndex,
+            title: step.title ?? null,
+            description: step.description,
+            image: step.image ?? null,
+            video: step.video ?? null,
+            mediaFileId: step.mediaFileId ?? null,
+            mediaKind: step.mediaKind ?? null,
+            duration: null
+          }))
+        },
+        ingredients: {
+          create: parsed.data.ingredients.map((item) => ({
+            sortIndex: item.sortIndex,
+            name: item.name,
+            amount: item.amount ?? null
+          }))
+        }
+      },
+      include: {
+        steps: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] },
+        ingredients: { where: { deletedAt: null }, orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }] }
+      }
+    });
+  });
+
+  res.json(ok(toMyRecipe(updated)));
+});
+
+apiMobileRouter.delete('/my-recipes/:id', requireAppAuth, async (req, res) => {
+  const userId = req.appUser!.id;
+  const recipe = await prisma.recipe.findFirst({
+    where: {
+      ...buildPublicIdWhere(req.params.id),
+      deletedAt: null,
+      authorId: userId
+    },
+    select: { id: true, bizId: true }
+  });
+  if (!recipe) throw new HttpError('食谱不存在', 404, 404);
+
+  await prisma.recipe.update({
+    where: { id: recipe.id },
+    data: {
+      deletedAt: new Date(),
+      isDeleted: true,
+      isPublish: false,
+      updatedBy: userId
+    }
+  });
+
+  res.json(ok({ id: recipe.bizId ?? String(recipe.id) }));
 });
 
 apiMobileRouter.get('/recommendations', async (req, res) => {
@@ -502,9 +675,10 @@ apiMobileRouter.get('/seasonal-foods', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.get('/search', async (req, res) => {
+apiMobileRouter.get('/search', requireAppAuth, async (req, res) => {
   const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const keyword = parsed.data.q ?? '';
   const where = { deletedAt: null, status: 'ACTIVE' as const, isPublish: true };
   const [recipes, ingredients] = await Promise.all([
@@ -520,20 +694,21 @@ apiMobileRouter.get('/search', async (req, res) => {
     })
   ]);
   const resultCount = recipes.length + ingredients.length;
-  if (parsed.data.userId && keyword) {
+  if (keyword) {
     await prisma.searchHistory.upsert({
-      where: { userId_keyword: { userId: parsed.data.userId, keyword } },
-      create: { userId: parsed.data.userId, keyword, resultCount },
-      update: { resultCount, deletedAt: null, status: 'ACTIVE', updatedAt: new Date() }
+      where: { userId_keyword: { userId, keyword } },
+      create: { userId, keyword, searchCount: 1, resultCount },
+      update: { searchCount: { increment: 1 }, resultCount, deletedAt: null, status: 'ACTIVE', updatedAt: new Date() }
     });
   }
   res.json(ok({ recipes, ingredients }));
 });
 
-apiMobileRouter.get('/search-histories', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive() }).safeParse(req.query);
+apiMobileRouter.get('/search-histories', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize } = parsed.data;
+  const { page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = { userId, deletedAt: null };
   const [list, total] = await Promise.all([
@@ -544,26 +719,28 @@ apiMobileRouter.get('/search-histories', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.delete('/search-histories', async (req, res) => {
-  const parsed = userIdSchema.safeParse(req.query);
+apiMobileRouter.delete('/search-histories', requireAppAuth, async (req, res) => {
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const result = await prisma.searchHistory.updateMany({
-    where: { userId: parsed.data.userId, deletedAt: null },
+    where: { userId, deletedAt: null },
     data: { deletedAt: new Date(), status: 'DISABLED' }
   });
   res.json(ok(result));
 });
 
-apiMobileRouter.get('/ingredient-price-records', async (req, res) => {
+apiMobileRouter.get('/ingredient-price-records', requireAppAuth, async (req, res) => {
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     ingredientId: z.coerce.number().int().positive()
   }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const list = await prisma.ingredientPriceRecord.findMany({
     where: {
-      userId: parsed.data.userId,
+      userId,
       ingredientId: parsed.data.ingredientId,
       deletedAt: null
     },
@@ -572,9 +749,10 @@ apiMobileRouter.get('/ingredient-price-records', async (req, res) => {
   res.json(ok(list.map(toIngredientPriceRecord)));
 });
 
-apiMobileRouter.post('/ingredient-price-records', async (req, res) => {
+apiMobileRouter.post('/ingredient-price-records', requireAppAuth, async (req, res) => {
   const parsed = ingredientPriceRecordSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const priceDate = parsed.data.priceDate ? new Date(parsed.data.priceDate) : new Date();
   if (Number.isNaN(priceDate.getTime())) throw new HttpError('日期错误', 400, 400);
 
@@ -582,7 +760,7 @@ apiMobileRouter.post('/ingredient-price-records', async (req, res) => {
     const record = await tx.ingredientPriceRecord.create({
       data: {
         ingredientId: parsed.data.ingredientId,
-        userId: parsed.data.userId,
+        userId,
         price: parsed.data.price,
         unit: parsed.data.unit,
         priceDate,
@@ -603,12 +781,13 @@ apiMobileRouter.post('/ingredient-price-records', async (req, res) => {
   res.json(ok(toIngredientPriceRecord(created)));
 });
 
-apiMobileRouter.delete('/ingredient-price-records/:id', async (req, res) => {
+apiMobileRouter.delete('/ingredient-price-records/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const parsed = userIdSchema.safeParse(req.body ?? req.query);
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse({ ...req.query, ...req.body });
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const existing = await prisma.ingredientPriceRecord.findFirst({
-    where: { id, userId: parsed.data.userId, deletedAt: null }
+    where: { id, userId, deletedAt: null }
   });
   if (!existing) throw new HttpError('记录不存在', 404, 404);
   const deleted = await prisma.ingredientPriceRecord.update({
@@ -618,10 +797,11 @@ apiMobileRouter.delete('/ingredient-price-records/:id', async (req, res) => {
   res.json(ok(toIngredientPriceRecord(deleted)));
 });
 
-apiMobileRouter.get('/favorites', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int() }).safeParse(req.query);
+apiMobileRouter.get('/favorites', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize } = parsed.data;
+  const { page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = { userId, deletedAt: null };
   const [list, total] = await Promise.all([
@@ -629,7 +809,8 @@ apiMobileRouter.get('/favorites', async (req, res) => {
       where,
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -641,10 +822,11 @@ apiMobileRouter.get('/favorites', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.get('/view-histories', async (req, res) => {
-  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive() }).safeParse(req.query);
+apiMobileRouter.get('/view-histories', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.extend({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, page, pageSize } = parsed.data;
+  const { page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const skip = (page - 1) * pageSize;
   const where = { userId, deletedAt: null };
   const [list, total] = await Promise.all([
@@ -652,7 +834,8 @@ apiMobileRouter.get('/view-histories', async (req, res) => {
       where,
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -664,33 +847,37 @@ apiMobileRouter.get('/view-histories', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.get('/profile', async (req, res) => {
-  const schema = z.object({ userId: z.coerce.number().int() });
+apiMobileRouter.get('/profile', requireAppAuth, async (req, res) => {
+  const schema = z.object({ userId: z.coerce.number().int().positive().optional() });
   const parsed = schema.safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const user = await prisma.user.findFirst({
-    where: { id: parsed.data.userId, deletedAt: null },
-    select: {
-      id: true,
-      phone: true,
-      nickname: true,
-      avatar: true,
-      createdAt: true,
-      _count: { select: { favorites: true, comments: true, posts: true } }
-    }
-  });
-  if (!user) throw new HttpError('not found', 404, 404);
-  res.json(ok(user));
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  res.json(ok(await getMobileProfile(prisma, userId)));
 });
 
-apiMobileRouter.get('/families', async (req, res) => {
-  const parsed = userIdSchema.safeParse(req.query);
+apiMobileRouter.patch('/profile', requireAppAuth, async (req, res) => {
+  const schema = z.object({
+    nickname: z.string().trim().min(1).max(60).optional(),
+    bio: z.union([z.string().trim().max(120), z.null()]).optional(),
+    avatarFileId: z.union([z.coerce.number().int().positive(), z.null()]).optional()
+  }).strict().refine(
+    (value) => value.nickname !== undefined || value.bio !== undefined || value.avatarFileId !== undefined,
+    { message: '至少提供一个可更新字段' }
+  );
+  const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  res.json(ok(await updateMobileProfile(prisma, req.appUser!.id, parsed.data)));
+});
+
+apiMobileRouter.get('/families', requireAppAuth, async (req, res) => {
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.query);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const families = await prisma.family.findMany({
     where: {
       deletedAt: null,
       status: 'ACTIVE',
-      members: { some: { userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' } }
+      members: { some: { userId, deletedAt: null, memberStatus: 'ACTIVE' } }
     },
     include: familyInclude,
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }]
@@ -698,16 +885,17 @@ apiMobileRouter.get('/families', async (req, res) => {
   res.json(ok(families.map(toFamily)));
 });
 
-apiMobileRouter.post('/families', async (req, res) => {
+apiMobileRouter.post('/families', requireAppAuth, async (req, res) => {
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     name: z.string().trim().min(1).max(80),
     city: z.string().trim().max(40).nullable().optional(),
     district: z.string().trim().max(40).nullable().optional(),
     description: z.string().trim().max(255).nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const user = await prisma.user.findFirst({ where: { id: parsed.data.userId, deletedAt: null, status: 'ACTIVE' } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null, status: 'ACTIVE' } });
   if (!user) throw new HttpError('用户不存在', 404, 404);
   const codes = await prisma.family.findMany({ select: { code: true } });
   const family = await prisma.family.create({
@@ -715,12 +903,12 @@ apiMobileRouter.post('/families', async (req, res) => {
       bizId: createBusinessId('family'),
       code: nextCodeFromItems('family', codes),
       name: parsed.data.name,
-      ownerId: parsed.data.userId,
+      ownerId: userId,
       city: parsed.data.city,
       district: parsed.data.district,
       description: parsed.data.description,
       activeAt: new Date(),
-      members: { create: { userId: parsed.data.userId, role: 'CREATOR', joinMethod: 'MANUAL_INVITE' } },
+      members: { create: { userId, role: 'CREATOR', joinMethod: 'MANUAL_INVITE' } },
       preferences: { create: {} }
     },
     include: familyInclude
@@ -728,42 +916,66 @@ apiMobileRouter.post('/families', async (req, res) => {
   res.json(ok(toFamily(family)));
 });
 
-apiMobileRouter.get('/families/:id', async (req, res) => {
+apiMobileRouter.get('/families/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const family = await prisma.family.findFirst({ where: { id, deletedAt: null }, include: familyInclude });
+  const family = await prisma.family.findFirst({ where: { id, deletedAt: null, members: { some: { userId: req.appUser!.id, deletedAt: null, memberStatus: 'ACTIVE' } } }, include: familyInclude });
   if (!family) throw new HttpError('家庭不存在', 404, 404);
   res.json(ok(toFamily(family)));
 });
 
-apiMobileRouter.put('/families/:id', async (req, res) => {
+apiMobileRouter.put('/families/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     name: z.string().trim().min(1).max(80),
-    description: z.string().trim().max(255).nullable().optional()
+    description: z.string().trim().max(255).nullable().optional(),
+    avatarFileId: z.coerce.number().int().positive().nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const member = await prisma.familyMember.findFirst({
-    where: { familyId: id, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' }
+    where: { familyId: id, userId, deletedAt: null, memberStatus: 'ACTIVE' }
   });
   if (!member || member.role === 'MEMBER') throw new HttpError('无权修改该家庭', 403, 403);
+  let avatarUpdate: { avatarFileId?: number | null; avatar?: string | null } = {};
+  if (parsed.data.avatarFileId !== undefined) {
+    if (parsed.data.avatarFileId === null) {
+      avatarUpdate = { avatarFileId: null, avatar: null };
+    } else {
+      const avatarFile = await prisma.file.findFirst({
+        where: {
+          id: parsed.data.avatarFileId,
+          uploaderId: userId,
+          deletedAt: null,
+          status: 'ACTIVE',
+          mimeType: { startsWith: 'image/' },
+          width: { gte: 512 },
+          height: { gte: 512 }
+        },
+        select: { id: true, url: true }
+      });
+      if (!avatarFile) throw new HttpError('家庭头像文件无效或无权使用', 422, 422);
+      avatarUpdate = { avatarFileId: avatarFile.id, avatar: avatarFile.url };
+    }
+  }
   const family = await prisma.family.update({
     where: { id },
-    data: { name: parsed.data.name, description: parsed.data.description },
+    data: { name: parsed.data.name, description: parsed.data.description, ...avatarUpdate },
     include: familyInclude
   });
   res.json(ok(toFamily(family)));
 });
 
-apiMobileRouter.post('/families/:id/invites', async (req, res) => {
+apiMobileRouter.post('/families/:id/invites', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const parsed = z.object({ userId: z.coerce.number().int().positive() }).safeParse(req.body);
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const member = await prisma.familyMember.findFirst({
-    where: { familyId: id, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' },
+    where: { familyId: id, userId, deletedAt: null, memberStatus: 'ACTIVE' },
     include: { family: true }
   });
-  if (!member) throw new HttpError('无权邀请该家庭成员', 403, 403);
+  if (!member || !canInviteFamilyMember(member.role)) throw new HttpError('无权邀请该家庭成员', 403, 403);
   const token = createBusinessId('family_invite').replace('family_invite_', '');
   const codes = await prisma.familyInvite.findMany({ select: { code: true } });
   const invite = await prisma.familyInvite.create({
@@ -771,7 +983,7 @@ apiMobileRouter.post('/families/:id/invites', async (req, res) => {
       bizId: createBusinessId('family_invite'),
       code: nextCodeFromItems('family_invite', codes),
       familyId: id,
-      inviterId: parsed.data.userId,
+      inviterId: userId,
       inviteName: `${member.family.name} 家庭邀请`,
       inviteMethod: 'QR_CODE',
       token,
@@ -794,10 +1006,11 @@ apiMobileRouter.get('/family-invites/:token', async (req, res) => {
   res.json(ok({ ...invite, family: toFamily(invite.family) }));
 });
 
-apiMobileRouter.post('/family-invites/:token/join', async (req, res) => {
+apiMobileRouter.post('/family-invites/:token/join', requireAppAuth, async (req, res) => {
   const token = String(req.params.token || '').trim();
-  const parsed = userIdSchema.safeParse(req.body);
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.body);
   if (!parsed.success || !token) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const invite = await prisma.familyInvite.findFirst({
     where: { token, deletedAt: null, status: 'ACTIVE' },
     include: { family: { include: familyInclude } }
@@ -805,22 +1018,22 @@ apiMobileRouter.post('/family-invites/:token/join', async (req, res) => {
   if (!invite) throw new HttpError('邀请不存在', 404, 404);
   if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) throw new HttpError('邀请已过期', 410, 410);
   await prisma.familyMember.upsert({
-    where: { familyId_userId: { familyId: invite.familyId, userId: parsed.data.userId } },
-    create: { familyId: invite.familyId, userId: parsed.data.userId, role: 'MEMBER', joinMethod: 'SCAN_QR' },
+    where: { familyId_userId: { familyId: invite.familyId, userId } },
+    create: { familyId: invite.familyId, userId, role: 'MEMBER', joinMethod: 'SCAN_QR' },
     update: { memberStatus: 'ACTIVE', status: 'ACTIVE', leftAt: null }
   });
   await prisma.familyInvite.update({
     where: { id: invite.id },
-    data: { inviteeId: parsed.data.userId, inviteStatus: 'JOINED', joinedAt: new Date() }
+    data: { inviteeId: userId, inviteStatus: 'JOINED', joinedAt: new Date() }
   });
   const family = await prisma.family.findFirstOrThrow({ where: { id: invite.familyId }, include: familyInclude });
   res.json(ok(toFamily(family)));
 });
 
-apiMobileRouter.put('/families/:id/preferences', async (req, res) => {
+apiMobileRouter.put('/families/:id/preferences', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     avoidItems: jsonStringArray,
     allergies: jsonStringArray,
     preferences: jsonStringArray,
@@ -828,7 +1041,8 @@ apiMobileRouter.put('/families/:id/preferences', async (req, res) => {
     note: z.string().trim().max(255).nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const member = await prisma.familyMember.findFirst({ where: { familyId: id, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const member = await prisma.familyMember.findFirst({ where: { familyId: id, userId, deletedAt: null, memberStatus: 'ACTIVE' } });
   if (!member) throw new HttpError('无权修改该家庭偏好', 403, 403);
   const preference = await prisma.familyPreference.upsert({
     where: { familyId: id },
@@ -853,16 +1067,129 @@ apiMobileRouter.put('/families/:id/preferences', async (req, res) => {
   res.json(ok(preference));
 });
 
-apiMobileRouter.delete('/family-members/:id', async (req, res) => {
-  const id = idParam(req.params.id);
-  const parsed = userIdSchema.safeParse(req.body);
+apiMobileRouter.get('/preferences', requireAppAuth, async (req, res) => {
+  const items = await prisma.userPreference.findMany({
+    where: { userId: req.appUser!.id, deletedAt: null },
+    orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }]
+  });
+  res.json(ok(items));
+});
+
+apiMobileRouter.put('/preferences', requireAppAuth, async (req, res) => {
+  const parsed = z.object({
+    items: z.array(z.object({
+      kind: z.enum(['LIKE', 'AVOID', 'ALLERGY']),
+      value: z.string().trim().min(1).max(80),
+      shareScope: z.enum(['PRIVATE', 'FAMILY']).default('PRIVATE')
+    })).max(100)
+  }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = req.appUser!.id;
+  const uniqueItems = Array.from(new Map(parsed.data.items.map((item) => [`${item.kind}:${item.value}`, item])).values());
+
+  const items = await prisma.$transaction(async (tx) => {
+    const keepKeys = uniqueItems.map((item) => ({ kind: item.kind, value: item.value }));
+    await tx.userPreference.updateMany({
+      where: {
+        userId,
+        deletedAt: null,
+        ...(keepKeys.length ? { NOT: { OR: keepKeys } } : {})
+      },
+      data: { deletedAt: new Date() }
+    });
+    for (const item of uniqueItems) {
+      await tx.userPreference.upsert({
+        where: { userId_kind_value: { userId, kind: item.kind, value: item.value } },
+        create: { userId, ...item },
+        update: { shareScope: item.shareScope, deletedAt: null }
+      });
+    }
+    return tx.userPreference.findMany({ where: { userId, deletedAt: null }, orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }] });
+  });
+  res.json(ok(items));
+});
+
+apiMobileRouter.get('/notifications', requireAppAuth, async (req, res) => {
+  const parsed = pageQuerySchema.safeParse(req.query);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const { page, pageSize } = parsed.data;
+  const where = { userId: req.appUser!.id, notification: { deletedAt: null } };
+  const [items, total] = await Promise.all([
+    prisma.notificationReceipt.findMany({
+      where,
+      include: { notification: true },
+      orderBy: [{ notification: { createdAt: 'desc' } }, { id: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    }),
+    prisma.notificationReceipt.count({ where })
+  ]);
+  res.json(ok({ list: items, total, page, pageSize }));
+});
+
+apiMobileRouter.post('/notifications/:id/read', requireAppAuth, async (req, res) => {
+  const notificationId = idParam(req.params.id);
+  const receipt = await prisma.notificationReceipt.findUnique({
+    where: { notificationId_userId: { notificationId, userId: req.appUser!.id } }
+  });
+  if (!receipt) throw new HttpError('消息不存在', 404, 404);
+  const updated = await prisma.notificationReceipt.update({ where: { id: receipt.id }, data: { readAt: receipt.readAt ?? new Date() } });
+  res.json(ok(updated));
+});
+
+apiMobileRouter.post('/families/:id/meal-ready', requireAppAuth, async (req, res) => {
+  const familyId = idParam(req.params.id);
+  const parsed = z.object({
+    idempotencyKey: z.string().trim().min(8).max(120),
+    title: z.string().trim().min(1).max(120).default('开饭了'),
+    body: z.string().trim().min(1).max(500).default('饭菜已经准备好，快来一起吃饭吧。')
+  }).safeParse(req.body);
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const operator = await prisma.familyMember.findFirst({
+    where: { familyId, userId: req.appUser!.id, deletedAt: null, memberStatus: 'ACTIVE' }
+  });
+  if (!operator || !canInviteFamilyMember(operator.role)) throw new HttpError('无权发送家庭提醒', 403, 403);
+  const dedupeKey = `meal-ready:${familyId}:${parsed.data.idempotencyKey}`;
+  const members = await prisma.familyMember.findMany({
+    where: { familyId, deletedAt: null, memberStatus: 'ACTIVE' },
+    select: { userId: true }
+  });
+  const created = await createOrLoadByUniqueKey({
+    load: () => prisma.notification.findUnique({ where: { dedupeKey }, include: { receipts: true } }),
+    create: () => prisma.$transaction(async (tx) => {
+      const event = await tx.familyEvent.create({
+        data: { familyId, createdById: req.appUser!.id, title: parsed.data.title, status: 'ACTIVE', mealReadyAt: new Date() }
+      });
+      return tx.notification.create({
+        data: {
+          type: 'MEAL_READY',
+          familyId,
+          eventId: event.id,
+          senderId: req.appUser!.id,
+          title: parsed.data.title,
+          body: parsed.data.body,
+          dedupeKey,
+          receipts: { create: members.map((member) => ({ userId: member.userId, deliveredAt: new Date() })) }
+        },
+        include: { receipts: true }
+      });
+    })
+  });
+  res.json(ok(created));
+});
+
+apiMobileRouter.delete('/family-members/:id', requireAppAuth, async (req, res) => {
+  const id = idParam(req.params.id);
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse({ ...req.query, ...req.body });
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const target = await prisma.familyMember.findFirst({ where: { id }, include: { family: true } });
   if (!target) throw new HttpError('成员不存在', 404, 404);
   const operator = await prisma.familyMember.findFirst({
-    where: { familyId: target.familyId, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' }
+    where: { familyId: target.familyId, userId, deletedAt: null, memberStatus: 'ACTIVE' }
   });
-  if (!operator || (operator.role === 'MEMBER' && operator.userId !== target.userId)) throw new HttpError('无权移除成员', 403, 403);
+  const isSelf = operator?.userId === target.userId;
+  if (!operator || !canRemoveFamilyMember(operator.role, target.role, isSelf)) throw new HttpError('无权移除成员', 403, 403);
   const updated = await prisma.familyMember.update({
     where: { id },
     data: { memberStatus: operator.userId === target.userId ? 'LEFT' : 'REMOVED', status: 'DISABLED', leftAt: new Date() }
@@ -870,15 +1197,16 @@ apiMobileRouter.delete('/family-members/:id', async (req, res) => {
   res.json(ok(updated));
 });
 
-apiMobileRouter.put('/family-members/:id', async (req, res) => {
+apiMobileRouter.put('/family-members/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     remark: z.string().trim().max(255).nullable().optional(),
     role: z.enum(['CREATOR', 'ADMIN', 'MEMBER']).optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const target = await prisma.familyMember.findFirst({
     where: { id, deletedAt: null, memberStatus: 'ACTIVE' },
     include: { family: true }
@@ -886,18 +1214,19 @@ apiMobileRouter.put('/family-members/:id', async (req, res) => {
   if (!target) throw new HttpError('成员不存在', 404, 404);
 
   const operator = await prisma.familyMember.findFirst({
-    where: { familyId: target.familyId, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' }
+    where: { familyId: target.familyId, userId, deletedAt: null, memberStatus: 'ACTIVE' }
   });
   if (!operator) throw new HttpError('无权修改成员', 403, 403);
 
   const isSelf = operator.userId === target.userId;
-  const canEditRole = !isSelf && operator.role !== 'MEMBER';
+  const canEditRole = parsed.data.role === undefined
+    || canChangeFamilyRole(operator.role, target.role, parsed.data.role, isSelf);
   const canEditRemark = isSelf || operator.role !== 'MEMBER';
-  if ((!canEditRole && parsed.data.role !== undefined) || !canEditRemark) {
+  if (!canEditRole || !canEditRemark) {
     throw new HttpError('无权修改成员', 403, 403);
   }
 
-  const nextRole = parsed.data.role && canEditRole ? parsed.data.role : target.role;
+  const nextRole = parsed.data.role ?? target.role;
   const nextRemark = parsed.data.remark === undefined ? target.remark : parsed.data.remark;
 
   const updated = await prisma.familyMember.update({
@@ -920,15 +1249,22 @@ apiMobileRouter.put('/family-members/:id', async (req, res) => {
   }));
 });
 
-apiMobileRouter.get('/basket-items', async (req, res) => {
+apiMobileRouter.get('/basket-items', requireAppAuth, async (req, res) => {
   const parsed = pageQuerySchema.extend({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     familyId: z.coerce.number().int().positive().optional()
   }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, familyId, page, pageSize } = parsed.data;
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const { familyId, page, pageSize } = parsed.data;
   const skip = (page - 1) * pageSize;
-  const where = { userId, deletedAt: null, ...(familyId ? { familyId } : {}) };
+  if (familyId) {
+    const member = await prisma.familyMember.findFirst({
+      where: { familyId, userId, deletedAt: null, memberStatus: 'ACTIVE' }
+    });
+    if (!member) throw new HttpError('无权查看该家庭菜篮子', 403, 403);
+  }
+  const where = buildBasketListWhere({ requesterUserId: userId, familyId });
   const [rows, total] = await Promise.all([
     prisma.purchaseListItem.findMany({
       where,
@@ -944,9 +1280,9 @@ apiMobileRouter.get('/basket-items', async (req, res) => {
   res.json(ok(data));
 });
 
-apiMobileRouter.post('/basket-items', async (req, res) => {
+apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     familyId: z.coerce.number().int().positive().nullable().optional(),
     recipeId: z.coerce.number().int().positive().nullable().optional(),
     ingredientId: z.coerce.number().int().positive().nullable().optional(),
@@ -958,25 +1294,26 @@ apiMobileRouter.post('/basket-items', async (req, res) => {
     purchaseText: z.string().trim().max(120).nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const user = await prisma.user.findFirst({ where: { id: parsed.data.userId, deletedAt: null, status: 'ACTIVE' } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null, status: 'ACTIVE' } });
   if (!user) throw new HttpError('用户不存在', 404, 404);
   if (parsed.data.familyId) {
     const member = await prisma.familyMember.findFirst({
-      where: { familyId: parsed.data.familyId, userId: parsed.data.userId, deletedAt: null, memberStatus: 'ACTIVE' }
+      where: { familyId: parsed.data.familyId, userId, deletedAt: null, memberStatus: 'ACTIVE' }
     });
     if (!member) throw new HttpError('无权修改该家庭菜篮子', 403, 403);
   }
-  const existing = parsed.data.ingredientId
-    ? await prisma.purchaseListItem.findFirst({
-        where: {
-          userId: parsed.data.userId,
-          familyId: parsed.data.familyId ?? null,
-          recipeId: parsed.data.recipeId ?? null,
-          ingredientId: parsed.data.ingredientId,
-          deletedAt: null
-        }
-      })
-    : null;
+  const existing = await prisma.purchaseListItem.findFirst({
+    where: {
+      ...buildBasketListWhere({
+        requesterUserId: userId,
+        familyId: parsed.data.familyId
+      }),
+      recipeId: parsed.data.recipeId ?? null,
+      ingredientId: parsed.data.ingredientId ?? null,
+      name: parsed.data.name
+    }
+  });
   const item = existing
     ? await prisma.purchaseListItem.update({
         where: { id: existing.id },
@@ -992,7 +1329,7 @@ apiMobileRouter.post('/basket-items', async (req, res) => {
       })
     : await prisma.purchaseListItem.create({
         data: {
-          userId: parsed.data.userId,
+          userId,
           familyId: parsed.data.familyId,
           recipeId: parsed.data.recipeId,
           ingredientId: parsed.data.ingredientId,
@@ -1008,16 +1345,35 @@ apiMobileRouter.post('/basket-items', async (req, res) => {
   res.json(ok(toPurchaseItem(item)));
 });
 
-apiMobileRouter.put('/basket-items/:id', async (req, res) => {
+apiMobileRouter.put('/basket-items/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
   const parsed = z.object({
-    userId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
     quantity: z.coerce.number().positive().max(999).optional(),
     checked: z.coerce.boolean().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const existing = await prisma.purchaseListItem.findFirst({ where: { id, userId: parsed.data.userId, deletedAt: null } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const existing = await prisma.purchaseListItem.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new HttpError('菜篮子条目不存在', 404, 404);
+  const member = existing.familyId
+    ? await prisma.familyMember.findFirst({
+        where: {
+          familyId: existing.familyId,
+          userId,
+          deletedAt: null,
+          memberStatus: 'ACTIVE'
+        }
+      })
+    : null;
+  if (!canAccessBasketItem({
+    requesterUserId: userId,
+    itemOwnerUserId: existing.userId,
+    itemFamilyId: existing.familyId,
+    isActiveFamilyMember: Boolean(member)
+  })) {
+    throw new HttpError('无权修改该菜篮子条目', 403, 403);
+  }
   const item = await prisma.purchaseListItem.update({
     where: { id },
     data: {
@@ -1029,28 +1385,50 @@ apiMobileRouter.put('/basket-items/:id', async (req, res) => {
   res.json(ok(toPurchaseItem(item)));
 });
 
-apiMobileRouter.delete('/basket-items/:id', async (req, res) => {
+apiMobileRouter.delete('/basket-items/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const parsed = userIdSchema.safeParse(req.body);
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const existing = await prisma.purchaseListItem.findFirst({ where: { id, userId: parsed.data.userId, deletedAt: null } });
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const existing = await prisma.purchaseListItem.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new HttpError('菜篮子条目不存在', 404, 404);
+  const member = existing.familyId
+    ? await prisma.familyMember.findFirst({
+        where: {
+          familyId: existing.familyId,
+          userId,
+          deletedAt: null,
+          memberStatus: 'ACTIVE'
+        }
+      })
+    : null;
+  if (!canAccessBasketItem({
+    requesterUserId: userId,
+    itemOwnerUserId: existing.userId,
+    itemFamilyId: existing.familyId,
+    isActiveFamilyMember: Boolean(member)
+  })) {
+    throw new HttpError('无权删除该菜篮子条目', 403, 403);
+  }
   const item = await prisma.purchaseListItem.update({ where: { id }, data: { deletedAt: new Date(), status: 'DISABLED' }, include: purchaseItemInclude });
   res.json(ok(toPurchaseItem(item)));
 });
 
-apiMobileRouter.post('/favorites', async (req, res) => {
+apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {
   const parsed = favoriteTargetSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, recipeId = null, ingredientId = null } = parsed.data;
-  assertSingleTarget(recipeId, ingredientId);
-
-  const targetWhere = recipeId ? { recipeId, ingredientId: null } : { recipeId: null, ingredientId };
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const target = resolveContentTarget(parsed.data);
+  await assertPublicContentTarget(target);
+  const { recipeId, ingredientId, beverageId, targetType, targetId } = target;
+  const targetWhere = { targetType, targetId };
   const existing = await prisma.favorite.findFirst({
     where: { userId, ...targetWhere },
+    orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { updatedAt: 'desc' }],
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
 
@@ -1060,7 +1438,8 @@ apiMobileRouter.post('/favorites', async (req, res) => {
       data: { deletedAt: null, status: 'ACTIVE', updatedAt: new Date() },
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       }
     });
     if (recipeId && existing.deletedAt) {
@@ -1071,19 +1450,23 @@ apiMobileRouter.post('/favorites', async (req, res) => {
   }
 
   const created = await prisma.favorite.create({
-    data: { userId, recipeId, ingredientId },
+    data: { userId, recipeId, ingredientId, beverageId, targetType, targetId },
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
   if (recipeId) await prisma.recipe.update({ where: { id: recipeId }, data: { favoriteCount: { increment: 1 } } });
   res.json(ok(created));
 });
 
-apiMobileRouter.delete('/favorites/:id', async (req, res) => {
+apiMobileRouter.delete('/favorites/:id', requireAppAuth, async (req, res) => {
   const id = idParam(req.params.id);
-  const favorite = await prisma.favorite.findUnique({ where: { id } });
+  const parsed = z.object({ userId: z.coerce.number().int().positive().optional() }).safeParse({ ...req.query, ...req.body });
+  if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const favorite = await prisma.favorite.findFirst({ where: { id, userId } });
   if (!favorite) throw new HttpError('收藏不存在', 404, 404);
   const updated = await prisma.favorite.update({ where: { id }, data: { deletedAt: new Date() } });
   if (favorite.recipeId && !favorite.deletedAt) {
@@ -1092,18 +1475,21 @@ apiMobileRouter.delete('/favorites/:id', async (req, res) => {
   res.json(ok(updated));
 });
 
-apiMobileRouter.post('/view-histories', async (req, res) => {
+apiMobileRouter.post('/view-histories', requireAppAuth, async (req, res) => {
   const parsed = favoriteTargetSchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
-  const { userId, recipeId = null, ingredientId = null } = parsed.data;
-  assertSingleTarget(recipeId, ingredientId);
-
-  const targetWhere = recipeId ? { recipeId, ingredientId: null } : { recipeId: null, ingredientId };
+  const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const target = resolveContentTarget(parsed.data);
+  await assertPublicContentTarget(target);
+  const { recipeId, ingredientId, beverageId, targetType, targetId } = target;
+  const targetWhere = { targetType, targetId };
   const existing = await prisma.viewHistory.findFirst({
     where: { userId, ...targetWhere },
+    orderBy: [{ deletedAt: { sort: 'asc', nulls: 'first' } }, { updatedAt: 'desc' }],
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
 
@@ -1117,7 +1503,8 @@ apiMobileRouter.post('/view-histories', async (req, res) => {
       data: { deletedAt: null, status: 'ACTIVE', updatedAt: new Date() },
       include: {
         recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+        ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+        beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
       }
     });
     res.json(ok(updated));
@@ -1125,10 +1512,11 @@ apiMobileRouter.post('/view-histories', async (req, res) => {
   }
 
   const created = await prisma.viewHistory.create({
-    data: { userId, recipeId, ingredientId },
+    data: { userId, recipeId, ingredientId, beverageId, targetType, targetId },
     include: {
       recipe: { select: { id: true, title: true, subtitle: true, cover: true, description: true, cookTime: true, difficulty: true } },
-      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } }
+      ingredient: { select: { id: true, name: true, cover: true, seasonMonth: true, currentPrice: true, priceUnit: true } },
+      beverage: { select: { id: true, name: true, coverImage: true, beverageType: true, alcoholDegree: true } }
     }
   });
   res.json(ok(created));

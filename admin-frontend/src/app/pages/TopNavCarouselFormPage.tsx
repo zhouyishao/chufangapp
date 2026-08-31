@@ -193,7 +193,7 @@ export const TopNavCarouselFormPage = () => {
 
   const backToConfig = () => {
     if (!id) return navigate('/home-ops');
-    navigate(`/home-ops/top-nav/${id}/content`);
+    navigate(`/home-ops?nav=${encodeURIComponent(id)}`);
   };
 
   const navName = nav?.name ?? '当前导航';

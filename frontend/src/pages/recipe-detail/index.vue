@@ -1,86 +1,60 @@
 <template>
-  <view class="page-container">
-    <!-- Top Hero Image -->
-    <view class="hero-section">
-      <image class="hero-image" :src="recipe.image" mode="aspectFill" />
-      <view class="hero-gradient-overlay" />
-      
-      <!-- Header Actions -->
-      <view class="floating-header">
-        <view class="nav-btn back-btn" @click="goBack">
-          <app-icon class="icon-svg" name="arrow-left" size="30rpx" />
-        </view>
-        <view class="header-right-btns">
-          <view class="nav-btn favorite-btn" :class="{ 'is-active': isCollected }" @click="toggleCollectRecipe">
-            <app-icon class="icon-svg" :name="isCollected ? 'heart-filled' : 'heart'" size="30rpx" />
-          </view>
-          <view class="nav-btn share-btn" @click="shareRecipe">
-            <app-icon class="icon-svg" name="share" size="30rpx" />
-          </view>
-        </view>
+  <view :class="['page-container', { 'is-sheet-locked': isSheetLocked }]">
+    <content-detail-hero
+      :src="recipe.image"
+      :alt="`${recipe.name || '菜谱'}主图`"
+      :favorite="isCollected"
+      :show-back="false"
+      :show-favorite="false"
+      :show-share="false"
+      @back="goBack"
+      @favorite="toggleCollectRecipe"
+      @share="shareRecipe"
+    />
+
+    <view class="recipe-fixed-actions">
+      <button class="recipe-fixed-action" aria-label="返回" @tap="goBack">
+        <app-icon name="arrow-left" size="30rpx" />
+      </button>
+      <view class="recipe-fixed-actions__right">
+        <button
+          :class="['recipe-fixed-action', { 'is-active': isCollected }]"
+          :aria-label="isCollected ? '取消收藏' : '收藏'"
+          :aria-pressed="isCollected"
+          @tap="toggleCollectRecipe"
+        >
+          <app-icon :name="isCollected ? 'heart-filled' : 'heart'" size="30rpx" />
+        </button>
+        <button class="recipe-fixed-action" aria-label="分享" @tap="shareRecipe">
+          <app-icon name="share" size="30rpx" />
+        </button>
       </view>
     </view>
 
-    <!-- Error/Loading states -->
-    <view v-if="remoteLoading" class="remote-banner">
-      <text class="remote-banner__text">正在加载菜谱详情...</text>
+    <view v-if="!remoteLoading && !remoteError" class="recipe-sheet-safe-zone" aria-hidden="true">
+      <image v-if="recipe.image" :src="recipe.image" mode="aspectFill" />
     </view>
-    <view v-else-if="remoteError" class="remote-banner">
-      <text class="remote-banner__error">加载失败：{{ remoteError }}</text>
-      <view class="remote-banner__retry" @tap="handleRetryRemote">重试</view>
-    </view>
+    <view v-if="!remoteLoading && !remoteError" class="recipe-sheet-cap" aria-hidden="true" />
+
+    <content-detail-state v-if="remoteLoading" state="loading" />
+    <content-detail-state
+      v-else-if="remoteError"
+      state="error"
+      title="菜谱暂时没有加载出来"
+      :description="remoteError"
+      @action="handleRetryRemote"
+    />
 
     <template v-else>
-      <!-- Content Card (overlaps Hero image) -->
+      <view class="recipe-detail-sheet">
       <view class="recipe-info-card">
-        <view class="recipe-title-section">
-          <text class="recipe-name">{{ recipe.name }}</text>
-          <view class="recipe-tag-chips">
-            <text 
-              v-for="tag in recipeTags" 
-              :key="tag" 
-              class="tag-chip"
-              :class="{ 'is-warm': tag === '滋补' || tag.includes('补') }"
-            >
-              {{ tag }}
-            </text>
-          </view>
-        </view>
-        
-        <text class="recipe-description">{{ recipe.subtitle }}</text>
-        
-        <view class="divider" />
-        
-        <!-- Meta Information Row -->
-        <view class="recipe-meta-row">
-          <view class="meta-col">
-            <app-icon class="meta-icon" name="clock" size="32rpx" />
-            <view class="meta-info-text">
-              <text class="meta-col-value">{{ recipe.duration }}</text>
-              <text class="meta-col-label">烹饪时间</text>
-            </view>
-          </view>
-          
-          <view class="meta-divider" />
-          
-          <view class="meta-col">
-            <app-icon class="meta-icon" name="users" size="32rpx" />
-            <view class="meta-info-text">
-              <text class="meta-col-value">{{ recipe.servings }}</text>
-              <text class="meta-col-label">适合人数</text>
-            </view>
-          </view>
-          
-          <view class="meta-divider" />
-          
-          <view class="meta-col">
-            <app-icon class="meta-icon" name="difficulty" size="32rpx" />
-            <view class="meta-info-text">
-              <text class="meta-col-value">{{ recipe.difficulty }}</text>
-              <text class="meta-col-label">难易程度</text>
-            </view>
-          </view>
-        </view>
+        <text class="recipe-name">{{ recipe.name }}</text>
+        <text v-if="recipeSummaryLine" class="recipe-summary-line">{{ recipeSummaryLine }}</text>
+        <button class="recipe-family-note" @tap="showFamilyDietaryNote">
+          <app-icon name="users" size="30rpx" />
+          <text>周家：1 人忌辣</text>
+          <app-icon name="chevron-right" size="24rpx" />
+        </button>
       </view>
 
       <view :class="['recipe-detail-switch', `is-${activeTab}`]">
@@ -88,11 +62,15 @@
         <view :class="['tab-toggle-container', `is-${activeTab}`]">
           <view class="tab-active-plate" />
           <view class="tab-item" :class="{ 'is-active': activeTab === 'ingredients' }" @click="activeTab = 'ingredients'">
-            <text class="tab-text">食材清单</text>
+            <text class="tab-text">食材</text>
             <view class="active-indicator" />
           </view>
           <view class="tab-item" :class="{ 'is-active': activeTab === 'steps' }" @click="activeTab = 'steps'">
-            <text class="tab-text">制作步骤</text>
+            <text class="tab-text">步骤</text>
+            <view class="active-indicator" />
+          </view>
+          <view class="tab-item" :class="{ 'is-active': activeTab === 'tips' }" @click="activeTab = 'tips'">
+            <text class="tab-text">小贴士</text>
             <view class="active-indicator" />
           </view>
         </view>
@@ -101,19 +79,6 @@
         <view class="panel-container">
           <!-- Ingredients Panel -->
           <view v-show="activeTab === 'ingredients'" class="ingredients-panel">
-            <view class="usage-row">
-              <text class="usage-label">用量：</text>
-              <view class="stepper-capsule">
-                <view class="stepper-btn" :class="{ 'is-disabled': currentServings <= 1 }" @click="decreaseServings">
-                  <app-icon class="stepper-icon" name="minus" size="24rpx" />
-                </view>
-                <text class="stepper-value">{{ servingsDisplayText }}</text>
-                <view class="stepper-btn" @click="increaseServings">
-                  <app-icon class="stepper-icon" name="plus" size="24rpx" />
-                </view>
-              </view>
-            </view>
-
             <view class="ingredients-grid">
               <view 
                 v-for="item in visibleIngredients" 
@@ -121,20 +86,21 @@
                 class="ingredient-card"
                 @click="showIngredientGuide(item.name)"
               >
-                <view class="card-basket-btn" :class="{ 'is-added': isIngredientInBasket(item) }" @click.stop="toggleIngredientInBasket(item)">
-                  <app-icon class="basket-icon-svg" name="basket" size="24rpx" />
+                <image
+                  v-if="item.cover && !failedIngredientCovers[item.name]"
+                  class="ingredient-img"
+                  :src="item.cover"
+                  mode="aspectFit"
+                  @error="failedIngredientCovers[item.name] = true"
+                />
+                <view v-else class="ingredient-img ingredient-img-fallback" aria-hidden="true">
+                  <text>{{ item.name.slice(0, 1) }}</text>
                 </view>
-                <image class="ingredient-img" :src="item.cover" mode="aspectFill" />
                 <text class="ingredient-name-label">{{ item.name }}</text>
                 <text class="ingredient-amount-label">{{ scaleAmountText(item.amount, servingsScale) }}</text>
               </view>
             </view>
 
-            <!-- Expand / Collapse -->
-            <view v-if="recipe.ingredients.length > 8" class="toggle-fold-btn" @click="isIngredientsExpanded = !isIngredientsExpanded">
-              <text>{{ isIngredientsExpanded ? '收起全部' : '展开全部' }}</text>
-              <app-icon class="fold-arrow" :class="{ 'is-flipped': isIngredientsExpanded }" name="chevron-down" size="22rpx" />
-            </view>
           </view>
 
           <!-- Cooking Steps Panel -->
@@ -173,13 +139,22 @@
               </view>
             </view>
           </view>
+          <view v-show="activeTab === 'tips'" class="tips-panel">
+            <view v-if="recipe.tips.length" class="tips-bullet-list">
+              <view v-for="(tip, idx) in recipe.tips" :key="idx" class="tip-bullet-row">
+                <text class="tips-index">{{ String(idx + 1).padStart(2, '0') }}</text>
+                <text class="tip-bullet-text">{{ tip }}</text>
+              </view>
+            </view>
+            <text v-else class="empty-steps-text">暂无小贴士</text>
+          </view>
         </view>
       </view>
 
       <!-- Related Recipes section -->
       <view class="related-section">
         <view class="related-header">
-          <text class="section-title">相关菜谱</text>
+          <text class="section-title">相似菜谱</text>
           <view class="more-link-btn" @click="goToRecipesCategory">
             <text class="more-text">查看更多</text>
             <app-icon class="more-arrow" name="chevron-right" size="22rpx" />
@@ -206,22 +181,28 @@
         </view>
       </view>
 
-      <!-- Tips Card section -->
-      <view v-if="recipe.tips && recipe.tips.length > 0" class="tips-section-wrapper">
-        <view class="tips-outer-card" :class="'layout-' + activeTab">
-          <view class="tips-inner-content">
-            <text class="tips-title-text">小贴士</text>
-            <view class="tips-bullet-list">
-              <view v-for="(tip, idx) in recipe.tips" :key="idx" class="tip-bullet-row">
-                <view class="tip-bullet-dot" />
-                <text class="tip-bullet-text">{{ tip }}</text>
-              </view>
-            </view>
+      <view v-if="sameIngredientRecipesList.length > 0" class="same-ingredient-section">
+        <view class="related-header">
+          <text class="section-title">{{ primaryIngredientName }}还能这样做</text>
+          <view class="more-link-btn" @click="goToRecipesCategory">
+            <text class="more-text">查看更多</text>
+            <app-icon class="more-arrow" name="chevron-right" size="22rpx" />
           </view>
-          
-          <!-- Elegant Pot line-art SVG graphic -->
-          <view class="cooking-pot-graphic">
-            <app-icon class="pot-svg" name="cooking-pot" size="112rpx" />
+        </view>
+        <view class="same-ingredient-list">
+          <view
+            v-for="item in sameIngredientRecipesList"
+            :key="item.id"
+            class="same-ingredient-row"
+            @click="goToRecipe(item.id)"
+          >
+            <image class="same-ingredient-thumb" :src="item.cover" mode="aspectFill" />
+            <view class="same-ingredient-copy">
+              <text class="same-ingredient-title">{{ item.title }}</text>
+              <text class="same-ingredient-meta">
+                {{ item.cookTime ? `${item.cookTime}分钟` : '—' }} · {{ item.difficulty || '家常' }}
+              </text>
+            </view>
           </view>
         </view>
       </view>
@@ -229,7 +210,7 @@
       <!-- Beverages matching section (if exists) -->
       <view v-if="recipe.beverages && recipe.beverages.length > 0" class="beverages-card-section">
         <view class="section-header-box">
-          <text class="section-title">推荐搭配饮品</text>
+          <text class="section-title">适合搭配的饮品</text>
         </view>
         <view class="beverage-cards-list">
           <view
@@ -254,27 +235,18 @@
           </view>
         </view>
       </view>
-
-      <!-- Fixed Bottom Action Bar -->
-      <view class="bottom-fixed-bar">
-        <view class="bottom-bar-inner">
-        <button 
-          class="bar-btn secondary-bar-btn" 
-          :disabled="isAddingToBasket"
-          @click="toggleMainIngredientsInBasket"
-        >
-            <app-icon class="btn-icon-svg" name="basket" size="24rpx" />
-            <text>{{ areMainIngredientsInBasket ? '已在菜篮子' : '加入菜篮子' }}</text>
-        </button>
-        <button 
-          class="bar-btn primary-bar-btn" 
-          @click="startCooking"
-        >
-            <app-icon class="btn-icon-svg" name="recipe" size="24rpx" />
-            <text>开始烹饪</text>
-        </button>
-        </view>
       </view>
+
+      <content-detail-bottom-bar
+        primary-label="去烹饪"
+        primary-icon="recipe"
+        secondary-label="加入菜篮"
+        secondary-icon="basket-action"
+        :secondary-disabled="isAddingToBasket"
+        :secondary-pressed="areMainIngredientsInBasket"
+        @primary="startCooking"
+        @secondary="toggleMainIngredientsInBasket"
+      />
     </template>
 
     <!-- Ingredient Guide Modal popup (pantry/selection tips) -->
@@ -365,10 +337,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onLoad, onPageScroll, onShow } from '@dcloudio/uni-app';
 import AppIcon from '../../components/app/app-icon.vue';
-import { addBasketItem, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
+import ContentDetailBottomBar from '../../components/content-detail-bottom-bar.vue';
+import ContentDetailHero from '../../components/content-detail-hero.vue';
+import ContentDetailState from '../../components/content-detail-state.vue';
+import { detailPreviewRelatedRecipes, getDetailPreviewFixture } from '../../dev/detail-preview-fixtures';
+import { addBasketItem, addBasketItems, getIngredientPurchaseText, loadBasketItems, removeBasketItem } from '../../services/basket';
 import type { BasketItem } from '../../services/basket';
 import { loadAuthUser, syncAuthUserWithBackend } from '../../services/auth';
 import {
@@ -376,13 +352,17 @@ import {
   addMobileViewHistory,
   deleteMobileFavorite,
   getRecipe,
+  listIngredients,
   listMobileFavorites,
   listRecipes,
   resolveAssetUrl
 } from '../../services/public-api';
+import { getContentDetailErrorMessage } from '../../utils/content-detail-error';
+import { navigateBackFromContentDetail, resolveDetailEntryOrigin } from '../../utils/content-detail-navigation';
 
 interface Ingredient {
   id?: number | string;
+  ingredientId?: number | string;
   name: string;
   amount: string;
   cover?: string;
@@ -453,12 +433,19 @@ const recipe = ref<Recipe>({ ...emptyRecipeDetail });
 
 const remoteLoading = ref(false);
 const remoteError = ref<string | null>(null);
+const heroFailed = ref(false);
+const failedIngredientCovers = ref<Record<string, boolean>>({});
 const currentRecipeId = ref<string | null>(null);
+const detailEntryOrigin = ref('');
 const currentRecipeLegacyId = ref<number | null>(null);
+const previewRouteOptions = ref<Record<string, string | undefined>>({});
 const favoriteRecordId = ref<number | null>(null);
 const favoriteChanging = ref(false);
 
-const activeTab = ref<'ingredients' | 'steps'>('ingredients');
+const activeTab = ref<'ingredients' | 'steps' | 'tips'>('ingredients');
+const showFamilyDietaryNote = () => {
+  uni.showToast({ title: '周家：1 人忌辣', icon: 'none' });
+};
 
 const currentServings = ref(2);
 
@@ -511,39 +498,77 @@ const scaleAmountText = (amount: string | null | undefined, scale: number): stri
   });
 };
 
-const isIngredientsExpanded = ref(false);
 const visibleIngredients = computed(() => {
-  const list = recipe.value.ingredients || [];
-  if (list.length <= 8 || isIngredientsExpanded.value) {
-    return list;
-  }
-  return list.slice(0, 8);
+  return recipe.value.ingredients || [];
 });
 
-const recipeTags = computed(() => {
-  const list: string[] = [];
-  if (recipe.value.tag?.label) {
-    list.push(recipe.value.tag.label);
-  }
-  if (recipe.value.difficulty && recipe.value.difficulty !== '—') {
-    list.push(recipe.value.difficulty);
-  }
-  if (recipe.value.taste && recipe.value.taste !== '—') {
-    list.push(recipe.value.taste);
-  }
-  return list.slice(0, 3);
+const isSheetLocked = ref(false);
+const getSheetLockThreshold = () => {
+  const viewportWidth = typeof window === 'undefined' ? 393 : Math.min(window.innerWidth, 393);
+  const heroHeight = viewportWidth * (844 / 852);
+  const sheetOverlap = 22;
+  const reservedHeroHeight = 116;
+  return Math.max(84, heroHeight - sheetOverlap - reservedHeroHeight);
+};
+
+const updateSheetLock = (scrollTop: number) => {
+  isSheetLocked.value = scrollTop >= getSheetLockThreshold();
+};
+
+const handleWindowScroll = () => {
+  if (typeof window === 'undefined') return;
+  updateSheetLock(window.scrollY || document.documentElement.scrollTop || 0);
+};
+
+onPageScroll(({ scrollTop }) => updateSheetLock(scrollTop));
+
+const recipeServingsText = computed(() => {
+  if (!recipe.value.servings) return '';
+  return /人/.test(recipe.value.servings) ? recipe.value.servings : `${recipe.value.servings}人`;
+});
+
+const recipeSummaryLine = computed(() => {
+  const category = recipe.value.tags?.[0] || recipe.value.tag.label;
+  return [
+    category,
+    recipe.value.duration && recipe.value.duration !== '—' ? recipe.value.duration : '',
+    recipe.value.difficulty,
+    recipeServingsText.value
+  ].filter(Boolean).join(' · ');
 });
 
 const relatedRecipesList = ref<any[]>([]);
+const sameIngredientRecipesList = ref<any[]>([]);
+
+const primaryIngredientName = computed(() => recipe.value.ingredients?.[0]?.name || '同类食材');
 
 const fetchRelatedRecipes = async () => {
+  const preview = currentRecipeId.value
+    ? getDetailPreviewFixture('recipe', currentRecipeId.value, previewRouteOptions.value)
+    : null;
+  if (preview) {
+    relatedRecipesList.value = detailPreviewRelatedRecipes;
+    sameIngredientRecipesList.value = detailPreviewRelatedRecipes.slice(0, 3);
+    return;
+  }
   try {
     const res = await listRecipes({ page: 1, pageSize: 4 });
     relatedRecipesList.value = res.list
       .filter((item) => String(item.id) !== String(currentRecipeId.value))
       .slice(0, 3);
+
+    const ingredientName = primaryIngredientName.value;
+    if (ingredientName && ingredientName !== '同类食材') {
+      const ingredientResult = await listRecipes({ page: 1, pageSize: 6, q: ingredientName });
+      sameIngredientRecipesList.value = ingredientResult.list
+        .filter((item) => String(item.id) !== String(currentRecipeId.value))
+        .slice(0, 3);
+    } else {
+      sameIngredientRecipesList.value = [];
+    }
   } catch (e) {
     console.error('Failed to load related recipes', e);
+    sameIngredientRecipesList.value = [];
   }
 };
 
@@ -564,11 +589,37 @@ const shareRecipe = () => {
   });
 };
 
+const formatIngredientAmount = (item: any) => {
+  const rawAmount = String(item.amount ?? item.note ?? '').trim();
+  const unit = String(item.unit ?? '').trim();
+  if (!rawAmount) return unit;
+  if (!unit || rawAmount.includes(unit)) return rawAmount;
+  return `${rawAmount}${unit}`;
+};
+
+const enrichIngredientCovers = async (items: Ingredient[]) => {
+  const missingNames = [...new Set(items.filter((item) => !item.cover && item.name).map((item) => item.name))];
+  if (missingNames.length === 0) return items;
+
+  const coverEntries = await Promise.all(missingNames.map(async (name) => {
+    try {
+      const result = await listIngredients({ page: 1, pageSize: 8, q: name });
+      const exact = result.list.find((item) => item.name.trim() === name.trim());
+      return [name, exact?.transparentImage ?? exact?.cover ?? ''] as const;
+    } catch {
+      return [name, ''] as const;
+    }
+  }));
+  const covers = new Map(coverEntries);
+  return items.map((item) => item.cover ? item : { ...item, cover: covers.get(item.name) || '' });
+};
+
 const loadRemoteRecipe = async (id: string) => {
   remoteLoading.value = true;
   remoteError.value = null;
+  failedIngredientCovers.value = {};
   try {
-    const data = (await getRecipe(id)) as any;
+    const data = (getDetailPreviewFixture('recipe', id, previewRouteOptions.value) ?? await getRecipe(id)) as any;
     
     // 1. Title / Name mapping
     const titleVal = data.title ?? data.name ?? '';
@@ -610,16 +661,22 @@ const loadRemoteRecipe = async (id: string) => {
 
     // 8. Ingredients list mapping
     const rawIngs = data.ingredients ?? (data.ingredientItems ?? []);
-    const mappedIngredients = rawIngs.map((item: any) => {
-      const name = item.name;
-      const coverUrl = item.ingredient?.cover ? resolveAssetUrl(item.ingredient.cover) : '';
+    const mappedIngredients = await enrichIngredientCovers(rawIngs.map((item: any) => {
+      const coverSource = item.ingredient?.transparentImage
+        ?? item.ingredient?.cover
+        ?? item.ingredient?.coverImage
+        ?? item.cover
+        ?? item.coverImage
+        ?? item.image;
+      const coverUrl = coverSource ? resolveAssetUrl(coverSource) : '';
       return {
         id: item.id,
-        name: item.name,
-        amount: item.amount ?? '',
+        ingredientId: item.ingredientId,
+        name: item.name ?? item.ingredient?.name ?? '',
+        amount: formatIngredientAmount(item),
         cover: coverUrl
       };
-    });
+    }));
 
     // 9. Steps timeline mapping
     const rawSteps = data.steps ?? (data.cookingSteps ?? []);
@@ -641,7 +698,9 @@ const loadRemoteRecipe = async (id: string) => {
       id: String(data.id),
       name: titleVal,
       subtitle: subtitleVal,
+      description: subtitleVal,
       image: coverVal,
+      tags: tagsList,
       tag: { type: 'success', label: data.category?.name ?? data.scene ?? '' },
       duration: durationVal,
       difficulty: difficultyVal,
@@ -673,7 +732,7 @@ const loadRemoteRecipe = async (id: string) => {
     }
   } catch (err) {
     currentRecipeLegacyId.value = null;
-    remoteError.value = err instanceof Error ? err.message : '加载失败';
+    remoteError.value = getContentDetailErrorMessage(err);
     recipe.value = { ...emptyRecipeDetail };
     currentServings.value = getBaseServingsCount(recipe.value.servings);
   } finally {
@@ -682,6 +741,8 @@ const loadRemoteRecipe = async (id: string) => {
 };
 
 onLoad((query?: Record<string, string | undefined>) => {
+  previewRouteOptions.value = query ?? {};
+  detailEntryOrigin.value = resolveDetailEntryOrigin(query?.from);
   const id = readRecipeIdFromRoute(query);
   if (id) {
     currentRecipeId.value = id;
@@ -693,11 +754,21 @@ onLoad((query?: Record<string, string | undefined>) => {
 });
 
 onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    handleWindowScroll();
+  }
   if (currentRecipeId.value) return;
   const id = readRecipeIdFromRoute();
   if (!id) return;
   currentRecipeId.value = id;
   void loadRemoteRecipe(id);
+});
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('scroll', handleWindowScroll);
+  }
 });
 
 onShow(() => {
@@ -729,11 +800,10 @@ const areMainIngredientsInBasket = computed(() => {
 });
 
 const goBack = () => {
-  if (getCurrentPages().length <= 1) {
-    uni.reLaunch({ url: '/pages/ingredients/index?tab=recipes' });
-    return;
-  }
-  uni.navigateBack();
+  navigateBackFromContentDetail(
+    detailEntryOrigin.value || resolveDetailEntryOrigin(),
+    '/pages/ingredients/index?type=recipe'
+  );
 };
 
 const getLoggedUserId = async () => {
@@ -798,7 +868,9 @@ const toggleCollectRecipe = async () => {
 
 const isPantrySeasoning = (name: string) => pantrySeasonings.includes(name);
 
-const getRecipeIngredientBasketId = (item: Ingredient) => `${recipe.value.id}-${item.name}`;
+const getRecipeBasketId = () => currentRecipeLegacyId.value ? String(currentRecipeLegacyId.value) : recipe.value.id;
+
+const getRecipeIngredientBasketId = (item: Ingredient) => `${getRecipeBasketId()}-${item.name}`;
 
 const isIngredientInBasket = (item: Ingredient) => basketItemIds.value.includes(getRecipeIngredientBasketId(item));
 
@@ -822,7 +894,8 @@ const addIngredientToBasket = async (item: Ingredient, showToast = true) => {
     name: item.name,
     amountText: scaledAmt,
     purchaseText: getIngredientPurchaseText(item.name),
-    checked: false
+    checked: false,
+    ingredientId: item.ingredientId ? String(item.ingredientId) : undefined
   });
   await syncBasketState();
   if (showToast) {
@@ -878,7 +951,21 @@ const toggleMainIngredientsInBasket = async () => {
       });
     } else {
       const pendingIngredients = mainIngredients.value.filter((item) => !isIngredientInBasket(item));
-      await Promise.all(pendingIngredients.map((item) => addIngredientToBasket(item, false)));
+      const nextItems = pendingIngredients.map((item) => ({
+        id: getRecipeIngredientBasketId(item),
+        recipeId: getRecipeBasketId(),
+        recipeName: recipe.value.name,
+        name: item.name,
+        amountText: scaleAmountText(item.amount, servingsScale.value),
+        purchaseText: getIngredientPurchaseText(item.name),
+        checked: false,
+        ingredientId: item.ingredientId ? String(item.ingredientId) : undefined
+      }));
+      const finalBasket = await addBasketItems(nextItems);
+      basketItems.value = finalBasket;
+      basketItemIds.value = finalBasket.map(getBasketKey);
+      const allAdded = mainIngredients.value.every((item) => basketItemIds.value.includes(getRecipeIngredientBasketId(item)));
+      if (!allAdded) throw new Error('主食材加入不完整');
       uni.showToast({
         title: pendingIngredients.length ? '主食材已全部加入菜篮子' : '主食材已在菜篮子',
         icon: pendingIngredients.length ? 'success' : 'none'
@@ -975,7 +1062,7 @@ onShow(() => {
   margin: 0;
   min-height: 100vh;
   background: var(--app-bg);
-  padding-bottom: calc(180rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(180rpx + var(--app-safe-area-bottom));
   position: relative;
   overflow-x: hidden;
 }
@@ -1009,7 +1096,7 @@ onShow(() => {
   top: 0;
   left: 0;
   right: 0;
-  padding: calc(env(safe-area-inset-top, 0) + 24rpx) 24rpx 20rpx;
+  padding: calc(var(--app-safe-area-top) + 24rpx) 24rpx 20rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1879,7 +1966,7 @@ onShow(() => {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1rpx solid rgba(183, 174, 161, 0.2);
-  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom, 0));
+  padding: 24rpx 24rpx calc(24rpx + var(--app-safe-area-bottom));
   z-index: 100;
   box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.02);
 }
@@ -1942,7 +2029,7 @@ onShow(() => {
   margin: 0 auto;
   background: #FFFDFC;
   border-radius: 48rpx 48rpx 0 0;
-  padding: 40rpx 40rpx calc(40rpx + env(safe-area-inset-bottom, 0));
+  padding: 40rpx 40rpx calc(40rpx + var(--app-safe-area-bottom));
   box-shadow: 0 -8rpx 36rpx rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
@@ -2174,16 +2261,20 @@ onShow(() => {
     linear-gradient(180deg, #f5f1ea 0%, #fffdfc 48%, #f5f1ea 100%);
   color: var(--text-primary);
   font-family: var(--font-system);
-  padding-bottom: calc(172rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(172rpx + var(--app-safe-area-bottom));
 }
 
 .hero-section {
-  height: 704rpx;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 852 / 844;
   border-radius: 0;
   background: #f5f1ea;
 }
 
 .hero-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   transform: scale(1.01);
 }
@@ -2200,7 +2291,7 @@ onShow(() => {
 }
 
 .floating-header {
-  padding: calc(env(safe-area-inset-top, 0) + 28rpx) 28rpx 18rpx;
+  padding: calc(var(--app-safe-area-top) + 28rpx) 28rpx 18rpx;
 }
 
 .nav-btn {
@@ -2231,7 +2322,7 @@ onShow(() => {
 }
 
 .recipe-info-card {
-  margin: -118rpx 20rpx 0;
+  margin: -76rpx 20rpx 0;
   padding: 42rpx 32rpx 34rpx;
   border: 0;
   border-radius: 34rpx;
@@ -2610,7 +2701,7 @@ onShow(() => {
   border-top: 0;
   background: rgba(255, 253, 252, 0.96);
   box-shadow: 0 -18rpx 52rpx rgba(122, 116, 107, 0.08);
-  padding: 22rpx 20rpx calc(22rpx + env(safe-area-inset-bottom, 0));
+  padding: 22rpx 20rpx calc(22rpx + var(--app-safe-area-bottom));
 }
 
 .bottom-bar-inner {
@@ -2638,7 +2729,7 @@ onShow(() => {
 /* Option 2 implementation: calm cookbook detail layout */
 .page-container {
   background: #f5f1ea;
-  padding-bottom: calc(172rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(172rpx + var(--app-safe-area-bottom));
 }
 
 .hero-section {
@@ -2661,7 +2752,7 @@ onShow(() => {
 }
 
 .floating-header {
-  padding: calc(env(safe-area-inset-top, 0) + 26rpx) 28rpx 16rpx;
+  padding: calc(var(--app-safe-area-top) + 26rpx) 28rpx 16rpx;
 }
 
 .nav-btn {
@@ -2933,7 +3024,7 @@ onShow(() => {
   background:
     radial-gradient(circle at 14% 4%, rgba(255, 253, 252, 0.9), transparent 34%),
     linear-gradient(180deg, #f5f1ea 0%, #fffdfc 48%, #f5f1ea 100%);
-  padding-bottom: calc(172rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(172rpx + var(--app-safe-area-bottom));
 }
 
 .hero-section {
@@ -2957,7 +3048,7 @@ onShow(() => {
 }
 
 .floating-header {
-  padding: calc(env(safe-area-inset-top, 0) + 28rpx) 28rpx 18rpx;
+  padding: calc(var(--app-safe-area-top) + 28rpx) 28rpx 18rpx;
 }
 
 .nav-btn {
@@ -3131,7 +3222,7 @@ onShow(() => {
   width: 100%;
   min-height: 100vh;
   background: #fffdfc;
-  padding-bottom: calc(150rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(150rpx + var(--app-safe-area-bottom));
   overflow-x: hidden;
 }
 
@@ -3155,7 +3246,7 @@ onShow(() => {
 }
 
 .floating-header {
-  padding: calc(env(safe-area-inset-top, 0) + 28rpx) 44rpx 0;
+  padding: calc(var(--app-safe-area-top) + 28rpx) 44rpx 0;
 }
 
 .nav-btn {
@@ -3503,7 +3594,7 @@ onShow(() => {
 }
 
 .bottom-fixed-bar {
-  padding: 22rpx 44rpx calc(22rpx + env(safe-area-inset-bottom, 0));
+  padding: 22rpx 44rpx calc(22rpx + var(--app-safe-area-bottom));
   border-top: 1rpx solid rgba(183, 174, 161, 0.16);
   background: rgba(255, 253, 252, 0.96);
   box-shadow: 0 -10rpx 36rpx rgba(122, 116, 107, 0.06);
@@ -3544,7 +3635,7 @@ onShow(() => {
   --detail-line: rgba(183, 174, 161, 0.26);
   background: var(--detail-paper);
   color: var(--detail-ink);
-  padding-bottom: calc(154rpx + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(154rpx + var(--app-safe-area-bottom));
 }
 
 .hero-section {
@@ -3556,7 +3647,7 @@ onShow(() => {
 }
 
 .floating-header {
-  padding: calc(env(safe-area-inset-top, 0) + 28rpx) 44rpx 0;
+  padding: calc(var(--app-safe-area-top) + 28rpx) 44rpx 0;
 }
 
 .nav-btn {
@@ -3880,7 +3971,7 @@ onShow(() => {
 }
 
 .bottom-fixed-bar {
-  padding: 22rpx 44rpx calc(22rpx + env(safe-area-inset-bottom, 0));
+  padding: 22rpx 44rpx calc(22rpx + var(--app-safe-area-bottom));
   border-top: 1rpx solid rgba(183, 174, 161, 0.16);
   background: rgba(255, 253, 252, 0.96);
   box-shadow: 0 -10rpx 36rpx rgba(122, 116, 107, 0.06);
@@ -3915,7 +4006,7 @@ onShow(() => {
 
 .guide-modal-panel {
   max-width: none;
-  padding: 38rpx 44rpx calc(36rpx + env(safe-area-inset-bottom, 0));
+  padding: 38rpx 44rpx calc(36rpx + var(--app-safe-area-bottom));
   border-radius: 38rpx 38rpx 0 0;
   background: var(--detail-paper);
   box-shadow: 0 -18rpx 52rpx rgba(71, 56, 38, 0.12);
@@ -3946,4 +4037,370 @@ onShow(() => {
   border-radius: 42rpx;
   background: var(--detail-sage);
 }
+
+.detail-hero {
+  width: 100%;
+  aspect-ratio: 852 / 844;
+  overflow: hidden;
+}
+
+.detail-hero .hero-image,
+.hero-media-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+/* Frozen prototype parity: one continuous detail surface, compact information rhythm. */
+.page-container {
+  min-height: 100dvh;
+  padding-bottom: calc(144rpx + var(--app-safe-area-bottom));
+  overflow-x: hidden;
+  background: var(--app-bg);
+}
+
+.recipe-info-card,
+.recipe-detail-switch,
+.related-section,
+.beverages-card-section {
+  width: auto;
+  margin: 0;
+  padding-inline: 40rpx;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.recipe-info-card {
+  padding-top: 34rpx;
+  padding-bottom: 0;
+}
+
+.recipe-title-section {
+  align-items: flex-start;
+}
+
+.recipe-name {
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-hero);
+}
+
+.recipe-tag-chips {
+  display: none;
+}
+
+.recipe-description {
+  margin-top: 6rpx;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body-sm);
+}
+
+.recipe-family-note {
+  display: grid;
+  width: 100%;
+  min-height: var(--touch-target);
+  grid-template-columns: 38rpx minmax(0, 1fr) 32rpx;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 22rpx;
+  padding: 0;
+  border: 0;
+  border-top: 1rpx solid var(--app-border);
+  border-bottom: 1rpx solid var(--app-border);
+  border-radius: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body-sm);
+  text-align: left;
+}
+
+.recipe-family-note::after {
+  border: 0;
+}
+
+.recipe-family-note :last-child {
+  justify-self: end;
+}
+
+.recipe-detail-switch {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.tab-toggle-container {
+  display: grid;
+  min-height: var(--touch-target);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1rpx solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tab-active-plate {
+  display: none;
+}
+
+.tab-item {
+  position: relative;
+  min-height: var(--touch-target);
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.tab-item.is-active {
+  color: var(--app-primary);
+}
+
+.tab-text {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-medium);
+  line-height: var(--line-body);
+}
+
+.active-indicator {
+  right: 36%;
+  bottom: 0;
+  left: 36%;
+  height: 4rpx;
+  border-radius: 2rpx;
+}
+
+.panel-container {
+  margin: 0;
+  padding: 26rpx 0 8rpx;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.usage-row {
+  min-height: 64rpx;
+  margin-bottom: 18rpx;
+}
+
+.ingredients-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24rpx 14rpx;
+}
+
+.ingredient-card {
+  min-width: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ingredient-img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+}
+
+.ingredient-name-label {
+  margin-top: 10rpx;
+  overflow: hidden;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-medium);
+  line-height: var(--line-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ingredient-amount-label {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-tag);
+  font-weight: var(--font-regular);
+  line-height: var(--line-tag);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-basket-btn {
+  display: none;
+}
+
+.panel-header {
+  display: none;
+}
+
+.timeline-step-item {
+  grid-template-columns: 38rpx minmax(0, 1fr);
+  gap: 14rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--app-border);
+}
+
+.step-num-circle {
+  width: 34rpx;
+  height: 34rpx;
+  border: 0;
+  color: var(--app-primary);
+  background: transparent;
+  font-size: var(--font-size-tag);
+}
+
+.timeline-line-dashed {
+  border-left: 1rpx dashed rgba(122, 139, 111, 0.42);
+}
+
+.step-detail-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.step-content-layout {
+  align-items: flex-start;
+  gap: 18rpx;
+}
+
+.step-img-left {
+  width: 156rpx;
+  height: 124rpx;
+  border-radius: var(--radius-sm);
+}
+
+.step-desc-text,
+.tip-bullet-text {
+  color: var(--text-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--line-body-sm);
+}
+
+.tips-panel {
+  padding: 0;
+}
+
+.tip-bullet-row {
+  display: grid;
+  grid-template-columns: 42rpx minmax(0, 1fr);
+  gap: 16rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--app-border);
+}
+
+.tips-index {
+  color: var(--app-primary);
+  font-size: var(--font-size-tag);
+  line-height: var(--line-body-sm);
+}
+
+.related-section,
+.beverages-card-section {
+  margin-top: 40rpx;
+  padding-top: 34rpx;
+  border-top: 1rpx solid var(--app-border);
+}
+
+.related-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 20rpx) / 2.3);
+  gap: 20rpx;
+  margin-inline: -40rpx;
+  padding-inline: 40rpx;
+  overflow-x: auto;
+}
+
+.related-item-row {
+  display: block;
+  overflow: hidden;
+  padding: 0 0 16rpx;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--app-surface-strong);
+}
+
+.related-thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 0;
+}
+
+.related-info-col {
+  padding: 14rpx 16rpx 0;
+}
+
+.related-desc-text,
+.related-meta-dot,
+.related-diff-badge {
+  display: none;
+}
+
+.bottom-fixed-bar {
+  padding: 16rpx 24rpx calc(16rpx + var(--app-safe-area-bottom));
+  border: 0;
+  background: rgba(245, 241, 234, 0.88);
+  box-shadow: none;
+  backdrop-filter: blur(18px) saturate(112%);
+  -webkit-backdrop-filter: blur(18px) saturate(112%);
+}
+
+.bottom-bar-inner {
+  display: grid;
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bar-btn {
+  min-height: 96rpx;
+  border-radius: var(--app-radius-button);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-semibold);
+}
+
+@media (max-width: 375px) {
+  .recipe-info-card,
+  .recipe-detail-switch,
+  .related-section,
+  .beverages-card-section {
+    padding-inline: 32rpx;
+  }
+
+  .related-list {
+    margin-inline: -32rpx;
+    padding-inline: 32rpx;
+  }
+}
+
+@media (min-resolution: 1dppx) {
+  .ingredients-grid {
+    grid-template-columns: repeat(auto-fit, minmax(132rpx, 1fr));
+  }
+}
+
+.hero-media-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--detail-paper-soft);
+  color: var(--detail-muted);
+  font-size: var(--font-size-caption);
+}
 </style>
+<style scoped lang="scss" src="./canonical.scss"></style>

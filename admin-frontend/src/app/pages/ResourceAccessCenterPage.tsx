@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -8,14 +8,20 @@ import { Drawer } from '../components/Drawer';
 import { Input } from '../components/Input';
 import { PageHeader } from '../components/PageHeader';
 import { StatusTag } from '../components/StatusTag';
+import { buildResourceImportWorkbook } from '../resource-import-template';
+import { getResourceSourceScopeLabel } from '../utils/resource-source';
 import {
+  listResourceApiProviders,
+  syncResourceApiProvider,
+  testSavedResourceApiProvider,
   listImportItems,
+  listImportItemCategories,
   createImportBatch,
   updateImportItem,
   setImportItemStatus,
   confirmImportBatch
 } from '../api';
-import type { ResourceImportStagedItem } from '../types';
+import type { ResourceApiProviderItem, ResourceImportStagedItem } from '../types';
 
 type ResourceType = ResourceImportStagedItem['importType'];
 type ImportStatus = ResourceImportStagedItem['status'];
@@ -35,6 +41,39 @@ const resourceTypeOptions = [
   { label: '调料', value: 'SEASONING' },
   { label: '酒水', value: 'BEVERAGE' }
 ] as const;
+
+const resourceTypeFilterOptions = [
+  { label: '全部分类', value: '' },
+  ...resourceTypeOptions
+] as const;
+
+const buildSyncParamsTemplate = (provider?: ResourceApiProviderItem) => {
+  if (!provider) return '{\n  "page": 1,\n  "pageSize": 100\n}';
+  const providerCode = (provider.providerCode || '').toLowerCase();
+  const providerName = `${provider.providerName} ${provider.name}`.toLowerCase();
+  if (providerCode === 'proj_kitchen' || providerName.includes('proj.kitchen') || providerName.includes('厨房计划')) {
+    return '{\n  "__testEndpointUrl": "https://proj.kitchen/api/recipes",\n  "__syncEndpointUrl": "https://proj.kitchen/api/recipes",\n  "__detailEndpointTemplate": "https://proj.kitchen/api/recipes/{id}",\n  "__excludeCategories": ["饮品"],\n  "page": 1,\n  "pageSize": 20\n}';
+  }
+  if (providerCode === 'juhe_recipe' || providerName.includes('juhe') || providerName.includes('聚合')) {
+    return '{\n  "__appKeyEnv": "JUHE_COOK_KEY",\n  "__appKeyParam": "key",\n  "menu": "黄瓜",\n  "rn": 10,\n  "pn": 0\n}';
+  }
+  if (providerCode === 'tianapi_caipu' || providerCode.startsWith('tianapi_nutrient') || providerName.includes('tianapi') || providerName.includes('天行') || providerName.includes('天聚')) {
+    return '{\n  "__appKeyEnv": "TIANAPI_KEY",\n  "__appKeyParam": "key",\n  "word": "黄瓜",\n  "num": 10,\n  "page": 1\n}';
+  }
+  if (providerCode === 'thecocktaildb' || providerName.includes('cocktaildb')) {
+    return '{\n  "s": "margarita"\n}';
+  }
+  if (providerCode === 'fruityvice') {
+    return '{\n  "__pathTemplate": "/api/fruit/{word}",\n  "word": "apple"\n}';
+  }
+  if (providerCode === 'usda_fdc') {
+    return '{\n  "__appKeyEnv": "USDA_FDC_API_KEY",\n  "__appKeyParam": "api_key",\n  "query": "apple",\n  "pageSize": 10,\n  "pageNumber": 1\n}';
+  }
+  if (providerCode === 'open_food_facts') {
+    return '{\n  "search_terms": "salt",\n  "page_size": 20,\n  "fields": "code,product_name,ingredients_text,nutriments,categories_tags,image_url,brands,quantity"\n}';
+  }
+  return '{\n  "page": 1,\n  "pageSize": 100\n}';
+};
 
 const importStatusOptions = [
   { label: '全部状态', value: '' },
@@ -78,7 +117,18 @@ export const ResourceAccessCenterPage = () => {
   const [q, setQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<ImportStatus | ''>('');
+  const [resourceTypeFilter, setResourceTypeFilter] = useState<ResourceType | ''>('');
+  const [categoryNameFilter, setCategoryNameFilter] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
   const [uploadType, setUploadType] = useState<ResourceType>('RECIPE');
+  const [providerItems, setProviderItems] = useState<ResourceApiProviderItem[]>([]);
+  const [providerLoading, setProviderLoading] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<number | ''>('');
+  const [syncLimit, setSyncLimit] = useState(100);
+  const [syncParamsText, setSyncParamsText] = useState(buildSyncParamsTemplate());
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [previewItem, setPreviewItem] = useState<ResourceImportStagedItem | null>(null);
@@ -92,13 +142,17 @@ export const ResourceAccessCenterPage = () => {
   const refresh = async () => {
     setLoading(true);
     setError(null);
+    setItems([]);
+    setTotal(0);
     try {
       const data = await listImportItems({
         page,
         pageSize,
         q: appliedQ.trim() || undefined,
         status: statusFilter || undefined,
-        batchId: batchIdFilter
+        batchId: batchIdFilter,
+        resourceType: resourceTypeFilter || undefined,
+        categoryName: categoryNameFilter || undefined
       });
       setItems(data.list);
       setTotal(data.total);
@@ -109,9 +163,69 @@ export const ResourceAccessCenterPage = () => {
     }
   };
 
+  const refreshProviders = async () => {
+    setProviderLoading(true);
+    try {
+      const data = await listResourceApiProviders({
+        page: 1,
+        pageSize: 100,
+        resourceType: uploadType
+      });
+      const sortedList = [...data.list].sort((left, right) => {
+        if (left.status === right.status) return left.id - right.id;
+        return left.status === 'ACTIVE' ? -1 : 1;
+      });
+      setProviderItems(sortedList);
+      setSelectedProviderId((current) => {
+        const matched = typeof current === 'number' ? sortedList.find((item) => item.id === current) : null;
+        const nextProvider = matched ?? sortedList.find((item) => item.status === 'ACTIVE') ?? sortedList[0] ?? null;
+        if (nextProvider) {
+          setSyncParamsText(buildSyncParamsTemplate(nextProvider));
+          return nextProvider.id;
+        }
+        setSyncParamsText(buildSyncParamsTemplate());
+        return '';
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载接口提供方失败');
+    } finally {
+      setProviderLoading(false);
+    }
+  };
+
+  const refreshCategories = async () => {
+    setCategoryLoading(true);
+    try {
+      const data = await listImportItemCategories({
+        batchId: batchIdFilter,
+        resourceType: resourceTypeFilter || undefined,
+        q: appliedQ.trim() || undefined
+      });
+      setCategoryOptions(data.list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载分类失败');
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     void refresh();
-  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter]);
+  }, [page, pageSize, appliedQ, statusFilter, batchIdFilter, resourceTypeFilter, categoryNameFilter]);
+
+  useEffect(() => {
+    void refreshCategories();
+  }, [batchIdFilter, resourceTypeFilter, appliedQ]);
+
+  useEffect(() => {
+    void refreshProviders();
+  }, [uploadType]);
+
+  useEffect(() => {
+    if (typeof selectedProviderId !== 'number') return;
+    const provider = providerItems.find((item) => item.id === selectedProviderId);
+    setSyncParamsText(buildSyncParamsTemplate(provider));
+  }, [selectedProviderId, providerItems]);
 
   const handleSearch = () => {
     setPage(1);
@@ -123,10 +237,77 @@ export const ResourceAccessCenterPage = () => {
     setQ('');
     setAppliedQ('');
     setStatusFilter('');
+    setResourceTypeFilter('');
+    setCategoryNameFilter('');
     if (searchParams.has('batchId')) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('batchId');
       setSearchParams(nextParams);
+    }
+  };
+
+  const handleTestProvider = async () => {
+    if (typeof selectedProviderId !== 'number') {
+      setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    const selectedProvider = providerItems.find((item) => item.id === selectedProviderId);
+    if (selectedProvider?.status !== 'ACTIVE') {
+      setNotice('当前 Provider 已禁用，请先启用或补齐后端配置');
+      return;
+    }
+    setTestLoading(true);
+    setError(null);
+    try {
+      const result = await testSavedResourceApiProvider(selectedProviderId);
+      setNotice(
+        result.total > 0
+          ? `测试通过：解析 ${result.total} 条，预览 ${result.preview.length} 条`
+          : '测试完成，但接口解析到 0 条，请检查关键词、API Key、额度或 dataPath'
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '测试连接失败');
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleSyncProvider = async () => {
+    if (typeof selectedProviderId !== 'number') {
+      setNotice('请先选择一个 API 提供方');
+      return;
+    }
+    const selectedProvider = providerItems.find((item) => item.id === selectedProviderId);
+    if (selectedProvider?.status !== 'ACTIVE') {
+      setNotice('当前 Provider 已禁用，请先启用或补齐后端配置');
+      return;
+    }
+    let parsedParams: Record<string, unknown> | null = null;
+    if (syncParamsText.trim()) {
+      try {
+        parsedParams = JSON.parse(syncParamsText) as Record<string, unknown>;
+      } catch {
+        setError('同步参数 JSON 格式无效');
+        return;
+      }
+    }
+
+    setSyncLoading(true);
+    setError(null);
+    try {
+      const result = await syncResourceApiProvider(selectedProviderId, {
+        limit: Math.min(500, Math.max(1, syncLimit || 100)),
+        params: parsedParams
+      });
+      setNotice(`已同步到导入池，批次 #${result.batch.id}，待处理 ${result.summary.pending} 条，失败 ${result.summary.failed} 条`);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('batchId', String(result.batch.id));
+      setSearchParams(nextParams);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '同步失败');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -147,63 +328,7 @@ export const ResourceAccessCenterPage = () => {
   };
 
   const downloadTemplate = (type: ResourceType) => {
-    let headers: string[] = [];
-    let example: Record<string, any> = {};
-
-    if (type === 'RECIPE') {
-      headers = [
-        '名称', '分类', '副标题', '描述', '耗时', '难度', '份量', '卡路里', '口味', '场景', '技巧', '用料', '步骤'
-      ];
-      example = {
-        '名称': '西红柿炒鸡蛋 (必填)',
-        '分类': '家常菜',
-        '副标题': '经典下饭菜，酸甜适口',
-        '描述': '这是一道最经典的家常菜，富含维生素，营养丰富。',
-        '耗时': 15,
-        '难度': '简单',
-        '份量': 2,
-        '卡路里': 200,
-        '口味': '酸甜',
-        '场景': '午餐/晚餐',
-        '技巧': '鸡蛋液里加一点水能让炒蛋更嫩。',
-        '用料': '西红柿 2个, 鸡蛋 3个, 盐 适量, 糖 5克',
-        '步骤': '1. 西红柿洗净切块，鸡蛋打散。\n2. 锅中倒油，鸡蛋炒熟盛出。\n3. 锅中留底油，下西红柿炒出沙，倒入炒好的蛋和调料翻炒均匀。'
-      };
-    } else if (type === 'BEVERAGE') {
-      headers = [
-        '名称', '分类', '图片', '酒水类型', '是否含酒精', '酒精浓度', '描述'
-      ];
-      example = {
-        '名称': '莫吉托 (必填)',
-        '分类': '鸡尾酒',
-        '图片': 'https://example.com/mojito.jpg',
-        '酒水类型': '鸡尾酒',
-        '是否含酒精': '是',
-        '酒精浓度': 12,
-        '描述': '清爽的薄荷和青柠味，是夏日消暑的经典鸡尾酒。'
-      };
-    } else {
-      headers = [
-        '名称', '分类', '图片', '时令月份', '营养成分', '挑选技巧', '储存方法', '食用禁忌', '价格', '计价单位', '价格来源'
-      ];
-      example = {
-        '名称': type === 'FRUIT' ? '红富士苹果 (必填)' : type === 'SEASONING' ? '酿造生抽 (必填)' : '小油菜 (必填)',
-        '分类': type === 'FRUIT' ? '温带水果' : type === 'SEASONING' ? '酱油调味' : '绿叶蔬菜',
-        '图片': 'https://example.com/item.jpg',
-        '时令月份': '9,10,11',
-        '营养成分': '富含维生素和膳食纤维',
-        '挑选技巧': '选择色泽鲜亮，无虫眼，叶片挺拔的。',
-        '储存方法': '冷藏保鲜，常温避光。',
-        '食用禁忌': '无特殊食用禁忌。',
-        '价格': 4.5,
-        '计价单位': '斤',
-        '价格来源': '农贸市场平均价'
-      };
-    }
-
-    const worksheet = XLSX.utils.json_to_sheet([example], { header: headers });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '导入模板');
+    const { workbook, fileName } = buildResourceImportWorkbook(type);
 
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const blobData = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -211,14 +336,7 @@ export const ResourceAccessCenterPage = () => {
     const url = window.URL.createObjectURL(blobData);
     const link = document.createElement('a');
     link.href = url;
-    const typeNames: Record<ResourceType, string> = {
-      RECIPE: '菜谱',
-      INGREDIENT: '食材',
-      FRUIT: '水果',
-      SEASONING: '调料',
-      BEVERAGE: '酒水'
-    };
-    link.setAttribute('download', `${typeNames[type]}导入模板.xlsx`);
+    link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -449,9 +567,36 @@ export const ResourceAccessCenterPage = () => {
       render: (item) => <span className="text-zinc-600 text-sm">{item.mappedData?.categoryName || '-'}</span>
     },
     {
+      key: 'provider',
+      title: '提供方',
+      render: (item) => (
+        <div className="flex flex-col gap-1">
+          <span className="text-zinc-600 text-sm">{item.providerName || '-'}</span>
+          <span className="inline-flex w-fit items-center rounded-full border border-[#e9e2d6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7a8b6f]">
+            {getResourceSourceScopeLabel(item.providerName)}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'externalId',
+      title: '外部 ID',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.externalId || '-'}</span>
+    },
+    {
       key: 'importStatus',
-      title: '导入状态',
+      title: '校验状态',
       render: (item) => <StatusTag label={item.status === 'PENDING' ? '待处理' : item.status === 'IMPORTED' ? '已导入' : item.status === 'FAILED' ? '导入失败' : '已忽略'} tone={importStatusTone[item.status]} />
+    },
+    {
+      key: 'filterCode',
+      title: '过滤码',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.filterCode || '-'}</span>
+    },
+    {
+      key: 'duplicateTargetId',
+      title: '重复目标',
+      render: (item) => <span className="font-mono text-xs text-zinc-500">{item.duplicateTargetId || '-'}</span>
     },
     {
       key: 'duplicateStatus',
@@ -551,9 +696,140 @@ export const ResourceAccessCenterPage = () => {
         </div>
       ) : null}
 
+      <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
+        <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr_auto] items-end">
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">API 提供方</span>
+            <select
+              className={selectClass}
+              value={selectedProviderId}
+              onChange={(e) => {
+                const nextId = e.target.value ? Number(e.target.value) : '';
+                setSelectedProviderId(nextId);
+                if (typeof nextId === 'number') {
+                  const provider = providerItems.find((item) => item.id === nextId);
+                  setSyncParamsText(buildSyncParamsTemplate(provider));
+                } else {
+                  setSyncParamsText(buildSyncParamsTemplate());
+                }
+              }}
+              disabled={providerLoading}
+            >
+              <option value="">{providerLoading ? '加载中...' : '请选择提供方'}</option>
+              {providerItems.map((item) => (
+                <option key={item.id} value={item.id} disabled={item.status !== 'ACTIVE'}>
+                  {item.providerName} - {item.name}{item.status !== 'ACTIVE' ? '（已禁用）' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">同步条数</span>
+            <Input
+              type="number"
+              value={syncLimit}
+              onChange={(e) => setSyncLimit(Number(e.target.value))}
+              min={1}
+              max={500}
+              className="h-11 rounded-xl border-[#e9e2d6]"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">请求参数 JSON</span>
+            <textarea
+              className="min-h-11 rounded-xl border border-[#e9e2d6] bg-white px-3 py-2 text-sm text-[#2f2f2f] outline-none focus:border-[#7a8b6f] focus:ring-2 focus:ring-[#7a8b6f]/10"
+              value={syncParamsText}
+              onChange={(e) => setSyncParamsText(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 xl:justify-end">
+            <Button variant="ghost" className="h-11 px-5" onClick={handleTestProvider} disabled={testLoading}>
+              {testLoading ? '测试中...' : '测试连接'}
+            </Button>
+            <Button className="h-11 bg-[#7a8b6f] px-6 hover:bg-[#6d7f63]" onClick={handleSyncProvider} disabled={syncLoading}>
+              {syncLoading ? '同步中...' : '同步到导入池'}
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Filter Options */}
       <section className="rounded-3xl border border-[#e9e2d6] bg-[#fffdfc] p-6 shadow-sm">
-        <div className="grid gap-4 xl:grid-cols-[1.5fr_2fr_auto_auto] items-end">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">资源大类</span>
+            <div className="flex flex-wrap gap-2">
+              {resourceTypeFilterOptions.map((opt) => {
+                const active = resourceTypeFilter === opt.value;
+                return (
+                  <button
+                    key={opt.value || 'ALL'}
+                    type="button"
+                    className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                        : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                    }`}
+                    onClick={() => {
+                      setResourceTypeFilter(opt.value as ResourceType | '');
+                      setCategoryNameFilter('');
+                      setPage(1);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-semibold text-[#2f2f2f]">分类名称</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition ${
+                  !categoryNameFilter
+                    ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                    : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                }`}
+                onClick={() => {
+                  setCategoryNameFilter('');
+                  setPage(1);
+                }}
+              >
+                全部分类
+              </button>
+              {categoryLoading ? (
+                <span className="text-sm text-[#b7aea1]">加载分类中...</span>
+              ) : categoryOptions.length > 0 ? (
+                categoryOptions.map((name) => {
+                  const active = categoryNameFilter === name;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition ${
+                        active
+                          ? 'border-[#7a8b6f] bg-[#7a8b6f] text-white'
+                          : 'border-[#e9e2d6] bg-white text-[#5e5a52] hover:border-[#7a8b6f] hover:text-[#7a8b6f]'
+                      }`}
+                      onClick={() => {
+                        setCategoryNameFilter(name);
+                        setPage(1);
+                      }}
+                    >
+                      {name}
+                    </button>
+                  );
+                })
+              ) : (
+                <span className="text-sm text-[#b7aea1]">当前筛选下没有可选分类</span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.5fr_2fr_auto_auto] items-end">
           <div className="flex flex-col gap-1.5 text-sm">
             <span className="font-semibold text-[#2f2f2f]">导入状态</span>
             <select
@@ -578,7 +854,7 @@ export const ResourceAccessCenterPage = () => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSearch();
               }}
-              placeholder="请输入资源名称进行搜索..."
+              placeholder="请输入资源名称或分类名称进行搜索..."
               className="h-11 rounded-xl border-[#e9e2d6]"
             />
           </div>
@@ -623,6 +899,7 @@ export const ResourceAccessCenterPage = () => {
             >
               ✓ 批量确认
             </Button>
+          </div>
           </div>
         </div>
       </section>

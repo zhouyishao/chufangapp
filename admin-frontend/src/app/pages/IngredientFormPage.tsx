@@ -13,6 +13,7 @@ import {
 } from '../api';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { TransparentImageUpload } from '../components/TransparentImageUpload';
 import type { Ingredient, IngredientCategory, Recipe } from '../types';
 
 type SelectionGuideItem = {
@@ -90,6 +91,7 @@ type Draft = {
 
   // 2. 封面与图片
   coverUrl: string | null;
+  transparentImage: string | null;
   detailImages: string[];
   imageDesc: string;
   videoUrl: string | null;
@@ -177,6 +179,7 @@ const emptyDraft: Draft = {
   isRecommend: false,
 
   coverUrl: null,
+  transparentImage: null,
   detailImages: [],
   imageDesc: '',
   videoUrl: null,
@@ -271,6 +274,11 @@ const emptyDraft: Draft = {
 };
 
 const serializeDraftToPayload = (draft: Draft) => {
+  const seasonMonth = draft.seasonStart && draft.seasonEnd
+    ? draft.seasonStart === draft.seasonEnd
+      ? String(draft.seasonStart)
+      : `${draft.seasonStart}-${draft.seasonEnd}`
+    : null;
   const nutritionData = {
     description: draft.description,
     nutritionBase: draft.nutritionBase,
@@ -338,8 +346,9 @@ const serializeDraftToPayload = (draft: Draft) => {
   return {
     name: draft.name.trim(),
     coverUrl: draft.coverUrl,
+    transparentImage: draft.transparentImage,
     categoryId: draft.categoryId,
-    seasonMonth: draft.seasonMonth,
+    seasonMonth,
     nutrition: JSON.stringify(nutritionData),
     selectionTips: JSON.stringify(selectionTipsData),
     storageMethod: JSON.stringify(storageMethodData),
@@ -418,6 +427,16 @@ const deserializePayloadToDraft = (ingredient: Ingredient): Draft => {
 
   const categoryName = ingredient.category?.name ?? '蔬菜';
 
+  const legacySeasonMonths = String(ingredient.seasonMonth ?? '')
+    .match(/\d{1,2}/g)
+    ?.map(Number)
+    .filter((month) => month >= 1 && month <= 12) ?? [];
+  const seasonStart = selectionTipsObj.seasonStart ?? legacySeasonMonths[0] ?? null;
+  const seasonEnd =
+    selectionTipsObj.seasonEnd ??
+    legacySeasonMonths[legacySeasonMonths.length - 1] ??
+    seasonStart;
+
   return {
     name: ingredient.name,
     alias: selectionTipsObj.alias ?? '',
@@ -427,14 +446,15 @@ const deserializePayloadToDraft = (ingredient: Ingredient): Draft => {
     tags: Array.isArray(selectionTipsObj.tags) ? selectionTipsObj.tags : [],
     origin: selectionTipsObj.origin ?? '',
     unit: ingredient.priceUnit ?? '斤',
-    seasonMonth: ingredient.seasonMonth,
-    seasonStart: selectionTipsObj.seasonStart ?? null,
-    seasonEnd: selectionTipsObj.seasonEnd ?? null,
+    seasonMonth: seasonStart && seasonEnd ? `${seasonStart}-${seasonEnd}` : null,
+    seasonStart,
+    seasonEnd,
     description: nutritionObj.description ?? ingredient.nutrition ?? '',
     status: ingredient.status,
     isRecommend: ingredient.isRecommend,
 
     coverUrl: ingredient.cover,
+    transparentImage: ingredient.transparentImage,
     detailImages: Array.isArray(ingredient.detailImages) ? ingredient.detailImages : [],
     imageDesc: tabooObj.imageDesc ?? '',
     videoUrl: ingredient.selectionMedia ?? null,
@@ -827,35 +847,11 @@ export const IngredientFormPage = ({ mode, forcedCreateType }: { mode: 'create' 
     }
   };
 
-  // Month select toggler
-  const toggleSeasonMonth = (m: number) => {
-    const months = draft.seasonMonth ? draft.seasonMonth.split(',').map(Number) : [];
-    const set = new Set(months);
-    if (set.has(m)) {
-      set.delete(m);
-    } else {
-      set.add(m);
-    }
-    const sorted = Array.from(set).sort((a, b) => a - b);
-    const seasonString = sorted.length ? sorted.join(',') : null;
-    setDraft((d) => ({ ...d, seasonMonth: seasonString }));
-  };
-
-  // Month range text mapping
-  const seasonText = useMemo(() => {
-    if (!draft.seasonMonth) return '';
-    const months = draft.seasonMonth.split(',').map(Number);
-    const spring = months.filter(m => m >= 3 && m <= 5).length;
-    const summer = months.filter(m => m >= 6 && m <= 8).length;
-    const autumn = months.filter(m => m >= 9 && m <= 11).length;
-    const winter = months.filter(m => m === 12 || m === 1 || m === 2).length;
-    const parts = [];
-    if (spring > 0) parts.push('春季');
-    if (summer > 0) parts.push('夏季');
-    if (autumn > 0) parts.push('秋季');
-    if (winter > 0) parts.push('冬季');
-    return parts.join('·');
-  }, [draft.seasonMonth]);
+  const seasonText = draft.seasonStart && draft.seasonEnd
+    ? draft.seasonStart === draft.seasonEnd
+      ? `${draft.seasonStart}月`
+      : `${draft.seasonStart}月—${draft.seasonEnd}月`
+    : '未设置';
 
   return (
     <section className="min-h-screen bg-[#FAF7F2] py-6 px-4 md:px-8">
@@ -1052,56 +1048,50 @@ export const IngredientFormPage = ({ mode, forcedCreateType }: { mode: 'create' 
                         />
                       </div>
                     </Field>
-                    <div className="md:col-span-2">
-                      <Field label="时令月份" desc="可选多月份">
-                        <div className="grid grid-cols-6 gap-2 mt-2">
-                          {monthOptions.map((m) => {
-                            const isSelected = draft.seasonMonth?.split(',').map(Number).includes(m);
-                            return (
-                              <button
-                                key={m}
-                                type="button"
-                                onClick={() => toggleSeasonMonth(m)}
-                                className={[
-                                  'h-10 rounded-xl text-sm transition',
-                                  isSelected
-                                    ? 'border-[#6f8b62] bg-[#edf5ea] text-[#6f8b62] font-semibold'
-                                    : 'border border-zinc-200 text-[#6f6a61] bg-white hover:border-[#6f8b62]'
-                                ].join(' ')}
-                              >
-                                {m}月
-                              </button>
-                            );
-                          })}
+                    <div className="md:col-span-2 rounded-2xl border border-[#e9e2d6] bg-[#fbf8f3] p-4">
+                      <div className="mb-4 flex items-start justify-between gap-4">
+                        <div>
+                          <h4 className="text-sm font-semibold text-[#2f2f2f]">时令区间</h4>
+                          <p className="mt-1 text-xs leading-5 text-[#81796f]">只配置开始和结束月份，C 端统一显示为“5月—10月”。跨年时令可选择 11月—2月。</p>
                         </div>
-                        {seasonText && (
-                          <div className="mt-2 text-xs text-[#6f8b62]">
-                            判定季节为：<span className="font-semibold">{seasonText}</span>
-                          </div>
-                        )}
-                      </Field>
-                    </div>
-                    <div className="md:col-span-2 flex gap-4 mt-2">
-                      <Field label="上市季节：开始月份 (可选)">
+                        <span className="shrink-0 rounded-full bg-[#edf5ea] px-3 py-1 text-xs font-medium text-[#6f8b62]">{seasonText}</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <Field label="开始月份（可选）">
                         <select
                           value={draft.seasonStart ?? ''}
-                          onChange={(e) => setDraft({ ...draft, seasonStart: e.target.value ? Number(e.target.value) : null })}
-                          className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] outline-none"
+                          onChange={(e) => {
+                            const seasonStart = e.target.value ? Number(e.target.value) : null;
+                            setDraft((current) => ({
+                              ...current,
+                              seasonStart,
+                              seasonMonth: seasonStart && current.seasonEnd ? `${seasonStart}-${current.seasonEnd}` : null
+                            }));
+                          }}
+                          className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] outline-none"
                         >
                           <option value="">开始月份</option>
                           {monthOptions.map((m) => <option key={m} value={m}>{m}月</option>)}
                         </select>
                       </Field>
-                      <Field label="上市季节：结束月份 (可选)">
+                      <Field label="结束月份（可选）">
                         <select
                           value={draft.seasonEnd ?? ''}
-                          onChange={(e) => setDraft({ ...draft, seasonEnd: e.target.value ? Number(e.target.value) : null })}
-                          className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] outline-none"
+                          onChange={(e) => {
+                            const seasonEnd = e.target.value ? Number(e.target.value) : null;
+                            setDraft((current) => ({
+                              ...current,
+                              seasonEnd,
+                              seasonMonth: current.seasonStart && seasonEnd ? `${current.seasonStart}-${seasonEnd}` : null
+                            }));
+                          }}
+                          className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm focus:border-[#6f8b62] outline-none"
                         >
                           <option value="">结束月份</option>
                           {monthOptions.map((m) => <option key={m} value={m}>{m}月</option>)}
                         </select>
                       </Field>
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <Field label="简介 / 特色简述">
@@ -1127,7 +1117,10 @@ export const IngredientFormPage = ({ mode, forcedCreateType }: { mode: 'create' 
 
                   {/* 封面上传区 */}
                   <div>
-                    <h4 className="text-sm font-semibold text-[#2f2f2f] mb-2">详情页封面图 *</h4>
+                    <h4 className="text-sm font-semibold text-[#2f2f2f]">详情页封面图 *</h4>
+                    <p className="mb-3 mt-1 max-w-2xl text-xs leading-5 text-[#81796f]">
+                      用于详情页顶部全宽主图。建议 852×844（约 1:1）；主体放在中间安全区，避开顶部返回/收藏/分享按钮，以及底部信息面板覆盖区域。
+                    </p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -1136,13 +1129,25 @@ export const IngredientFormPage = ({ mode, forcedCreateType }: { mode: 'create' 
                       onChange={handleCoverUpload}
                     />
                     {draft.coverUrl ? (
-                      <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-[#e9e2d6]">
+                      <div
+                        className="group relative w-72 max-w-full overflow-hidden rounded-2xl border border-[#e9e2d6] bg-[#f7f3ed]"
+                        style={{ aspectRatio: '852 / 844' }}
+                      >
                         <img
                           src={resolveAssetUrl(draft.coverUrl)}
                           alt="封面图"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition flex items-center justify-center gap-3">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-[16%] border-b border-dashed border-white/80 bg-black/15">
+                          <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">顶部按钮安全区</span>
+                        </div>
+                        <div className="pointer-events-none absolute inset-x-[10%] bottom-[22%] top-[18%] rounded-xl border border-dashed border-white/85">
+                          <span className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">主体安全视觉区</span>
+                        </div>
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[20%] border-t border-dashed border-white/80 bg-black/20">
+                          <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">信息面板覆盖区</span>
+                        </div>
+                        <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-black/40 opacity-0 transition group-hover:opacity-100">
                           <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
@@ -1163,13 +1168,20 @@ export const IngredientFormPage = ({ mode, forcedCreateType }: { mode: 'create' 
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-44 h-44 border-2 border-dashed border-[#cfc6b8] bg-[#fdfbf7] hover:border-[#6f8b62] rounded-2xl flex flex-col items-center justify-center gap-2 text-[#6f8b62] transition"
+                        className="flex w-72 max-w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc6b8] bg-[#fdfbf7] text-[#6f8b62] transition hover:border-[#6f8b62]"
+                        style={{ aspectRatio: '852 / 844' }}
                       >
                         <span className="text-3xl font-light">+</span>
                         <span className="text-xs">上传封面图</span>
                       </button>
                     )}
                   </div>
+
+                  <TransparentImageUpload
+                    value={draft.transparentImage}
+                    onChange={(transparentImage) => setDraft((d) => ({ ...d, transparentImage }))}
+                    onError={setError}
+                  />
 
                   {/* 图片集上传区 */}
                   <div>
