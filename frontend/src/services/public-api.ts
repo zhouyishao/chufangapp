@@ -1054,7 +1054,7 @@ export const addMobileBasketItem = async (payload: {
   userId: number;
   familyId?: number | null;
   recipeId?: number | null;
-  ingredientId?: number | null;
+  ingredientId?: string | number | null;
   recipeName?: string | null;
   name: string;
   amountText?: string | null;

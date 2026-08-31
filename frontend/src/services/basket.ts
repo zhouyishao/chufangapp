@@ -16,7 +16,7 @@ export interface BasketItem {
   amountText: string;
   purchaseText?: string;
   checked: boolean;
-  ingredientId?: string;
+  ingredientId?: string | number;
   quantity?: number;
   checkedAt?: string | null;
   createdAt?: string;
@@ -88,7 +88,7 @@ const createBasketItem = async (userId: number, scopeFamilyId: string | null, it
     userId,
     familyId: scopeFamilyId ? Number(scopeFamilyId) : null,
     recipeId: item.recipeId && item.recipeId !== 'ingredient' ? Number(item.recipeId) : null,
-    ingredientId: item.ingredientId ? Number(item.ingredientId) : null,
+    ingredientId: item.ingredientId ?? null,
     recipeName: item.recipeName,
     name: item.name,
     amountText: item.amountText,
@@ -97,7 +97,7 @@ const createBasketItem = async (userId: number, scopeFamilyId: string | null, it
   });
 };
 
-export const getIngredientBasketItemId = (ingredientId: string) => `ingredient-${ingredientId}`;
+export const getIngredientBasketItemId = (ingredientId: string | number) => `ingredient-${ingredientId}`;
 
 export const getIngredientPurchaseText = (_name: string): string | undefined => undefined;
 

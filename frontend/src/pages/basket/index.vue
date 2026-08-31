@@ -358,7 +358,7 @@ interface MergedBasketItem {
   checked: boolean;
   itemIds: string[];
   imageUrl?: string | null;
-  ingredientId?: string;
+  ingredientId?: string | number;
   priceText?: string;
   sourceText: string;
 }

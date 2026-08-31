@@ -1285,7 +1285,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
     userId: z.coerce.number().int().positive().optional(),
     familyId: z.coerce.number().int().positive().nullable().optional(),
     recipeId: z.coerce.number().int().positive().nullable().optional(),
-    ingredientId: z.coerce.number().int().positive().nullable().optional(),
+    ingredientId: z.union([z.coerce.number().int().positive(), z.string().trim().min(1)]).nullable().optional(),
     recipeName: z.string().trim().max(120).nullable().optional(),
     name: z.string().trim().min(1).max(80),
     amountText: z.string().trim().max(80).nullable().optional(),
@@ -1294,6 +1294,20 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
     purchaseText: z.string().trim().max(120).nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const ingredient = parsed.data.ingredientId === null || parsed.data.ingredientId === undefined
+    ? null
+    : await prisma.ingredient.findFirst({
+        where: {
+          ...buildPublicIdWhere(parsed.data.ingredientId),
+          deletedAt: null,
+          status: 'ACTIVE'
+        },
+        select: { id: true }
+      });
+  if (parsed.data.ingredientId !== null && parsed.data.ingredientId !== undefined && !ingredient) {
+    throw new HttpError('食材不存在或不可用', 422, 422);
+  }
+  const ingredientId = ingredient?.id ?? null;
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null, status: 'ACTIVE' } });
   if (!user) throw new HttpError('用户不存在', 404, 404);
@@ -1310,7 +1324,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
         familyId: parsed.data.familyId
       }),
       recipeId: parsed.data.recipeId ?? null,
-      ingredientId: parsed.data.ingredientId ?? null,
+      ingredientId: ingredientId,
       name: parsed.data.name
     }
   });
@@ -1332,7 +1346,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
           userId,
           familyId: parsed.data.familyId,
           recipeId: parsed.data.recipeId,
-          ingredientId: parsed.data.ingredientId,
+          ingredientId: ingredientId,
           recipeName: parsed.data.recipeName,
           name: parsed.data.name,
           amountText: parsed.data.amountText,
