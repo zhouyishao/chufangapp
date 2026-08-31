@@ -27,7 +27,8 @@ test('admin ingredient and beverage routes resolve and lock transparent image fi
   }
 });
 
-test('recipe detail exposes transparent ingredient images', async () => {
+test('recipe detail selects only compact linked ingredient presentation fields', async () => {
   const source = await readSource('src/routes/api/recipes.ts');
-  assert.match(source, /ingredient:\s*\{\s*select:\s*\{\s*cover:\s*true,\s*transparentImage:\s*true\s*\}\s*\}/);
+  assert.match(source, /ingredient:\s*\{\s*select:\s*\{\s*id:\s*true,\s*bizId:\s*true,\s*code:\s*true,\s*name:\s*true,\s*transparentImage:\s*true,\s*category:\s*\{\s*select:\s*\{\s*type:\s*true\s*\}\s*\}\s*\}\s*\}/);
+  assert.doesNotMatch(source, /ingredient:\s*\{\s*select:\s*\{[\s\S]*?cover:\s*true/);
 });

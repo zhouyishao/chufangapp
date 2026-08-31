@@ -322,7 +322,20 @@ export type ApiRecipeDetail = ApiRecipeListItem & {
   calories: number | null;
   tips: string | null;
   steps: { id: number; sortIndex: number; title: string | null; description: string; image: string | null }[];
-  ingredients: { id: number; sortIndex: number; ingredientId: number | null; name: string; amount: string | null; ingredient?: { cover: string | null; transparentImage: string | null } | null }[];
+  ingredients: Array<{
+    id: number;
+    sortIndex: number;
+    ingredientId: string | null;
+    name: string;
+    amount: string | null;
+    unit?: string | null;
+    ingredient: {
+      id: string;
+      name: string;
+      transparentImage: string | null;
+      categoryType: 'INGREDIENT' | 'FRUIT' | 'SEASONING';
+    } | null;
+  }>;
   beverages?: {
     recommendReason: string | null;
     sortOrder: number;
@@ -351,6 +364,17 @@ export const getRecipe = async (id: string) => {
   return {
     ...data,
     cover: resolveAssetUrl(data.cover),
+    ingredients: (data.ingredients ?? []).map((item) => ({
+      ...item,
+      ingredient: item.ingredient
+        ? {
+            ...item.ingredient,
+            transparentImage: item.ingredient.transparentImage
+              ? resolveAssetUrl(item.ingredient.transparentImage)
+              : null
+          }
+        : null
+    })),
     beverages: (data.beverages ?? []).map((entry) => ({
       ...entry,
       beverage: { ...entry.beverage, coverImage: resolveAssetUrl(entry.beverage.coverImage) }
@@ -567,7 +591,7 @@ export const getBeverageGuidedFlow = async (id: string) => {
   };
 };
 
-export const listMobileIngredientPriceRecords = async (params: { userId: number; ingredientId: number }) => {
+export const listMobileIngredientPriceRecords = async (params: { userId: number; ingredientId: string | number }) => {
   return request<ApiIngredientPriceRecord[]>(
     `/mobile/ingredient-price-records?userId=${params.userId}&ingredientId=${params.ingredientId}`
   );
@@ -575,7 +599,7 @@ export const listMobileIngredientPriceRecords = async (params: { userId: number;
 
 export const createMobileIngredientPriceRecord = async (payload: {
   userId: number;
-  ingredientId: number;
+  ingredientId: string | number;
   price: number;
   unit: string;
   priceDate?: string;
@@ -999,7 +1023,7 @@ export type ApiBasketItem = {
   userId: number;
   familyId: number | null;
   recipeId: number | null;
-  ingredientId: number | null;
+  ingredientId: string | null;
   recipeName: string | null;
   name: string;
   amountText: string | null;
@@ -1011,7 +1035,7 @@ export type ApiBasketItem = {
   createdAt: string;
   updatedAt: string;
   recipe?: { id: number; title: string; cover: string | null } | null;
-  ingredient?: { id: number; name: string; cover: string | null; currentPrice: number | null; priceUnit: string | null } | null;
+  ingredient?: { id: string; legacyId?: number; code?: string; name: string; cover: string | null; currentPrice: number | null; priceUnit: string | null } | null;
   family?: { id: number; name: string } | null;
 };
 
@@ -1030,7 +1054,7 @@ export const addMobileBasketItem = async (payload: {
   userId: number;
   familyId?: number | null;
   recipeId?: number | null;
-  ingredientId?: number | null;
+  ingredientId?: string | number | null;
   recipeName?: string | null;
   name: string;
   amountText?: string | null;

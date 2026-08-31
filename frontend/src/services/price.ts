@@ -8,7 +8,7 @@ import {
 
 export interface IngredientPriceRecord {
   id: string;
-  ingredientId: number;
+  ingredientId: string | number;
   ingredientName: string;
   price: number;
   unit: string;
@@ -30,7 +30,7 @@ const requireUser = async () => {
   return { ...user, id: user.id };
 };
 
-export const loadPriceRecords = async (ingredientId: number, ingredientName = '') => {
+export const loadPriceRecords = async (ingredientId: string | number, ingredientName = '') => {
   const user = await requireUser();
   const records = await listMobileIngredientPriceRecords({ userId: user.id, ingredientId });
   return records.map((record) => toRecord(record, ingredientName));
@@ -59,6 +59,6 @@ export const removePriceRecord = async (recordId: string) => {
   return true;
 };
 
-export const getPriceRecordsByIngredient = async (ingredientId: number, ingredientName = '') => {
+export const getPriceRecordsByIngredient = async (ingredientId: string | number, ingredientName = '') => {
   return loadPriceRecords(ingredientId, ingredientName);
 };

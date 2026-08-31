@@ -28,6 +28,36 @@ const serializeBeverage = (item: { id: number; bizId?: string | null; code?: str
   code: getPublicCode('beverage', item)
 });
 
+type LinkedRecipeIngredient = {
+  ingredientId: number | null;
+  name: string;
+  ingredient: {
+    id: number;
+    bizId: string | null;
+    code: string | null;
+    name: string;
+    transparentImage: string | null;
+    category: { type: unknown } | null;
+  } | null;
+};
+
+export const serializeRecipeIngredient = <T extends LinkedRecipeIngredient>(item: T) => {
+  if (!item.ingredient) return { ...item, ingredientId: null, ingredient: null };
+
+  const publicId = getPublicId('ingredient', item.ingredient);
+  return {
+    ...item,
+    name: item.ingredient.name,
+    ingredientId: publicId,
+    ingredient: {
+      id: publicId,
+      name: item.ingredient.name,
+      transparentImage: item.ingredient.transparentImage,
+      categoryType: item.ingredient.category?.type ?? 'INGREDIENT'
+    }
+  };
+};
+
 const serializeRecipe = (item: any) => ({
   ...item,
   legacyId: item.id,
@@ -35,6 +65,7 @@ const serializeRecipe = (item: any) => ({
   code: getPublicCode('recipe', item),
   category: serializeCategory(item.category ?? null),
   categoryId: item.category ? getPublicId('category', item.category) : null,
+  ingredients: item.ingredients?.map(serializeRecipeIngredient),
   beverages: item.beverages?.map((entry: any) => ({
     recommendReason: entry.recommendReason,
     sortOrder: entry.sortOrder,
@@ -137,7 +168,18 @@ apiRecipesRouter.get('/:id', async (req, res) => {
       ingredients: {
         where: { deletedAt: null },
         orderBy: [{ sortIndex: 'asc' }, { id: 'asc' }],
-        include: { ingredient: { select: { cover: true, transparentImage: true } } }
+        include: {
+          ingredient: {
+            select: {
+              id: true,
+              bizId: true,
+              code: true,
+              name: true,
+              transparentImage: true,
+              category: { select: { type: true } }
+            }
+          }
+        }
       },
       beverages: {
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],

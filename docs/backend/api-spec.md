@@ -149,4 +149,14 @@
 - 食材、水果、调料共用 `Ingredient.transparentImage`，酒水使用 `Beverage.transparentImage`。
 - `transparentImage` 为选填的透明背景实物图 URL，建议上传 1:1 PNG/WebP，用于菜谱用料和紧凑内容卡片。
 - 管理端可同时提交对应的 `transparentImageFileId`；仅提交 URL 时，后端会按已上传文件 URL 回填文件引用。
-- C 端紧凑图片取值顺序为 `transparentImage ?? cover`（酒水为 `transparentImage ?? coverImage`）。详情封面和普通列表仍使用原封面字段。
+- 一般 C 端紧凑内容卡片取值顺序为 `transparentImage ?? cover`（酒水为 `transparentImage ?? coverImage`）；详情封面和普通列表仍使用原封面字段。
+
+## 公开菜谱用料关联契约
+
+`GET /api/recipes/:id` 与 `GET /api/mobile/recipes/:id` 的每个 `ingredients[]` 条目保留菜谱自身的用量字段，并按关联状态返回：
+
+- 已关联食材时，`name` 必须取关联 `Ingredient.name`，不使用 `RecipeIngredient.name` 快照；`ingredientId` 与 `ingredient.id` 均为食材稳定对外 ID。
+- 已关联条目的 `ingredient` 固定为 `{ id, name, transparentImage, categoryType }`，其中 `transparentImage` 是菜谱紧凑用料卡片的唯一图片字段；接口不查询或返回普通 `cover` 作为该卡片来源。
+- 历史未关联条目保持原有文本、用量等快照字段，并返回 `ingredientId: null`、`ingredient: null`，C 端显示文字占位且不得按名称补查食材或回退普通封面。
+
+`recipe_ingredients.ingredient_id` 在存储层继续允许为空，以兼容历史草稿和存量数据；但菜谱提交审核、审核通过或发布时，每条有效用料必须关联未删除、启用且已配置 `transparentImage` 的食材，否则接口返回 422。

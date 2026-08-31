@@ -79,12 +79,14 @@
         <view class="panel-container">
           <!-- Ingredients Panel -->
           <view v-show="activeTab === 'ingredients'" class="ingredients-panel">
-            <view class="ingredients-grid">
+            <scroll-view scroll-x class="ingredients-scroll" :show-scrollbar="false">
+              <view class="ingredients-strip">
               <view 
                 v-for="item in visibleIngredients" 
-                :key="item.name" 
+                :key="item.id || item.name"
                 class="ingredient-card"
-                @click="showIngredientGuide(item.name)"
+                :class="{ 'is-linked': Boolean(item.ingredientId) }"
+                @click="goToIngredientDetail(item)"
               >
                 <image
                   v-if="item.cover && !failedIngredientCovers[item.name]"
@@ -99,7 +101,8 @@
                 <text class="ingredient-name-label">{{ item.name }}</text>
                 <text class="ingredient-amount-label">{{ scaleAmountText(item.amount, servingsScale) }}</text>
               </view>
-            </view>
+              </view>
+            </scroll-view>
 
           </view>
 
@@ -249,27 +252,6 @@
       />
     </template>
 
-    <!-- Ingredient Guide Modal popup (pantry/selection tips) -->
-    <view v-if="activeGuide" class="guide-modal-mask" @click="closeIngredientGuide">
-      <view class="guide-modal-panel" @click.stop>
-        <view class="guide-modal-header">
-          <view>
-            <text class="guide-modal-title">{{ activeGuide.name }}怎么挑</text>
-            <text class="guide-modal-subtitle">买菜时看这几处就够了</text>
-          </view>
-          <text class="guide-modal-close-x" @click="closeIngredientGuide">×</text>
-        </view>
-        <image class="guide-modal-img" :src="activeGuide.image" mode="aspectFill" />
-        <view class="guide-modal-tips-list">
-          <view v-for="tip in activeGuide.tips" :key="tip" class="guide-modal-tip-row">
-            <view class="guide-modal-tip-dot" />
-            <text class="guide-modal-tip-text">{{ tip }}</text>
-          </view>
-        </view>
-        <view class="guide-modal-ok-btn" @click="closeIngredientGuide">知道了</view>
-      </view>
-    </view>
-
     <!-- Beverage Mixing details popup -->
     <view v-if="activeBeverage" class="guide-modal-mask" @click="closeBeverageMixMethod">
       <view class="guide-modal-panel mix-details-panel" @click.stop>
@@ -352,7 +334,6 @@ import {
   addMobileViewHistory,
   deleteMobileFavorite,
   getRecipe,
-  listIngredients,
   listMobileFavorites,
   listRecipes,
   resolveAssetUrl
@@ -366,6 +347,7 @@ interface Ingredient {
   name: string;
   amount: string;
   cover?: string;
+  categoryType?: 'INGREDIENT' | 'FRUIT' | 'SEASONING';
 }
 
 interface Step {
@@ -404,12 +386,6 @@ interface Recipe {
     recommendReason: string | null;
     description: string | null;
   }[];
-}
-
-interface IngredientGuide {
-  name: string;
-  image: string;
-  tips: string[];
 }
 
 const emptyRecipeDetail: Recipe = {
@@ -582,6 +558,16 @@ const goToRecipe = (id: string | number) => {
   });
 };
 
+const goToIngredientDetail = (item: Ingredient) => {
+  if (!item.ingredientId) return;
+  const route = item.categoryType === 'FRUIT'
+    ? '/pages/fruit-detail/index'
+    : item.categoryType === 'SEASONING'
+      ? '/pages/seasoning-detail/index'
+      : '/pages/ingredient-detail/index';
+  uni.navigateTo({ url: `${route}?id=${encodeURIComponent(String(item.ingredientId))}` });
+};
+
 const shareRecipe = () => {
   uni.showToast({
     title: '链接已复制，快去分享给好友吧',
@@ -595,23 +581,6 @@ const formatIngredientAmount = (item: any) => {
   if (!rawAmount) return unit;
   if (!unit || rawAmount.includes(unit)) return rawAmount;
   return `${rawAmount}${unit}`;
-};
-
-const enrichIngredientCovers = async (items: Ingredient[]) => {
-  const missingNames = [...new Set(items.filter((item) => !item.cover && item.name).map((item) => item.name))];
-  if (missingNames.length === 0) return items;
-
-  const coverEntries = await Promise.all(missingNames.map(async (name) => {
-    try {
-      const result = await listIngredients({ page: 1, pageSize: 8, q: name });
-      const exact = result.list.find((item) => item.name.trim() === name.trim());
-      return [name, exact?.transparentImage ?? exact?.cover ?? ''] as const;
-    } catch {
-      return [name, ''] as const;
-    }
-  }));
-  const covers = new Map(coverEntries);
-  return items.map((item) => item.cover ? item : { ...item, cover: covers.get(item.name) || '' });
 };
 
 const loadRemoteRecipe = async (id: string) => {
@@ -661,22 +630,16 @@ const loadRemoteRecipe = async (id: string) => {
 
     // 8. Ingredients list mapping
     const rawIngs = data.ingredients ?? (data.ingredientItems ?? []);
-    const mappedIngredients = await enrichIngredientCovers(rawIngs.map((item: any) => {
-      const coverSource = item.ingredient?.transparentImage
-        ?? item.ingredient?.cover
-        ?? item.ingredient?.coverImage
-        ?? item.cover
-        ?? item.coverImage
-        ?? item.image;
-      const coverUrl = coverSource ? resolveAssetUrl(coverSource) : '';
+    const mappedIngredients = rawIngs.map((item: any) => {
       return {
         id: item.id,
-        ingredientId: item.ingredientId,
+        ingredientId: item.ingredientId ?? undefined,
         name: item.name ?? item.ingredient?.name ?? '',
         amount: formatIngredientAmount(item),
-        cover: coverUrl
+        cover: item.ingredient?.transparentImage ?? '',
+        categoryType: item.ingredient?.categoryType
       };
-    }));
+    });
 
     // 9. Steps timeline mapping
     const rawSteps = data.steps ?? (data.cookingSteps ?? []);
@@ -784,15 +747,11 @@ const handleRetryRemote = () => {
   void loadRemoteRecipe(currentRecipeId.value);
 };
 
-const activeGuideName = ref('');
 const basketItemIds = ref<string[]>([]);
 const basketItems = ref<BasketItem[]>([]);
 const isCollected = ref(false);
 const pantrySeasonings = ['盐', '糖', '白糖', '酱油', '生抽', '老抽', '蚝油', '料酒', '醋', '食用油', '香油', '胡椒粉', '白胡椒粉', '淀粉'];
 
-const ingredientGuides: Record<string, IngredientGuide> = {};
-
-const activeGuide = computed(() => ingredientGuides[activeGuideName.value]);
 const mainIngredients = computed(() => recipe.value.ingredients.filter((item) => !isPantrySeasoning(item.name)));
 const areMainIngredientsInBasket = computed(() => {
   if (mainIngredients.value.length === 0) return false;
@@ -988,16 +947,6 @@ const getBasketKey = (item: BasketItem) => `${item.recipeId}-${item.name}`;
 const syncBasketState = async () => {
   basketItems.value = await loadBasketItems();
   basketItemIds.value = basketItems.value.map(getBasketKey);
-};
-
-const showIngredientGuide = (name: string) => {
-  if (ingredientGuides[name]) {
-    activeGuideName.value = name;
-  }
-};
-
-const closeIngredientGuide = () => {
-  activeGuideName.value = '';
 };
 
 const startCooking = () => {
@@ -4401,6 +4350,51 @@ onShow(() => {
   background: var(--detail-paper-soft);
   color: var(--detail-muted);
   font-size: var(--font-size-caption);
+}
+
+.ingredients-scroll {
+  width: 100%;
+}
+
+.ingredients-strip {
+  display: flex;
+  width: max-content;
+  gap: var(--space-3);
+  padding: 0 var(--space-1) var(--space-2);
+}
+
+.ingredients-scroll .ingredient-card {
+  display: inline-flex;
+  flex: 0 0 144rpx;
+  min-width: 144rpx;
+  padding: 0 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ingredients-scroll .ingredient-card.is-linked {
+  cursor: pointer;
+}
+
+.ingredients-scroll .ingredient-card:not(.is-linked):active {
+  transform: none;
+}
+
+.ingredient-img {
+  background: transparent;
+}
+
+.ingredients-scroll .ingredient-img {
+  width: 112rpx;
+  height: 112rpx;
+  margin: 0 auto var(--space-1);
+  border-radius: 0;
+  background: transparent;
+}
+
+.ingredient-img-fallback {
+  background: transparent;
 }
 </style>
 <style scoped lang="scss" src="./canonical.scss"></style>

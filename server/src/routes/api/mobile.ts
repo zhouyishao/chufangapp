@@ -15,6 +15,7 @@ import { resolveContentTarget } from '../../services/content-target';
 import { lockOwnedActiveMediaFiles } from '../../services/file-mutation';
 import { getMobileProfile, updateMobileProfile } from '../../services/mobile-profile';
 import { compareMobilePassword } from '../../services/mobile-password';
+import { presentPurchaseItem } from '../../services/purchase-item-presentation';
 
 const pageQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -70,7 +71,7 @@ const userIdSchema = z.object({ userId: z.coerce.number().int().positive() });
 
 const ingredientPriceRecordSchema = z.object({
   userId: z.coerce.number().int().positive().optional(),
-  ingredientId: z.coerce.number().int().positive(),
+  ingredientId: z.union([z.coerce.number().int().positive(), z.string().trim().min(1)]),
   price: z.coerce.number().finite().positive(),
   unit: z.string().trim().min(1).max(20),
   priceDate: z.string().trim().optional(),
@@ -117,7 +118,7 @@ const myRecipeUpsertSchema = z.object({
 
 const purchaseItemInclude = {
   recipe: { select: { id: true, title: true, cover: true } },
-  ingredient: { select: { id: true, name: true, cover: true, currentPrice: true, priceUnit: true } },
+  ingredient: { select: { id: true, bizId: true, code: true, name: true, cover: true, currentPrice: true, priceUnit: true } },
   family: { select: { id: true, name: true } }
 };
 
@@ -132,33 +133,6 @@ const familyInclude = {
   preferences: true,
   _count: { select: { members: true, purchaseListItems: true } }
 };
-
-const toPurchaseItem = (item: {
-  id: number;
-  userId: number;
-  familyId: number | null;
-  recipeId: number | null;
-  ingredientId: number | null;
-  recipeName: string | null;
-  name: string;
-  amountText: string | null;
-  quantity: { toNumber?: () => number } | number;
-  unit: string | null;
-  purchaseText: string | null;
-  checked: boolean;
-  checkedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  recipe?: { id: number; title: string; cover: string | null } | null;
-  ingredient?: { id: number; name: string; cover: string | null; currentPrice: number | null; priceUnit: string | null } | null;
-  family?: { id: number; name: string } | null;
-}) => ({
-  ...item,
-  quantity: typeof item.quantity === 'number' ? item.quantity : item.quantity.toNumber?.() ?? Number(item.quantity),
-  checkedAt: item.checkedAt?.toISOString() ?? null,
-  createdAt: item.createdAt.toISOString(),
-  updatedAt: item.updatedAt.toISOString()
-});
 
 const toIngredientPriceRecord = (record: {
   id: number;
@@ -733,15 +707,20 @@ apiMobileRouter.delete('/search-histories', requireAppAuth, async (req, res) => 
 apiMobileRouter.get('/ingredient-price-records', requireAppAuth, async (req, res) => {
   const parsed = z.object({
     userId: z.coerce.number().int().positive().optional(),
-    ingredientId: z.coerce.number().int().positive()
+    ingredientId: z.union([z.coerce.number().int().positive(), z.string().trim().min(1)])
   }).safeParse(req.query);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
 
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
+  const ingredient = await prisma.ingredient.findFirst({
+    where: { ...buildPublicIdWhere(parsed.data.ingredientId), deletedAt: null, status: 'ACTIVE' },
+    select: { id: true }
+  });
+  if (!ingredient) throw new HttpError('食材不存在或不可用', 422, 422);
   const list = await prisma.ingredientPriceRecord.findMany({
     where: {
       userId,
-      ingredientId: parsed.data.ingredientId,
+      ingredientId: ingredient.id,
       deletedAt: null
     },
     orderBy: [{ priceDate: 'desc' }, { id: 'desc' }]
@@ -757,9 +736,14 @@ apiMobileRouter.post('/ingredient-price-records', requireAppAuth, async (req, re
   if (Number.isNaN(priceDate.getTime())) throw new HttpError('日期错误', 400, 400);
 
   const created = await prisma.$transaction(async (tx) => {
+    const ingredient = await tx.ingredient.findFirst({
+      where: { ...buildPublicIdWhere(parsed.data.ingredientId), deletedAt: null, status: 'ACTIVE' },
+      select: { id: true }
+    });
+    if (!ingredient) throw new HttpError('食材不存在或不可用', 422, 422);
     const record = await tx.ingredientPriceRecord.create({
       data: {
-        ingredientId: parsed.data.ingredientId,
+        ingredientId: ingredient.id,
         userId,
         price: parsed.data.price,
         unit: parsed.data.unit,
@@ -768,7 +752,7 @@ apiMobileRouter.post('/ingredient-price-records', requireAppAuth, async (req, re
       }
     });
     await tx.ingredient.update({
-      where: { id: parsed.data.ingredientId },
+      where: { id: ingredient.id },
       data: {
         currentPrice: parsed.data.price,
         priceUnit: parsed.data.unit,
@@ -1275,7 +1259,7 @@ apiMobileRouter.get('/basket-items', requireAppAuth, async (req, res) => {
     }),
     prisma.purchaseListItem.count({ where })
   ]);
-  const list = rows.map(toPurchaseItem);
+  const list = rows.map(presentPurchaseItem);
   const data: PageResult<(typeof list)[number]> = { list, total, page, pageSize };
   res.json(ok(data));
 });
@@ -1285,7 +1269,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
     userId: z.coerce.number().int().positive().optional(),
     familyId: z.coerce.number().int().positive().nullable().optional(),
     recipeId: z.coerce.number().int().positive().nullable().optional(),
-    ingredientId: z.coerce.number().int().positive().nullable().optional(),
+    ingredientId: z.union([z.coerce.number().int().positive(), z.string().trim().min(1)]).nullable().optional(),
     recipeName: z.string().trim().max(120).nullable().optional(),
     name: z.string().trim().min(1).max(80),
     amountText: z.string().trim().max(80).nullable().optional(),
@@ -1294,6 +1278,20 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
     purchaseText: z.string().trim().max(120).nullable().optional()
   }).safeParse(req.body);
   if (!parsed.success) throw new HttpError('参数错误', 400, 400);
+  const ingredient = parsed.data.ingredientId === null || parsed.data.ingredientId === undefined
+    ? null
+    : await prisma.ingredient.findFirst({
+        where: {
+          ...buildPublicIdWhere(parsed.data.ingredientId),
+          deletedAt: null,
+          status: 'ACTIVE'
+        },
+        select: { id: true }
+      });
+  if (parsed.data.ingredientId !== null && parsed.data.ingredientId !== undefined && !ingredient) {
+    throw new HttpError('食材不存在或不可用', 422, 422);
+  }
+  const ingredientId = ingredient?.id ?? null;
   const userId = resolveRequestUserId(req.appUser!.id, parsed.data.userId);
   const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null, status: 'ACTIVE' } });
   if (!user) throw new HttpError('用户不存在', 404, 404);
@@ -1310,7 +1308,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
         familyId: parsed.data.familyId
       }),
       recipeId: parsed.data.recipeId ?? null,
-      ingredientId: parsed.data.ingredientId ?? null,
+      ingredientId: ingredientId,
       name: parsed.data.name
     }
   });
@@ -1332,7 +1330,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
           userId,
           familyId: parsed.data.familyId,
           recipeId: parsed.data.recipeId,
-          ingredientId: parsed.data.ingredientId,
+          ingredientId: ingredientId,
           recipeName: parsed.data.recipeName,
           name: parsed.data.name,
           amountText: parsed.data.amountText,
@@ -1342,7 +1340,7 @@ apiMobileRouter.post('/basket-items', requireAppAuth, async (req, res) => {
         },
         include: purchaseItemInclude
       });
-  res.json(ok(toPurchaseItem(item)));
+  res.json(ok(presentPurchaseItem(item)));
 });
 
 apiMobileRouter.put('/basket-items/:id', requireAppAuth, async (req, res) => {
@@ -1382,7 +1380,7 @@ apiMobileRouter.put('/basket-items/:id', requireAppAuth, async (req, res) => {
     },
     include: purchaseItemInclude
   });
-  res.json(ok(toPurchaseItem(item)));
+  res.json(ok(presentPurchaseItem(item)));
 });
 
 apiMobileRouter.delete('/basket-items/:id', requireAppAuth, async (req, res) => {
@@ -1411,7 +1409,7 @@ apiMobileRouter.delete('/basket-items/:id', requireAppAuth, async (req, res) => 
     throw new HttpError('无权删除该菜篮子条目', 403, 403);
   }
   const item = await prisma.purchaseListItem.update({ where: { id }, data: { deletedAt: new Date(), status: 'DISABLED' }, include: purchaseItemInclude });
-  res.json(ok(toPurchaseItem(item)));
+  res.json(ok(presentPurchaseItem(item)));
 });
 
 apiMobileRouter.post('/favorites', requireAppAuth, async (req, res) => {

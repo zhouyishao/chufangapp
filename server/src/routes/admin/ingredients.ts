@@ -9,6 +9,7 @@ import { buildPublicIdWhere, createBusinessId, getPublicCode, getPublicId, nextC
 import { optionalContentMediaUrl } from '../../lib/content-media-url';
 import { lockActiveMediaFiles } from '../../services/file-mutation';
 import { resolveActiveFileId, resolveActiveFileIds } from '../../services/content-media';
+import { assertIngredientCanBecomeUnavailable } from '../../services/ingredient-recipe-guard';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -162,9 +163,13 @@ adminIngredientsRouter.put('/:id', requireAdminAuth, async (req, res) => {
   const categoryId = await resolveCategoryId(parsed.data.categoryId);
   const { categoryId: _categoryId, ...payload } = parsed.data;
   const shouldUpdateTransparentImage = parsed.data.transparentImage !== undefined || parsed.data.transparentImageFileId !== undefined;
+  const removesTransparentImage = parsed.data.transparentImage !== undefined && !parsed.data.transparentImage?.trim();
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
+      if (parsed.data.status === 'DISABLED' || removesTransparentImage) {
+        await assertIngredientCanBecomeUnavailable(tx, existing.id);
+      }
       const coverFileId = await resolveActiveFileId(tx, parsed.data.coverFileId, parsed.data.cover);
       const transparentImageFileId = shouldUpdateTransparentImage
         ? await resolveActiveFileId(tx, parsed.data.transparentImageFileId, parsed.data.transparentImage)
@@ -199,10 +204,13 @@ adminIngredientsRouter.delete('/:id', requireAdminAuth, async (req, res) => {
   const existing = await prisma.ingredient.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
   if (!existing) throw new HttpError('not found', 404, 404);
 
-  const deleted = await prisma.ingredient.update({
-    where: { id: existing.id },
-    data: { deletedAt: new Date(), isDeleted: true },
-    include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+  const deleted = await prisma.$transaction(async (tx) => {
+    await assertIngredientCanBecomeUnavailable(tx, existing.id);
+    return tx.ingredient.update({
+      where: { id: existing.id },
+      data: { deletedAt: new Date(), isDeleted: true },
+      include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+    });
   });
   res.json(ok(serializeIngredient(deleted)));
 });
@@ -244,10 +252,19 @@ adminIngredientsRouter.patch('/:id/status', requireAdminAuth, async (req, res) =
   const existing = await prisma.ingredient.findFirst({ where: { ...buildPublicIdWhere(req.params.id), deletedAt: null } });
   if (!existing) throw new HttpError('not found', 404, 404);
 
-  const updated = await prisma.ingredient.update({
-    where: { id: existing.id },
-    data: { status: parsed.data.status },
-    include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
-  });
+  const updated = parsed.data.status === 'DISABLED'
+    ? await prisma.$transaction(async (tx) => {
+        await assertIngredientCanBecomeUnavailable(tx, existing.id);
+        return tx.ingredient.update({
+          where: { id: existing.id },
+          data: { status: parsed.data.status },
+          include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+        });
+      })
+    : await prisma.ingredient.update({
+        where: { id: existing.id },
+        data: { status: parsed.data.status },
+        include: { category: { select: { id: true, bizId: true, code: true, name: true, type: true } } }
+      });
   res.json(ok(serializeIngredient(updated)));
 });

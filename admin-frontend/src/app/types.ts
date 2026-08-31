@@ -190,6 +190,14 @@ export type Recipe = {
     unit?: string | null;
     type?: string | null;
     note?: string | null;
+    ingredient?: {
+      id: string;
+      name: string;
+      transparentImage: string | null;
+      categoryType: IngredientCategory['type'];
+    } | null;
+    ingredientStatus?: 'LINKED' | 'UNLINKED' | 'MISSING_TRANSPARENT_IMAGE' | 'UNAVAILABLE';
+    transparentImage: string | null;
   }[];
   createdAt: string;
   updatedAt: string;
