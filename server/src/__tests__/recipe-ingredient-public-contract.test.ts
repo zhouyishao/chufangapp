@@ -1,16 +1,44 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import test from 'node:test';
 
-test('public recipe detail serializes the linked ingredient as the source of truth', async () => {
-  const source = await readFile(join(process.cwd(), 'src/routes/api/recipes.ts'), 'utf8');
+import { serializeRecipeIngredient } from '../routes/api/recipes';
 
-  assert.match(source, /serializeRecipeIngredient/);
-  assert.match(source, /getPublicId\('ingredient', item\.ingredient\)/);
-  assert.match(source, /name:\s*item\.ingredient\.name/);
-  assert.match(source, /transparentImage:\s*item\.ingredient\.transparentImage/);
-  assert.match(source, /categoryType:\s*item\.ingredient\.category\?\.type/);
-  assert.match(source, /if \(!item\.ingredient\).*ingredientId: null, ingredient: null/s);
-  assert.doesNotMatch(source, /ingredient:\s*\{\s*select:\s*\{\s*cover:\s*true/);
+test('public recipe detail serializes linked ingredients from the authoritative resource', () => {
+  const serialized = serializeRecipeIngredient({
+    id: 9,
+    ingredientId: 38,
+    name: '历史番茄名称',
+    amount: '2 个',
+    ingredient: {
+      id: 38,
+      bizId: 'ingredient_tomato',
+      code: 'SC000038',
+      name: '番茄',
+      transparentImage: 'https://example.test/tomato.webp',
+      category: { type: 'INGREDIENT' }
+    }
+  });
+
+  assert.equal(serialized.ingredientId, 'ingredient_tomato');
+  assert.equal(serialized.name, '番茄');
+  assert.deepEqual(serialized.ingredient, {
+    id: 'ingredient_tomato',
+    name: '番茄',
+    transparentImage: 'https://example.test/tomato.webp',
+    categoryType: 'INGREDIENT'
+  });
+});
+
+test('public recipe detail preserves unlinked legacy ingredients as null associations', () => {
+  const serialized = serializeRecipeIngredient({
+    id: 10,
+    ingredientId: null,
+    name: '自定义香料',
+    amount: '少许',
+    ingredient: null
+  });
+
+  assert.equal(serialized.ingredientId, null);
+  assert.equal(serialized.ingredient, null);
+  assert.equal(serialized.name, '自定义香料');
 });

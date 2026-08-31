@@ -41,7 +41,7 @@ type LinkedRecipeIngredient = {
   } | null;
 };
 
-const serializeRecipeIngredient = <T extends LinkedRecipeIngredient>(item: T) => {
+export const serializeRecipeIngredient = <T extends LinkedRecipeIngredient>(item: T) => {
   if (!item.ingredient) return { ...item, ingredientId: null, ingredient: null };
 
   const publicId = getPublicId('ingredient', item.ingredient);
