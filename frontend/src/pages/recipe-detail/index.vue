@@ -343,7 +343,7 @@ import { navigateBackFromContentDetail, resolveDetailEntryOrigin } from '../../u
 
 interface Ingredient {
   id?: number | string;
-  ingredientId?: string | null;
+  ingredientId?: number | string;
   name: string;
   amount: string;
   cover?: string;
@@ -633,7 +633,7 @@ const loadRemoteRecipe = async (id: string) => {
     const mappedIngredients = rawIngs.map((item: any) => {
       return {
         id: item.id,
-        ingredientId: item.ingredientId,
+        ingredientId: item.ingredientId ?? undefined,
         name: item.name ?? item.ingredient?.name ?? '',
         amount: formatIngredientAmount(item),
         cover: item.ingredient?.transparentImage ?? '',
