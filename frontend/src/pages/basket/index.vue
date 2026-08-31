@@ -358,14 +358,14 @@ interface MergedBasketItem {
   checked: boolean;
   itemIds: string[];
   imageUrl?: string | null;
-  ingredientId?: string | number;
+  ingredientId?: string | null;
   priceText?: string;
   sourceText: string;
 }
 
 interface PriceInputItem {
   id: string;
-  ingredientId: number;
+  ingredientId: string | number;
   name: string;
   unit: string;
   priceText: string;
@@ -763,7 +763,7 @@ const completePurchase = async () => {
   if (purchasableItems.length) {
     priceInputs.value = purchasableItems.map((item) => ({
       id: item.id,
-      ingredientId: item.ingredientId ? Number(item.ingredientId) : 0,
+      ingredientId: item.ingredientId ?? 0,
       name: item.name,
       unit: getPriceUnit(item),
       priceText: ''

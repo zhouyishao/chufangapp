@@ -30,3 +30,29 @@ test('basket creation rejects an invalid public ingredient ID before deduplicati
   assert.match(createBlock, /throw new HttpError\('食材不存在或不可用', 422, 422\)/);
   assert.match(createBlock, /ingredientId:\s*ingredientId,\n\s*name:\s*parsed\.data\.name/);
 });
+
+test('basket responses present ingredient IDs through the shared public-ID serializer', async () => {
+  const source = await readMobileRoute();
+
+  assert.match(source, /import \{ presentPurchaseItem \} from '..\/..\/services\/purchase-item-presentation'/);
+  assert.match(source, /bizId:\s*true/);
+  assert.match(source, /code:\s*true/);
+  assert.match(source, /rows\.map\(presentPurchaseItem\)/);
+  assert.match(source, /res\.json\(ok\(presentPurchaseItem\(item\)\)\)/);
+});
+
+test('price records accept the same public ingredient ID emitted by basket responses', async () => {
+  const source = await readMobileRoute();
+  const getPriceRoute = source.slice(
+    source.indexOf("apiMobileRouter.get('/ingredient-price-records'"),
+    source.indexOf("apiMobileRouter.post('/ingredient-price-records'")
+  );
+  const postPriceRoute = source.slice(
+    source.indexOf("apiMobileRouter.post('/ingredient-price-records'"),
+    source.indexOf("apiMobileRouter.delete('/ingredient-price-records'")
+  );
+
+  assert.match(getPriceRoute, /buildPublicIdWhere\(parsed\.data\.ingredientId\)/);
+  assert.match(postPriceRoute, /buildPublicIdWhere\(parsed\.data\.ingredientId\)/);
+  assert.match(postPriceRoute, /食材不存在或不可用/);
+});

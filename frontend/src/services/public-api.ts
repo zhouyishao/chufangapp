@@ -591,7 +591,7 @@ export const getBeverageGuidedFlow = async (id: string) => {
   };
 };
 
-export const listMobileIngredientPriceRecords = async (params: { userId: number; ingredientId: number }) => {
+export const listMobileIngredientPriceRecords = async (params: { userId: number; ingredientId: string | number }) => {
   return request<ApiIngredientPriceRecord[]>(
     `/mobile/ingredient-price-records?userId=${params.userId}&ingredientId=${params.ingredientId}`
   );
@@ -599,7 +599,7 @@ export const listMobileIngredientPriceRecords = async (params: { userId: number;
 
 export const createMobileIngredientPriceRecord = async (payload: {
   userId: number;
-  ingredientId: number;
+  ingredientId: string | number;
   price: number;
   unit: string;
   priceDate?: string;
@@ -1023,7 +1023,7 @@ export type ApiBasketItem = {
   userId: number;
   familyId: number | null;
   recipeId: number | null;
-  ingredientId: number | null;
+  ingredientId: string | null;
   recipeName: string | null;
   name: string;
   amountText: string | null;
@@ -1035,7 +1035,7 @@ export type ApiBasketItem = {
   createdAt: string;
   updatedAt: string;
   recipe?: { id: number; title: string; cover: string | null } | null;
-  ingredient?: { id: number; name: string; cover: string | null; currentPrice: number | null; priceUnit: string | null } | null;
+  ingredient?: { id: string; legacyId?: number; code?: string; name: string; cover: string | null; currentPrice: number | null; priceUnit: string | null } | null;
   family?: { id: number; name: string } | null;
 };
 

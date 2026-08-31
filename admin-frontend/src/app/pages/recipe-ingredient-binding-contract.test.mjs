@@ -24,3 +24,13 @@ test('non-draft recipe states validate the first invalid ingredient before savin
   assert.match(page, /intent === 'submit' \|\| requiresQualifiedIngredients\(finalDraft\)/);
   assert.match(page, /食材“\$\{invalidItem\.name\.trim\(\)\}”/);
 });
+
+test('ingredient binding only searches active resources and preserves unavailable associations as invalid', async () => {
+  const page = await readSource('./RecipeFormPage.tsx');
+  const types = await readSource('../types.ts');
+
+  assert.match(page, /listIngredients\(\{ q, pageSize: 8, status: 'ACTIVE' \}\)/);
+  assert.match(page, /关联食材不可用/);
+  assert.match(page, /ingredientStatus === 'UNAVAILABLE'/);
+  assert.match(types, /'LINKED' \| 'UNLINKED' \| 'MISSING_TRANSPARENT_IMAGE' \| 'UNAVAILABLE'/);
+});

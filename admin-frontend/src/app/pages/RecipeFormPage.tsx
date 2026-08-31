@@ -34,7 +34,7 @@ type IngredientDraft = {
     transparentImage: string | null;
     categoryType: IngredientCategory['type'];
   } | null;
-  ingredientStatus: 'LINKED' | 'UNLINKED' | 'MISSING_TRANSPARENT_IMAGE';
+  ingredientStatus: 'LINKED' | 'UNLINKED' | 'MISSING_TRANSPARENT_IMAGE' | 'UNAVAILABLE';
   transparentImage: string | null;
 };
 type StepDraft = {
@@ -407,7 +407,9 @@ const requiresQualifiedIngredients = (draft: Draft) =>
   draft.auditStatus === 'PENDING' || draft.auditStatus === 'APPROVED' || draft.isPublish;
 
 const ingredientStatusLabel = (item: IngredientDraft) =>
-  item.ingredientStatus === 'MISSING_TRANSPARENT_IMAGE' || (item.ingredientId && !item.transparentImage?.trim())
+  item.ingredientStatus === 'UNAVAILABLE'
+    ? '关联食材不可用'
+    : item.ingredientStatus === 'MISSING_TRANSPARENT_IMAGE' || (item.ingredientId && !item.transparentImage?.trim())
     ? '食材缺少透明图'
     : '请选择资源库食材';
 
@@ -1756,7 +1758,7 @@ const IngredientAutocompleteInput = ({
       setSearching(true);
       timer = setTimeout(async () => {
         try {
-          const res = await listIngredients({ q, pageSize: 8 });
+          const res = await listIngredients({ q, pageSize: 8, status: 'ACTIVE' });
           setSuggestions(res.list);
           setOpen(res.list.length > 0);
         } catch (e) {

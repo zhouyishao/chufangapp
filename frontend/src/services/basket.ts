@@ -16,7 +16,7 @@ export interface BasketItem {
   amountText: string;
   purchaseText?: string;
   checked: boolean;
-  ingredientId?: string | number;
+  ingredientId?: string | null;
   quantity?: number;
   checkedAt?: string | null;
   createdAt?: string;
@@ -70,7 +70,7 @@ const mapBasketItem = (item: ApiBasketItem): BasketItem => ({
   amountText: item.amountText || (item.quantity ? String(item.quantity) : ''),
   purchaseText: item.purchaseText || undefined,
   checked: item.checked,
-  ingredientId: item.ingredientId ? String(item.ingredientId) : undefined,
+  ingredientId: item.ingredientId ?? null,
   quantity: item.quantity,
   checkedAt: item.checkedAt,
   createdAt: item.createdAt,

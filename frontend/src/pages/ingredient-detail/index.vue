@@ -713,7 +713,7 @@ const saveManualPrice = async () => {
     await addPriceRecords([
       {
         id: `${ingredient.value.id}-${Date.now()}`,
-        ingredientId: Number(ingredient.value.id),
+        ingredientId: ingredient.value.id,
         ingredientName: ingredient.value.name,
         price: normalizePriceToJin(price, selectedManualUnit.value, Number(manualSpecAmount.value)),
         unit: getNormalizedUnit(selectedManualUnit.value),

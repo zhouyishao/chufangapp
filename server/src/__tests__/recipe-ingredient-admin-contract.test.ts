@@ -126,3 +126,27 @@ test('quality-gated status transitions lock the recipe row before loading linked
   assert.ok(recipeLockIndex > recipeLookupIndex);
   assert.ok(ingredientLoadIndex > recipeLockIndex);
 });
+
+test('ingredient downgrades guard protected recipe links inside the same transaction', async () => {
+  const source = await readSource('src/routes/admin/ingredients.ts');
+  const putRoute = source.slice(
+    source.indexOf("adminIngredientsRouter.put('/:id'"),
+    source.indexOf("adminIngredientsRouter.delete('/:id'")
+  );
+  const deleteRoute = source.slice(
+    source.indexOf("adminIngredientsRouter.delete('/:id'"),
+    source.indexOf("adminIngredientsRouter.patch('/:id/publish'")
+  );
+  const statusRoute = source.slice(
+    source.indexOf("adminIngredientsRouter.patch('/:id/status'"),
+    source.length
+  );
+
+  assert.match(source, /assertIngredientCanBecomeUnavailable/);
+  assert.match(putRoute, /const updated = await prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(putRoute, /await assertIngredientCanBecomeUnavailable\(tx, existing\.id\)/);
+  assert.match(deleteRoute, /const deleted = await prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(deleteRoute, /await assertIngredientCanBecomeUnavailable\(tx, existing\.id\)/);
+  assert.match(statusRoute, /parsed\.data\.status === 'DISABLED'/);
+  assert.match(statusRoute, /await assertIngredientCanBecomeUnavailable\(tx, existing\.id\)/);
+});

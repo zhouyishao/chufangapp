@@ -196,7 +196,7 @@ export type Recipe = {
       transparentImage: string | null;
       categoryType: IngredientCategory['type'];
     } | null;
-    ingredientStatus?: 'LINKED' | 'UNLINKED' | 'MISSING_TRANSPARENT_IMAGE';
+    ingredientStatus?: 'LINKED' | 'UNLINKED' | 'MISSING_TRANSPARENT_IMAGE' | 'UNAVAILABLE';
     transparentImage: string | null;
   }[];
   createdAt: string;

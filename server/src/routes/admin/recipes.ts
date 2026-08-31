@@ -137,6 +137,8 @@ const serializeRecipeIngredient = <T extends RecipeIngredientRelation>(item: T) 
   ...item,
   ingredientStatus: !item.ingredientId || !item.ingredient
     ? 'UNLINKED'
+    : item.ingredient.deletedAt || item.ingredient.status !== 'ACTIVE'
+      ? 'UNAVAILABLE'
     : !item.ingredient.transparentImage?.trim()
       ? 'MISSING_TRANSPARENT_IMAGE'
       : 'LINKED',
